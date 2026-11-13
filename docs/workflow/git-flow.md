@@ -1,6 +1,6 @@
 # Git workflow: git-flow
 Read when: starting a task, committing, opening or merging a PR, releasing, or fixing a release.
-TL;DR: Two permanent branches (`main` = released, `develop` = next release) and three temporary ones (`feature/*`, `release-*`, `hotfix-*`). Every branch works on a GitHub issue of this repo, named by its number (`#12`). Every merge into a permanent branch is a GitHub pull request, merged with a merge commit after `bin/check` passes. Agents commit only on temporary branches, may push them and open PRs while working on an issue, and merge, tag or release only when the maintainer asks.
+TL;DR: Two permanent branches (`main` = released, `develop` = next release) and three temporary ones (`feature/*`, `release-*`, `hotfix-*`). Every branch works on a GitHub issue of this repo, named by its number (`#12`). Every merge into a permanent branch is a GitHub pull request, merged with a merge commit after the `ci-ok` check is green. Agents commit only on temporary branches, may push them and open PRs while working on an issue, and merge, tag or release only when the maintainer asks.
 
 Source: Vincent Driessen, "A successful Git branching model", https://nvie.com/posts/a-successful-git-branching-model/. Deviations: our `master` is named `main`, and merges happen through GitHub pull requests instead of local `git merge`.
 
@@ -22,7 +22,8 @@ Source: Vincent Driessen, "A successful Git branching model", https://nvie.com/p
 ### Don't
 - Don't commit to `main` by hand. Code reaches it only through a PR from `release-*` or `hotfix-*`.
 - Don't commit work directly on `develop`. It arrives through a PR from a `feature/*` branch.
-- Don't rebase, reset, or force-push `main` or `develop`.
+- Don't rebase, reset, or force-push `main` or `develop`. A GitHub ruleset (`protect-permanent`) blocks direct pushes, force pushes and deletion on both.
+- Don't wait for an approving review: the ruleset requires a PR with 0 approvals, because a sole maintainer cannot approve their own PR. The green `ci-ok` check is the gate. The repository admin may bypass the ruleset only through a PR (to merge past a broken check), never by a direct push.
 
 ## Task branch (`feature/*`)
 ### Do
@@ -37,19 +38,19 @@ Source: Vincent Driessen, "A successful Git branching model", https://nvie.com/p
   git push -u origin feature/<n>-<slug>
   gh pr create --base develop --title "<summary>" --body "Closes #<n>. <what and why; how verified>"
   ```
-  The maintainer merges with `gh pr merge <pr> -R decadance-dance/orca-plane --merge --delete-branch`. With `-R`, gh deletes only the remote branch and leaves the local checkout alone; without it, gh tries to switch the task's worktree to `develop` to delete the local branch, and git refuses when another checkout already has `develop`. Then, from the primary checkout, run `git pull` and delete the issue's local branch and its worktree, if it had one.
+  Wait for `ci-ok` to go green (`gh pr checks <pr> --watch`): it runs `bin/check` with the Orca CLI from the `orca-server` Linux release (`.github/workflows/ci.yml`). The maintainer merges with `gh pr merge <pr> -R decadance-dance/orca-plane --merge --delete-branch`. With `-R`, gh deletes only the remote branch and leaves the local checkout alone; without it, gh tries to switch the task's worktree to `develop` to delete the local branch, and git refuses when another checkout already has `develop`. Then, from the primary checkout, run `git pull` and delete the issue's local branch and its worktree, if it had one.
 
 ### Don't
 - Don't branch a task off `main` or off another feature branch, unless the user asks for stacked work.
 - Don't mix unrelated changes in one branch, or sweep someone else's uncommitted files into your commit (no blind `git add -A` in a shared checkout).
-- Don't merge with a failing `bin/check` or with open blocking review findings.
+- Don't merge with a red `ci-ok` or with open blocking review findings.
 - Don't pass `--no-verify` to `git commit` or `git merge`.
 - Don't delete a branch before its PR has merged.
 
 ## Cross-model review
 A PR written by a coding agent merges only after a reviewer of the other model family has reviewed its head commit.
 
-- When: after `bin/check` passes and before `gh pr ready`, on the pushed branch (the PR is a draft).
+- When: after `ci-ok` is green and before `gh pr ready`, on the pushed branch (the PR is a draft).
 - Who: the other model family in a fresh session. Codex reviews Claude's code, Claude reviews Codex's. A subagent of the authoring session does not count: it shares the author's model and framing.
 - Input: the diff (`git diff origin/develop...HEAD`), the issue (`gh issue view <n>`), and this guide, not the author's summary. The reviewer runs `bin/check`, and loads the plugin in Orca when the change touches what the user sees.
 - Output: a GitHub review in Comment mode on the PR (`gh pr review <pr> --comment --body-file <file>`). A finding is must-fix only with a failing test or a repro; the author fixes or answers each finding in the PR.
@@ -85,7 +86,7 @@ Cutting a release or shipping a hotfix: read [releasing.md](releasing.md) first.
 # start an issue (#<n>)
 git checkout -b feature/<n>-<slug> develop
 
-# finish it: bin/check green, cross-model review done
+# finish it: cross-model review done; then ci-ok green
 git push -u origin feature/<n>-<slug> && gh pr create --base develop --title "<summary>" --body "Closes #<n>. ..."
 # maintainer, from the primary checkout:
 gh pr merge <pr> -R decadance-dance/orca-plane --merge --delete-branch

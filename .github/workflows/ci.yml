@@ -1,0 +1,38 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Orca CLI for Linux: the headless orca-server release; bump the version and its sha256 together.
+  ORCA_VERSION: 1.4.258
+  ORCA_SHA256: fd7f23f5fb6fe43fb2982d17438d772fac7cc65c8208a212d0ffb224b504e311
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the Orca CLI
+        run: |
+          curl -fsSL -o orca.tar.gz "https://github.com/stablyai/orca/releases/download/v$ORCA_VERSION/orca-server-linux-x64.tar.gz"
+          echo "$ORCA_SHA256  orca.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/orca" && tar xzf orca.tar.gz -C "$RUNNER_TEMP/orca" && rm orca.tar.gz
+          mkdir -p "$RUNNER_TEMP/bin" && ln -s "$RUNNER_TEMP/orca/orca-server-$ORCA_VERSION-linux-x64/bin/orca-ide" "$RUNNER_TEMP/bin/orca"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: orca plugin check --help >/dev/null
+      - run: bin/check
+
+  ci-ok:
+    if: always()
+    needs: [check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.check.result }}" = success
