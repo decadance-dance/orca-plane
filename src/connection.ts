@@ -111,6 +111,13 @@ export class Connections {
     return run
   }
 
+  /** Runs `task` inside the lock, and only if no connect or disconnect ran since `generation`. */
+  whileCurrent(generation: number, task: () => Promise<void>): Promise<void> {
+    return this.locked(async () => {
+      if (generation === this.generation) await task()
+    })
+  }
+
   connect(input: ConnectInput): Promise<Result<{ status: ConnectionStatus }>> {
     return this.locked(async () => {
       if ((await this.orca.host.call('secrets.protection')).status !== 'os-keyring') {

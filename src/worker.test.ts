@@ -219,6 +219,52 @@ test('disconnect during a refresh discards its result and clears everything', as
   await worker.deactivate()
 })
 
+/** The worker, with storage writes to keys ending in `suffix` held at `hold` while `held()` is true. */
+function holdingWrites(suffix: string, hold: ReturnType<typeof gate>, held: () => boolean, entered: () => void) {
+  return {
+    ...main,
+    default: (orca: Parameters<typeof main.default>[0]) => {
+      // The host's objects are frozen: hand the worker ones that inherit from them.
+      const set = orca.storage.set.bind(orca.storage)
+      const heldSet = async (key: string, value: never) => {
+        if (held() && key.endsWith(suffix)) {
+          entered()
+          await hold.opened
+        }
+        return set(key, value)
+      }
+      const storage = Object.create(orca.storage, { set: { value: heldSet } })
+      return main.default(Object.create(orca, { storage: { value: storage } }))
+    }
+  }
+}
+
+test('disconnect while a refresh or a Start is writing: nothing is left and the status bar stays hidden', async () => {
+  for (const suffix of [':items', ':starts']) {
+    plane()
+    const hold = gate()
+    let holding = false
+    let writing = false
+    const h = host()
+    const worker = await mountWorker(holdingWrites(suffix, hold, () => holding, () => (writing = true)), { host: h })
+    assert.equal((await worker.request('connection.connect', CLOUD)).ok, true)
+    await until(async () => (await worker.request('items.list')).completeness === 'complete', 'items')
+    holding = true
+    if (suffix === ':items') await worker.request('items.list', { force: true })
+    else void worker.request('item.start', START)
+    await until(() => writing, `${suffix} write`)
+    // Disconnect waits for the write it raced; started before the write ends.
+    const off = worker.request('connection.disconnect')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    hold.open()
+    assert.deepEqual(await off, { connected: false })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    assert.deepEqual(Object.keys(h.data().storage).filter((key) => key.startsWith('c:')), [], suffix)
+    assert.equal(statusTexts(h).at(-1), 'hidden', suffix)
+    await worker.deactivate()
+  }
+})
+
 test('the token appears only in the secret record and the X-API-Key header to its origin', async () => {
   const fake = plane((url) =>
     (url.pathname.includes('/work-items/NOPE-1/') ? { status: 500, json: { detail: `echo ${TOKEN}` } } : undefined) as never

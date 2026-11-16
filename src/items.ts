@@ -108,10 +108,11 @@ export class Items {
       signal.removeEventListener('abort', abort)
     }
     // A disconnect or account switch while this ran: its result belongs to no one.
-    if (generation !== this.conns.generation) return
-    await this.orca.storage.set(keyOf(conn.id, 'items'), next)
-    await this.showCount(next)
-    this.orca.panels.post('items.changed', { ...withoutChecked(next), refreshing: false })
+    await this.conns.whileCurrent(generation, async () => {
+      await this.orca.storage.set(keyOf(conn.id, 'items'), next)
+      await this.showCount(next)
+      this.orca.panels.post('items.changed', { ...withoutChecked(next), refreshing: false })
+    })
   }
 
   async detail(key: string, projectId: string): Promise<Result<{ item: ItemDetail }>> {
@@ -141,9 +142,11 @@ export class Items {
 
   /** (Re)arms the background refresh; none runs while disconnected. */
   async arm(): Promise<void> {
-    this.stop()
-    if (!(await this.conns.current())) return
     const minutes = Number(await this.orca.settings.get('refreshMinutes'))
+    const conn = await this.conns.current()
+    // No await from here on, so two arms at once still leave one timer.
+    this.stop()
+    if (!conn) return
     const every = Math.min(60, Math.max(5, Number.isFinite(minutes) ? minutes : 10)) * 60_000
     this.timer = setInterval(() => void this.refresh(), every)
   }

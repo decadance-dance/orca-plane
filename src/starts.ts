@@ -49,7 +49,7 @@ export class Starts {
       const saved = await this.orca.storage.get(keyOf(conn.id, 'starts'))
       const states: States = saved && typeof saved === 'object' ? { ...(saved as States) } : {}
       const result = await change(states)
-      if (generation === this.conns.generation) await this.orca.storage.set(keyOf(conn.id, 'starts'), states)
+      await this.conns.whileCurrent(generation, () => this.orca.storage.set(keyOf(conn.id, 'starts'), states))
       return result
     })
     this.lock = run.catch(() => undefined)
