@@ -128,11 +128,11 @@
 
 ## 6. Panel
 
-- [ ] 6.1 Build the Connect view: server (Cloud or self-hosted), slug, a masked token field cleared after submit, and the connection status with Disconnect.
+- [x] 6.1 Build the Connect view: server (Cloud or self-hosted), slug, a masked token field cleared after submit, and the connection status with Disconnect.
   - Verify: panel tests for submit, each error message and the cleared field.
-- [ ] 6.2 Build the List view: grouped by state group, completeness badge, refresh, and per-item Start state.
+- [x] 6.2 Build the List view: grouped by state group, completeness badge, refresh, and per-item Start state.
   - Verify: panel tests with mocked `items.list` and `start.changed` posts.
-- [ ] 6.3 Build the Detail and Start views: detail fields, "Open in Plane", project and agent pickers, an editable prompt, a Start button that reflects the state, and "Open workspace".
+- [x] 6.3 Build the Detail and Start views: detail fields, "Open in Plane", project and agent pickers, an editable prompt, a Start button that reflects the state, and "Open workspace".
   - Verify: panel tests, including an empty project list.
 - [ ] 6.4 Add `src/panel.check.ts` states: disconnected, loading, complete, partial, stale, empty, error, detail, start pending, start unknown.
   - Verify: `orca plugin dev watch . --check --shot .orca/shots` shows no errors, and the PNG of each state reads correctly.
