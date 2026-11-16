@@ -9,9 +9,11 @@ permissions:
   contents: read
 
 env:
-  # Orca CLI for Linux: the headless orca-server release; bump the version and its sha256 together.
+  # Orca CLI for Linux from the desktop AppImage: the headless orca-server tarball lacks the plugin
+  # test kit that `orca plugin check` and `orca plugin test` load. Bump the version and its sha256
+  # (GitHub's asset digest) together.
   ORCA_VERSION: 1.4.261
-  ORCA_SHA256: fdb65eb961d3d4c1959601a51bc9bc5663b0403369ad50a422af16947ac3f3ba
+  ORCA_SHA256: ff7de4900856af80785e5ab1fe301a3d0df09a2d02300fd04e12094e871aac47
 
 jobs:
   check:
@@ -21,10 +23,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install the Orca CLI
         run: |
-          curl -fsSL -o orca.tar.gz "https://github.com/stablyai/orca/releases/download/v$ORCA_VERSION/orca-server-linux-x64.tar.gz"
-          echo "$ORCA_SHA256  orca.tar.gz" | sha256sum -c -
-          mkdir -p "$RUNNER_TEMP/orca" && tar xzf orca.tar.gz -C "$RUNNER_TEMP/orca" && rm orca.tar.gz
-          mkdir -p "$RUNNER_TEMP/bin" && ln -s "$RUNNER_TEMP/orca/orca-server-$ORCA_VERSION-linux-x64/bin/orca-ide" "$RUNNER_TEMP/bin/orca"
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o orca.AppImage "https://github.com/stablyai/orca/releases/download/v$ORCA_VERSION/orca-linux.AppImage"
+          echo "$ORCA_SHA256  orca.AppImage" | sha256sum -c -
+          # Unpacks without FUSE; the CLI runs Electron in Node mode, so no display is needed.
+          chmod +x orca.AppImage && ./orca.AppImage --appimage-extract >/dev/null && rm orca.AppImage
+          cli=$(find "$RUNNER_TEMP/squashfs-root" -path '*/resources/bin/orca' -type f | head -n1)
+          test -n "$cli" || { echo "no orca CLI in the AppImage"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/bin" && ln -s "$cli" "$RUNNER_TEMP/bin/orca"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - run: orca plugin check --help >/dev/null
       - run: bin/check
