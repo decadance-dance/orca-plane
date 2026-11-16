@@ -117,6 +117,8 @@ test('the list is grouped by state group with a completeness badge', async () =>
   const view = await mount(panel, { host: connectedHost() })
   assert.ok(view.find({ type: 'List', label: 'In progress (1)' }))
   assert.ok(view.find({ type: 'List', label: 'To do (2)' }))
+  // The group name is drawn, not only the list's accessible label.
+  assert.ok(view.find({ type: 'Text', text: 'In progress (1)' }))
   assert.equal(view.find({ type: 'List', label: /Backlog/ }), null)
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
   await view.unmount()

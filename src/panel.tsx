@@ -294,19 +294,25 @@ function ListView({ state }: { state: ItemsState | null }) {
       ) : null}
       {GROUPS.map(({ group, label }) => {
         const entries = state.items.filter((item) => item.stateGroup === group)
+        // A List's label is only its accessible name, so the group also gets a visible heading.
         return entries.length === 0 ? null : (
-          <List key={group} label={`${label} (${entries.length})`}>
-            {entries.map((item) => (
-              <ListItem
-                key={item.key}
-                title={`${item.key} ${item.title}`}
-                description={`${item.stateName ?? 'Unknown state'} · ${item.priority} priority`}
-                onPress={() => openItem(item)}
-              >
-                {startMarker(known[item.key])}
-              </ListItem>
-            ))}
-          </List>
+          <Stack key={group} gap="xs">
+            <Text size="xs" weight="semibold" muted>
+              {`${label} (${entries.length})`}
+            </Text>
+            <List label={`${label} (${entries.length})`}>
+              {entries.map((item) => (
+                <ListItem
+                  key={item.key}
+                  title={`${item.key} ${item.title}`}
+                  description={`${item.stateName ?? 'Unknown state'} · ${item.priority} priority`}
+                  onPress={() => openItem(item)}
+                >
+                  {startMarker(known[item.key])}
+                </ListItem>
+              ))}
+            </List>
+          </Stack>
         )
       })}
     </Stack>
