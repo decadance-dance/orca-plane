@@ -70,5 +70,5 @@ None. There are no existing specs.
   - `agent:launch`
   - `notifications:show`
 - **External systems:** Plane API v2 at the connection's server: `users/me`, the workspace work-items list, and get one work item. All calls are read-only.
-- **CI:** `.github/workflows/ci.yml` bumps `ORCA_VERSION` and `ORCA_SHA256`.
+- **CI:** `.github/workflows/ci.yml` bumps `ORCA_VERSION` and `ORCA_SHA256`, and installs Orca from the Linux AppImage: the headless `orca-server` tarball lacks the plugin test kit.
 - **Rate limit:** Plane allows 60 requests per minute per API key. The plugin should use its own token, so it does not share that budget with other tools.

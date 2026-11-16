@@ -146,7 +146,7 @@
     - the status bar count.
 
     Screenshots go in the PR.
-- [ ] 7.2 Run the full checks.
+- [x] 7.2 Run the full checks.
   - Verify: `bin/check` and `openspec validate --all` exit 0 locally, and `ci-ok` is green on the PR.
 - [ ] 7.3 Get the cross-model review: a Codex session reviews the PR head from the diff, #7 and `git-flow.md`, runs `bin/check` and loads the plugin.
   - Verify: its GitHub review has no open must-fix findings.
