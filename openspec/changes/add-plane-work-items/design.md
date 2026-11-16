@@ -139,7 +139,7 @@ Constraints that shape the approach:
 - Below them, one `Collapsible` per state group with its count. Each row is a `ListItem` titled `KEY · title`, with priority and label badges and two buttons:
   - Open, which shows the item detail as before;
   - Start, which follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
-- Start, from a row or the detail, shows a confirmation above the list: the workspace name, project and agent, and the prompt in an editable field, built from `item.get`. Confirm sends `item.start`; Cancel creates nothing.
+- Start, from a row or the detail, shows a confirmation in place of that row's or the detail's buttons, so it appears where the person pressed, even deep in a long list: the workspace name, project and agent, and the prompt in an editable field, built from `item.get`. Confirm sends `item.start`; Cancel creates nothing. The open confirmation is remembered like the open item (`plane.confirm`).
 - Search filters the loaded list in the panel, by key, title or label, ignoring case. The search text is remembered per panel.
 - *Alternative:* an html panel like beads-orca, with views, filters, a table and a board. Rejected for now: a rewrite with its own design that needs a wide window. Filters stay in #15.
 

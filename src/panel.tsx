@@ -1,11 +1,13 @@
-// The Plane panel. It never sees the token after the connect form submits, and never waits on
-// the network for the list: the worker answers from its cache and posts `items.changed`.
+// The Plane panel (layout: design D10). It never sees the token after the connect form submits,
+// and never waits on the network for the list: the worker answers from its cache and posts
+// `items.changed`.
 import {
   atom,
   Badge,
   Button,
   Callout,
   Card,
+  Collapsible,
   EmptyState,
   Heading,
   IconButton,
@@ -31,7 +33,7 @@ import {
 } from 'orca'
 import type { Item, ItemDetail } from './plane/map'
 import type { ConnectionStatus, ItemsState, OrcaProject, StartState } from './protocol'
-import { buildPrompt } from './start'
+import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
 
@@ -71,10 +73,14 @@ const connecting = atom(false)
 const connectError = atom<string | null>(null)
 
 type ItemRef = { key: string; projectId: string }
-type Detail = ItemRef & { item: ItemDetail | null; error: string | null }
+type Loaded = ItemRef & { item: ItemDetail | null; error: string | null }
+const search = atom('plane.search', '', { persist: 'plugin' })
 /** The open item; persisted, so reopening the panel returns to it. */
 const opened = atom<ItemRef | null>('plane.open', null, { persist: 'plugin' })
-const detail = atom<Detail | null>(null)
+const detail = atom<Loaded | null>(null)
+/** The Start waiting for confirmation; persisted like the open item. */
+const confirming = atom<ItemRef | null>('plane.confirm', null, { persist: 'plugin' })
+const confirmation = atom<Loaded | null>(null)
 const projectId = atom<string | null>(null)
 const agent = atom('plane.agent', '', { persist: 'plugin' })
 const prompt = atom('')
@@ -88,12 +94,33 @@ function closeItem(): void {
   set(detail, null)
 }
 
+function cancelStart(): void {
+  set(confirming, null)
+  set(confirmation, null)
+  set(startError, null)
+}
+
+async function loadPickers(): Promise<void> {
+  const [list, fallback] = await Promise.all([
+    plugin.request('orca.projects').catch(() => ({ projects: [] as OrcaProject[] })),
+    read(agent) ? null : settings.get('defaultAgent')
+  ])
+  set(projects, list.projects)
+  if (!list.projects.some((project) => project.id === read(projectId))) set(projectId, list.projects[0]?.id ?? null)
+  if (!read(agent)) set(agent, typeof fallback === 'string' ? fallback : 'claude')
+}
+
 async function loadConnected(): Promise<void> {
-  const [list, known] = await Promise.all([plugin.request('items.list', undefined), plugin.request('starts.get')])
+  const [list, known] = await Promise.all([
+    plugin.request('items.list', undefined),
+    plugin.request('starts.get'),
+    loadPickers()
+  ])
   set(items, list)
   set(starts, known)
-  const ref = read(opened)
-  if (ref) await openItem(ref)
+  const open = read(opened)
+  const asked = read(confirming)
+  await Promise.all([open ? openItem(open) : null, asked ? askStart(asked) : null])
 }
 
 export function setup(ctx: PanelContext): void {
@@ -104,6 +131,7 @@ export function setup(ctx: PanelContext): void {
         set(items, null)
         set(starts, {})
         closeItem()
+        cancelStart()
       }
     }),
     plugin.on('items.changed', (next) => set(items, next)),
@@ -148,42 +176,42 @@ async function disconnect(): Promise<void> {
   set(items, null)
   set(starts, {})
   closeItem()
+  cancelStart()
 }
 
 async function refresh(): Promise<void> {
   set(items, await plugin.request('items.list', { force: true }))
 }
 
-async function openItem(item: ItemRef): Promise<void> {
-  set(opened, { key: item.key, projectId: item.projectId })
-  set(detail, { key: item.key, projectId: item.projectId, item: null, error: null })
-  set(startError, null)
-  set(openError, null)
-  if (!read(agent)) {
-    const fallback = await settings.get('defaultAgent')
-    set(agent, typeof fallback === 'string' ? fallback : 'claude')
-  }
-  const [answer, list] = await Promise.all([
-    plugin.request('item.get', { key: item.key, projectId: item.projectId }, SLOW).catch((error: unknown) => ({
-      ok: false as const,
-      error: message(error)
-    })),
-    plugin.request('orca.projects').catch(() => ({ projects: [] as OrcaProject[] }))
-  ])
-  set(projects, list.projects)
-  if (!read(projectId) || !list.projects.some((project) => project.id === read(projectId))) {
-    set(projectId, list.projects[0]?.id ?? null)
-  }
-  if (read(detail)?.key !== item.key) return
-  if (answer.ok) {
-    set(detail, { key: item.key, projectId: item.projectId, item: answer.item, error: null })
-    set(prompt, buildPrompt(answer.item))
-  } else {
-    set(detail, { key: item.key, projectId: item.projectId, item: null, error: answer.error })
-  }
+async function fetchDetail(ref: ItemRef): Promise<Loaded> {
+  const answer = await plugin
+    .request('item.get', { key: ref.key, projectId: ref.projectId }, SLOW)
+    .catch((error: unknown) => ({ ok: false as const, error: message(error) }))
+  const at = { key: ref.key, projectId: ref.projectId }
+  return answer.ok ? { ...at, item: answer.item, error: null } : { ...at, item: null, error: answer.error }
 }
 
-async function start(key: string): Promise<void> {
+async function openItem(ref: ItemRef): Promise<void> {
+  set(opened, { key: ref.key, projectId: ref.projectId })
+  set(detail, { key: ref.key, projectId: ref.projectId, item: null, error: null })
+  set(openError, null)
+  const loaded = await fetchDetail(ref)
+  if (read(detail)?.key === ref.key) set(detail, loaded)
+}
+
+/** Shows the confirmation for a Start, with the prompt built from the item's detail. */
+async function askStart(ref: ItemRef): Promise<void> {
+  set(confirming, { key: ref.key, projectId: ref.projectId })
+  set(confirmation, { key: ref.key, projectId: ref.projectId, item: null, error: null })
+  set(startError, null)
+  const shown = read(detail)
+  const loaded = shown?.key === ref.key && shown.item ? shown : await fetchDetail(ref)
+  if (read(confirming)?.key !== ref.key) return
+  set(confirmation, loaded)
+  if (loaded.item) set(prompt, buildPrompt(loaded.item))
+}
+
+async function confirmStart(key: string): Promise<void> {
   const project = (read(projects) ?? []).find((entry) => entry.id === read(projectId))
   if (!project) return
   set(startError, null)
@@ -196,7 +224,8 @@ async function start(key: string): Promise<void> {
       agent: chosen === 'none' ? null : chosen,
       prompt: read(prompt)
     })
-    if (!answer.accepted) set(startError, answer.reason)
+    if (answer.accepted) cancelStart()
+    else set(startError, answer.reason)
   } catch (error) {
     set(startError, message(error))
   }
@@ -210,6 +239,9 @@ async function openWorkspace(workspaceId: string): Promise<void> {
   }))
   if (!answer.ok) set(openError, answer.error)
 }
+
+const matches = (item: Item, query: string) =>
+  [item.key, item.title, ...item.labels].some((value) => value.toLowerCase().includes(query))
 
 function ConnectView() {
   const error = read(connectError)
@@ -252,20 +284,120 @@ function ConnectView() {
   )
 }
 
-function startMarker(state: StartState | undefined) {
-  if (!state || state.kind === 'idle') return null
-  if (state.kind === 'pending') return <Badge tone="accent">Starting</Badge>
-  if (state.kind === 'unknown') return <Badge tone="warning">Checking</Badge>
-  if (state.kind === 'created') return <Badge tone="success">Workspace</Badge>
-  return <Badge tone="danger">Start failed</Badge>
+/** The Project and Agent every Start uses. */
+function Pickers() {
+  const list = read(projects)
+  return (
+    <Stack gap="sm">
+      {list && list.length === 0 ? (
+        <Callout tone="warning" title="No Git projects">
+          Add a Git repository to Orca to start work on an item.
+        </Callout>
+      ) : (
+        <Select
+          label="Project"
+          value={read(projectId) ?? undefined}
+          options={(list ?? []).map((project) => ({ value: project.id, label: project.name }))}
+          onChange={(value) => set(projectId, value)}
+        />
+      )}
+      <Select label="Agent" value={read(agent)} options={AGENTS} onChange={(value) => set(agent, value)} />
+    </Stack>
+  )
+}
+
+/** Start, Starting…, Checking… or Open workspace, by the item's Start state. Callers key it `start:<KEY>`. */
+function StartButton({ item }: { item: ItemRef }) {
+  const state = read(starts)[item.key]
+  const workspaceId = state?.kind === 'created' || state?.kind === 'failed' ? state.workspaceId : undefined
+  if (workspaceId) {
+    return (
+      <Button size="sm" icon="open-external" onPress={() => openWorkspace(workspaceId)}>
+        Open workspace
+      </Button>
+    )
+  }
+  const busy = state?.kind === 'pending' || state?.kind === 'unknown'
+  return (
+    <Button
+      size="sm"
+      tone="accent"
+      icon="play"
+      disabled={busy || !read(projectId) || read(confirming)?.key === item.key}
+      onPress={() => askStart(item)}
+    >
+      {state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : 'Start'}
+    </Button>
+  )
+}
+
+function Confirmation({ current }: { current: Loaded }) {
+  const project = (read(projects) ?? []).find((entry) => entry.id === read(projectId))
+  const agentLabel = AGENTS.find((entry) => entry.value === read(agent))?.label ?? read(agent)
+  const error = read(startError)
+  return (
+    <Card title={`Start ${current.key}`}>
+      <Stack gap="sm">
+        {current.error ? <Callout tone="danger">{current.error}</Callout> : null}
+        {!current.item && !current.error ? <Skeleton lines={3} label={`Loading ${current.key}`} /> : null}
+        {current.item ? (
+          <Stack gap="sm">
+            <Text size="sm">
+              {`Workspace ${workspaceName(current.item.key, current.item.title)} in ${project?.name ?? '—'}, with ${agentLabel}.`}
+            </Text>
+            <Textarea label="Prompt" rows={8} value={read(prompt)} onChange={(value) => set(prompt, value)} />
+          </Stack>
+        ) : null}
+        {error ? <Callout tone="danger">{error}</Callout> : null}
+        <Row gap="xs">
+          <Button tone="accent" icon="play" disabled={!current.item || !project} onPress={() => confirmStart(current.key)}>
+            Confirm
+          </Button>
+          <Button variant="ghost" onPress={cancelStart}>
+            Cancel
+          </Button>
+        </Row>
+      </Stack>
+    </Card>
+  )
+}
+
+function ItemRow({ item }: { item: Item }) {
+  const state = read(starts)[item.key]
+  const asked = read(confirmation)
+  return (
+    <ListItem key={item.key} title={`${item.key} · ${item.title}`} description={item.stateName ?? 'Unknown state'}>
+      <Stack gap="xs">
+        <Row gap="xs" wrap>
+          {item.priority === 'none' ? null : <Badge tone={item.priority === 'urgent' ? 'danger' : item.priority === 'high' ? 'warning' : undefined}>{item.priority}</Badge>}
+          {item.labels.map((label) => (
+            <Badge key={label}>{label}</Badge>
+          ))}
+          {state?.kind === 'failed' ? <Badge tone="danger">Start failed</Badge> : null}
+        </Row>
+        {asked?.key === item.key ? (
+          <Confirmation current={asked} />
+        ) : (
+          <Row gap="xs">
+            <Button key={`open:${item.key}`} size="sm" variant="outline" onPress={() => openItem(item)}>
+              Open
+            </Button>
+            <StartButton key={`start:${item.key}`} item={item} />
+          </Row>
+        )}
+      </Stack>
+    </ListItem>
+  )
 }
 
 function ListView({ state }: { state: ItemsState | null }) {
-  const known = read(starts)
   if (!state || state.completeness === null) {
     return <Skeleton lines={4} label="Loading your items" />
   }
   const badge = COMPLETENESS[state.completeness]
+  const query = read(search).trim().toLowerCase()
+  const shown = state.items.filter((item) => matches(item, query))
+  const failedOpen = read(openError)
   return (
     <Stack gap="md">
       <Row justify="between">
@@ -289,86 +421,49 @@ function ListView({ state }: { state: ItemsState | null }) {
           {state.error}
         </Callout>
       ) : null}
+      <Input
+        label="Search"
+        type="search"
+        placeholder="Key, title or label"
+        value={read(search)}
+        onChange={(value) => set(search, value)}
+      />
+      <Pickers />
+      {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
       {state.completeness !== 'error' && state.items.length === 0 ? (
         <EmptyState icon="check" title="Nothing open is assigned to you" />
       ) : null}
+      {state.items.length > 0 && shown.length === 0 ? (
+        <Stack gap="xs">
+          <EmptyState icon="search" title="No matching items" description="Try another key, title or label." />
+          <Row>
+            <Button variant="ghost" onPress={() => set(search, '')}>
+              Clear search
+            </Button>
+          </Row>
+        </Stack>
+      ) : null}
       {GROUPS.map(({ group, label }) => {
-        const entries = state.items.filter((item) => item.stateGroup === group)
-        // A List's label is only its accessible name, so the group also gets a visible heading.
+        const entries = shown.filter((item) => item.stateGroup === group)
         return entries.length === 0 ? null : (
-          <Stack key={group} gap="xs">
-            <Text size="xs" weight="semibold" muted>
-              {`${label} (${entries.length})`}
-            </Text>
-            <List label={`${label} (${entries.length})`}>
+          <Collapsible key={group} title={label} description={`${entries.length} ${entries.length === 1 ? 'item' : 'items'}`} defaultOpen>
+            <List label={label}>
               {entries.map((item) => (
-                <ListItem
-                  key={item.key}
-                  title={`${item.key} ${item.title}`}
-                  description={`${item.stateName ?? 'Unknown state'} · ${item.priority} priority`}
-                  onPress={() => openItem(item)}
-                >
-                  {startMarker(known[item.key])}
-                </ListItem>
+                <ItemRow key={item.key} item={item} />
               ))}
             </List>
-          </Stack>
+          </Collapsible>
         )
       })}
     </Stack>
   )
 }
 
-function StartView({ item }: { item: ItemDetail }) {
-  const state = read(starts)[item.key] ?? { kind: 'idle' }
-  const list = read(projects)
-  const error = read(startError)
-  const opened = read(openError)
-  const workspaceId =
-    state.kind === 'created' ? state.workspaceId : state.kind === 'failed' ? state.workspaceId : undefined
-  if (workspaceId) {
-    return (
-      <Card title="Workspace">
-        <Stack gap="sm">
-          {state.kind === 'failed' ? <Callout tone="danger" title="The agent did not start">{state.error}</Callout> : null}
-          {opened ? <Callout tone="danger">{opened}</Callout> : null}
-          <Button icon="open-external" onPress={() => openWorkspace(workspaceId)}>
-            Open workspace
-          </Button>
-        </Stack>
-      </Card>
-    )
-  }
-  const busy = state.kind === 'pending' || state.kind === 'unknown'
-  return (
-    <Card title="Start">
-      <Stack gap="sm">
-        {list && list.length === 0 ? (
-          <Callout tone="warning" title="No Git projects">
-            Add a Git repository to Orca to start work on an item.
-          </Callout>
-        ) : (
-          <Select
-            label="Project"
-            value={read(projectId) ?? undefined}
-            options={(list ?? []).map((project) => ({ value: project.id, label: project.name }))}
-            onChange={(value) => set(projectId, value)}
-          />
-        )}
-        <Select label="Agent" value={read(agent)} options={AGENTS} onChange={(value) => set(agent, value)} />
-        <Textarea label="Prompt" rows={8} value={read(prompt)} onChange={(value) => set(prompt, value)} />
-        {state.kind === 'failed' ? <Callout tone="danger" title="Start failed">{state.error}</Callout> : null}
-        {error ? <Callout tone="danger">{error}</Callout> : null}
-        <Button tone="accent" icon="play" disabled={busy || !read(projectId)} onPress={() => start(item.key)}>
-          {state.kind === 'pending' ? 'Starting…' : state.kind === 'unknown' ? 'Checking…' : 'Start'}
-        </Button>
-      </Stack>
-    </Card>
-  )
-}
-
-function DetailView({ current }: { current: Detail }) {
+function DetailView({ current }: { current: Loaded }) {
   const item = current.item
+  const state = read(starts)[current.key]
+  const asked = read(confirmation)
+  const failedOpen = read(openError)
   return (
     <Stack gap="md">
       <Row>
@@ -402,7 +497,20 @@ function DetailView({ current }: { current: Detail }) {
               </Text>
             ))}
           </Stack>
-          <StartView item={item} />
+          <Pickers />
+          {state?.kind === 'failed' ? (
+            <Callout tone="danger" title={state.workspaceId ? 'The agent did not start' : 'Start failed'}>
+              {state.error}
+            </Callout>
+          ) : null}
+          {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
+          {asked?.key === item.key ? (
+            <Confirmation current={asked} />
+          ) : (
+            <Row>
+              <StartButton key={`start:${item.key}`} item={item} />
+            </Row>
+          )}
         </Stack>
       ) : null}
     </Stack>

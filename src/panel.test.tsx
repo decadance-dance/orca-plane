@@ -9,7 +9,7 @@ const part = (text: string) => ({ text: new RegExp(text.replace(/[.*+?^${}()|[\]
 
 const CONNECTED = { connected: true as const, hostKind: 'cloud' as const, server: 'https://app.plane.so', slug: 'truelogic', userName: 'Dima' }
 
-const item = (key: string, stateGroup: Item['stateGroup'], title = `Title ${key}`): Item => ({
+const item = (key: string, stateGroup: Item['stateGroup'], title = `Title ${key}`, labels: string[] = []): Item => ({
   id: key,
   key,
   title,
@@ -17,11 +17,12 @@ const item = (key: string, stateGroup: Item['stateGroup'], title = `Title ${key}
   stateName: stateGroup === 'unknown' ? null : stateGroup,
   stateGroup,
   priority: 'high',
+  labels,
   updatedAt: '2026-11-16T18:20:38Z'
 })
 
 const list = (over: Partial<ItemsState> = {}): ItemsState => ({
-  items: [item('WEB-1', 'started'), item('WEB-2', 'unstarted'), item('WEB-3', 'unstarted')],
+  items: [item('WEB-1', 'started'), item('WEB-2', 'unstarted', 'Title WEB-2', ['auth']), item('WEB-3', 'unstarted')],
   completeness: 'complete',
   fetchedAt: 1_700_000_000_000,
   error: null,
@@ -75,7 +76,7 @@ test('connect submits the form, clears the token field and shows the list', asyn
   assert.deepEqual(sent, [{ hostKind: 'cloud', serverUrl: '', slug: 'truelogic', token: 'plane_api_secret' }])
   assert.ok(connected)
   assert.ok(view.find({ text: 'Dima · truelogic' }))
-  assert.ok(view.find({ label: 'WEB-1 Title WEB-1' }))
+  assert.ok(view.find({ label: 'WEB-1 · Title WEB-1' }))
   assert.deepEqual(view.errors, [])
   assert.equal(JSON.stringify(view.persisted).includes('plane_api_secret'), false)
   await view.unmount()
@@ -111,16 +112,38 @@ test('disconnect goes back to the connect form', async () => {
   await view.unmount()
 })
 
-// --- 6.2 List ---
+// --- 6.2 and 6.6 List ---
 
-test('the list is grouped by state group with a completeness badge', async () => {
+test('the list: collapsible state groups with counts, rows with badges, a completeness badge', async () => {
   const view = await mount(panel, { host: connectedHost() })
-  assert.ok(view.find({ type: 'List', label: 'In progress (1)' }))
-  assert.ok(view.find({ type: 'List', label: 'To do (2)' }))
-  // The group name is drawn, not only the list's accessible label.
-  assert.ok(view.find({ type: 'Text', text: 'In progress (1)' }))
-  assert.equal(view.find({ type: 'List', label: /Backlog/ }), null)
+  assert.ok(view.find({ type: 'Collapsible', label: 'In progress' }))
+  assert.match(view.find({ type: 'Collapsible', label: 'To do' })?.text ?? '', /2 items/)
+  assert.equal(view.find({ type: 'Collapsible', label: 'Backlog' }), null)
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
+  const row = view.find({ label: 'WEB-2 · Title WEB-2' })
+  assert.match(row?.text ?? '', /high/)
+  assert.match(row?.text ?? '', /auth/)
+  assert.ok(view.find({ testId: 'open:WEB-2' }))
+  assert.equal(view.find({ testId: 'start:WEB-2' })?.text, 'Start')
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('search filters by key, title or label; nothing matching offers Clear search', async () => {
+  const view = await mount(panel, { host: connectedHost() })
+  await view.type({ label: 'Search' }, 'AUTH')
+  assert.ok(view.find({ label: 'WEB-2 · Title WEB-2' }))
+  assert.equal(view.find({ label: 'WEB-1 · Title WEB-1' }), null)
+  await view.type({ label: 'Search' }, 'web-3', { replace: true })
+  assert.deepEqual(view.findAll({ type: 'ListItem' }).map((row) => row.label), ['WEB-3 · Title WEB-3'])
+  await view.type({ label: 'Search' }, 'title web-1', { replace: true })
+  assert.deepEqual(view.findAll({ type: 'ListItem' }).map((row) => row.label), ['WEB-1 · Title WEB-1'])
+  await view.type({ label: 'Search' }, 'zzz', { replace: true })
+  assert.ok(view.find({ label: 'No matching items' }))
+  // The badge describes the whole list, not the filtered one.
+  assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
+  await view.press({ text: 'Clear search' })
+  assert.equal(view.findAll({ type: 'ListItem' }).length, 3)
   await view.unmount()
 })
 
@@ -144,7 +167,7 @@ test('partial, stale, error, empty and loading states', async () => {
   await loading.unmount()
 })
 
-test('refresh asks for a forced refresh; posts update the list and the Start state', async () => {
+test('refresh asks for a forced refresh; posts update the list and each row follows its Start state', async () => {
   const asked: unknown[] = []
   const view = await mount(panel, {
     host: connectedHost({
@@ -157,17 +180,23 @@ test('refresh asks for a forced refresh; posts update the list and the Start sta
   await view.press({ label: 'Refresh' })
   assert.deepEqual(asked.at(-1), { force: true })
   await view.post('items.changed', list({ items: [item('WEB-9', 'backlog')] }))
-  assert.ok(view.find({ type: 'List', label: 'Backlog (1)' }))
+  assert.ok(view.find({ type: 'Collapsible', label: 'Backlog' }))
+  const button = () => view.find({ testId: 'start:WEB-9' })
   await view.post('start.changed', { key: 'WEB-9', state: { kind: 'pending', name: 'n', projectId: 'p1', startedAt: 1 } })
-  assert.ok(view.find({ type: 'Badge', text: 'Starting' }))
+  assert.deepEqual([button()?.text, button()?.disabled], ['Starting…', true])
+  await view.post('start.changed', { key: 'WEB-9', state: { kind: 'unknown', name: 'n', projectId: 'p1' } })
+  assert.deepEqual([button()?.text, button()?.disabled], ['Checking…', true])
+  await view.post('start.changed', { key: 'WEB-9', state: { kind: 'failed', error: 'refused' } })
+  assert.ok(view.find({ type: 'Badge', text: 'Start failed' }))
+  assert.equal(button()?.text, 'Start')
   await view.post('start.changed', { key: 'WEB-9', state: { kind: 'created', workspaceId: 'w', name: 'n', projectId: 'p1' } })
-  assert.ok(view.find({ type: 'Badge', text: 'Workspace' }))
+  assert.equal(button()?.text, 'Open workspace')
   await view.unmount()
 })
 
-// --- 6.3 Detail and Start ---
+// --- 6.3 and 6.7 Detail and Start ---
 
-test('the detail shows its fields, opens in Plane and starts with the chosen project and agent', async () => {
+test('Start on a row asks for confirmation with the editable prompt, then starts with the chosen project and agent', async () => {
   const started: unknown[] = []
   const host = connectedHost({
     'item.start': (input: unknown) => {
@@ -176,62 +205,76 @@ test('the detail shows its fields, opens in Plane and starts with the chosen pro
     }
   })
   const view = await mount(panel, { host })
-  await view.press({ text: /^WEB-1 / })
-  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
-  assert.ok(view.find({ text: 'Second paragraph.' }))
-  assert.match(view.find({ type: 'KeyValue' })?.text ?? '', /bug/)
-  await view.press({ text: 'Open in Plane' })
-  assert.deepEqual(host.callsOf('shell.openExternal'), [{ url: DETAIL.url }])
   assert.equal(view.valueOf({ label: 'Project' }), 'p1')
-  assert.match(String(view.valueOf({ label: 'Prompt' })), /BEGIN PLANE TICKET/)
   await view.select({ label: 'Agent' }, 'none')
-  await view.press({ text: 'Start' })
-  assert.equal(started.length, 1)
-  assert.deepEqual({ ...(started[0] as object), prompt: '' }, {
-    key: 'WEB-1',
-    orcaProjectId: 'p1',
-    hostId: 'local',
-    agent: null,
-    prompt: ''
-  })
-  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'pending', name: 'n', projectId: 'p1', startedAt: 1 } })
-  assert.equal(view.find({ text: 'Starting…' })?.disabled, true)
-  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'unknown', name: 'n', projectId: 'p1' } })
-  assert.equal(view.find({ text: 'Checking…' })?.disabled, true)
-  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'created', workspaceId: 'w1', name: 'n', projectId: 'p1' } })
-  assert.ok(view.find({ text: 'Open workspace' }))
+  await view.press({ testId: 'start:WEB-1' })
+  const card = view.find({ type: 'Card', label: 'Start WEB-1' })
+  assert.match(card?.text ?? '', /WEB-1-fix-login/)
+  assert.match(card?.text ?? '', /repo/)
+  assert.match(card?.text ?? '', /Terminal only/)
+  assert.match(String(view.valueOf({ label: 'Prompt' })), /BEGIN PLANE TICKET/)
+  await view.type({ label: 'Prompt' }, 'Do it', { replace: true })
+  await view.press({ text: 'Confirm' })
+  assert.deepEqual(started, [{ key: 'WEB-1', orcaProjectId: 'p1', hostId: 'local', agent: null, prompt: 'Do it' }])
+  assert.equal(view.find({ type: 'Card', label: 'Start WEB-1' }), null)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
 
-test('a refused start shows its reason; an agent failure offers Open workspace', async () => {
+test('Cancel creates nothing; a refused start shows its reason in the confirmation', async () => {
+  let starts = 0
+  const host = connectedHost({
+    'item.start': () => {
+      starts++
+      return { accepted: false, reason: 'A start for this item is already running.' }
+    }
+  })
+  const view = await mount(panel, { host })
+  await view.press({ testId: 'start:WEB-2' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-2' }))
+  await view.press({ text: 'Cancel' })
+  assert.equal(view.find({ type: 'Card', label: 'Start WEB-2' }), null)
+  assert.equal(starts, 0)
+  await view.press({ testId: 'start:WEB-2' })
+  await view.press({ text: 'Confirm' })
+  assert.equal(starts, 1)
+  assert.ok(view.find(part('A start for this item is already running.')))
+  await view.unmount()
+})
+
+test('the detail shows its fields, opens in Plane, and starts through the same confirmation', async () => {
   const opened: unknown[] = []
   const host = connectedHost({
-    'item.start': { accepted: false, reason: 'A start for this item is already running.' },
+    'item.start': { accepted: true },
     'workspace.open': (input: unknown) => {
       opened.push(input)
       return { ok: true }
     }
   })
   const view = await mount(panel, { host })
-  await view.press({ text: /^WEB-1 / })
-  await view.press({ text: 'Start' })
-  assert.ok(view.find(part('A start for this item is already running.')))
+  await view.press({ testId: 'open:WEB-1' })
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  assert.ok(view.find({ text: 'Second paragraph.' }))
+  assert.match(view.find({ type: 'KeyValue' })?.text ?? '', /bug/)
+  await view.press({ text: 'Open in Plane' })
+  assert.deepEqual(host.callsOf('shell.openExternal'), [{ url: DETAIL.url }])
+  await view.press({ testId: 'start:WEB-1' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-1' }))
+  await view.press({ text: 'Confirm' })
   await view.post('start.changed', { key: 'WEB-1', state: { kind: 'failed', error: 'agent crashed', workspaceId: 'w5' } })
   assert.ok(view.find(part('agent crashed')))
-  await view.press({ text: 'Open workspace' })
+  await view.press({ testId: 'start:WEB-1' })
   assert.deepEqual(opened, [{ workspaceId: 'w5' }])
+  await view.press({ text: 'All items' })
+  assert.ok(view.find({ type: 'Collapsible', label: 'To do' }))
   await view.unmount()
 })
 
-test('no Git projects: a hint instead of the project picker, Start disabled', async () => {
+test('no Git projects: a hint instead of the project picker, and Start is disabled', async () => {
   const view = await mount(panel, { host: connectedHost({ 'orca.projects': { projects: [] } }) })
-  await view.press({ text: /^WEB-1 / })
   assert.ok(view.find(part('No Git projects')))
   assert.equal(view.find({ label: 'Project' }), null)
-  assert.equal(view.find({ text: 'Start' })?.disabled, true)
-  await view.press({ text: 'All items' })
-  assert.ok(view.find({ type: 'List', label: 'To do (2)' }))
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.disabled, true)
   await view.unmount()
 })
 

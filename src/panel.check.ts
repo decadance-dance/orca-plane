@@ -7,27 +7,34 @@ import type { ItemsState, StartState } from './protocol'
 const CONNECTED = { connected: true, hostKind: 'cloud', server: 'https://app.plane.so', slug: 'acme', userName: 'Ada' } as const
 const now = Date.now()
 
-const row = (key: string, title: string, stateGroup: Item['stateGroup'], stateName: string | null): Item => ({
+const row = (
+  key: string,
+  title: string,
+  stateGroup: Item['stateGroup'],
+  stateName: string | null,
+  priority: Item['priority'],
+  labels: string[]
+): Item => ({
   id: key,
   key,
   title,
   projectId: 'plane-project',
   stateName,
   stateGroup,
-  priority: 'medium',
+  priority,
+  labels,
   updatedAt: '2026-11-16T12:00:00Z'
 })
 const ITEMS = [
-  row('WEB-12', 'Fix the login redirect', 'started', 'In Progress'),
-  row('WEB-9', 'Add a dark mode toggle', 'unstarted', 'Todo'),
-  row('API-3', 'Paginate the audit log', 'unstarted', 'Todo'),
-  row('API-1', 'Rate limit the export endpoint', 'backlog', 'Backlog'),
-  row('OPS-4', 'Rotate the staging certificates', 'unknown', null)
+  row('WEB-12', 'Fix the login redirect', 'started', 'In Progress', 'high', ['bug', 'auth']),
+  row('WEB-9', 'Add a dark mode toggle', 'unstarted', 'Todo', 'medium', ['ui']),
+  row('API-3', 'Paginate the audit log', 'unstarted', 'Todo', 'low', []),
+  row('API-1', 'Rate limit the export endpoint', 'backlog', 'Backlog', 'urgent', ['auth']),
+  row('OPS-4', 'Rotate the staging certificates', 'unknown', null, 'none', [])
 ]
 const DETAIL: ItemDetail = {
   ...ITEMS[0],
   assignees: ['Ada'],
-  labels: ['bug', 'auth'],
   description: 'After signing in, users land on the home page instead of the page they asked for.\n\nKeep the original URL through the login flow.',
   url: 'https://app.plane.so/acme/browse/WEB-12/'
 }
@@ -51,6 +58,7 @@ const connected = (list: ItemsState, starts: Record<string, StartState> = {}) =>
   }
 })
 const onDetail = { persisted: { plugin: { 'plane.open': { key: 'WEB-12', projectId: 'plane-project' } } } }
+const persisted = (plugin: Record<string, unknown>) => ({ persisted: { plugin } }) as const
 
 export default defineCheck({
   disconnected: { requests: { 'connection.get': { connected: false } } },
@@ -60,6 +68,9 @@ export default defineCheck({
   stale: connected(state({ completeness: 'stale', error: 'Plane answered HTTP 502' })),
   empty: connected(state({ items: [] })),
   error: connected(state({ items: [], completeness: 'error', fetchedAt: null, error: 'Could not reach the Plane server.' })),
+  search: { ...connected(state({})), ...persisted({ 'plane.search': 'auth' }) },
+  'search-none': { ...connected(state({})), ...persisted({ 'plane.search': 'billing' }) },
+  confirm: { ...connected(state({})), ...persisted({ 'plane.confirm': { key: 'WEB-12', projectId: 'plane-project' } }) },
   detail: { ...connected(state({})), ...onDetail },
   'start-pending': {
     ...connected(state({}), { 'WEB-12': { kind: 'pending', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1', startedAt: now } }),
