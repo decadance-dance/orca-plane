@@ -94,7 +94,7 @@ Constraints that shape the approach:
 - *Alternative:* a synchronous `item.start` request. Rejected: setup and the agent launch can exceed the panel request timeout.
 
 ### D4. Refresh model
-- The cache `{items, completeness, fetchedAt, error}` is kept under the connection id.
+- The cache `{items, completeness, fetchedAt, error}` is kept under the connection id. List items carry their label names; a cache written before that reads as items with no labels.
 - `items.list` returns the cache at once. It starts a refresh when the cache is older than 60 s or `force` is set.
 - One refresh runs at a time and later triggers join it. A refresh belongs to the worker, not to the panel that asked.
 - Limits:
@@ -132,6 +132,16 @@ Constraints that shape the approach:
 - The status bar item runs a declarative command with the built-in action `sidebar.right.toggle`; it needs no worker code.
 - Orca has no action or host API that opens one plugin panel. The Plane panel shows when it is the selected tab of the right sidebar.
 - *Alternative:* the worker runs `orca plugin open <key> --panel plane` through the CLI, as orca-redmine does. Rejected: it brings back binary discovery (maintainer's choice, 2026-11-16).
+
+### D10. Panel layout follows backlog-md-orca
+- The panel stays a components panel in the right sidebar. Its layout follows the community plugin backlog-md-orca (maintainer's choice, 2026-11-16).
+- Top, from the top down: the connection line with Disconnect, the completeness badge with refresh, a search field, and the Project and Agent pickers that every Start uses.
+- Below them, one `Collapsible` per state group with its count. Each row is a `ListItem` titled `KEY · title`, with priority and label badges and two buttons:
+  - Open, which shows the item detail as before;
+  - Start, which follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
+- Start, from a row or the detail, shows a confirmation above the list: the workspace name, project and agent, and the prompt in an editable field, built from `item.get`. Confirm sends `item.start`; Cancel creates nothing.
+- Search filters the loaded list in the panel, by key, title or label, ignoring case. The search text is remembered per panel.
+- *Alternative:* an html panel like beads-orca, with views, filters, a table and a board. Rejected for now: a rewrite with its own design that needs a wide window. Filters stay in #15.
 
 ## Risks / Trade-offs
 

@@ -87,11 +87,11 @@ Disconnecting SHALL delete the secret record and that connection's cached items 
 - **THEN** none of the previous user's items or links are shown
 
 ### Requirement: List my open work items
-The plugin SHALL list the work items of the connected workspace that are assigned to the connected user and in state group backlog, unstarted or started. The list SHALL be grouped by state group and, within a group, newest update first.
+The plugin SHALL list the work items of the connected workspace that are assigned to the connected user and in state group backlog, unstarted or started. The list SHALL be grouped by state group and, within a group, newest update first. Each group SHALL show its item count and can be collapsed.
 
 #### Scenario: Items across projects
 - **WHEN** open items assigned to me exist in several projects
-- **THEN** all of them are listed, each with its key, title, state, priority and last update
+- **THEN** all of them are listed, each with its key, title, state, priority, labels and last update
 
 #### Scenario: Closed or unassigned items
 - **WHEN** an item is completed, cancelled, or not assigned to me
@@ -100,6 +100,17 @@ The plugin SHALL list the work items of the connected workspace that are assigne
 #### Scenario: Item with unknown state
 - **WHEN** an item's state details are missing from the server's answer
 - **THEN** the item is still listed, with its state shown as unknown
+
+### Requirement: Search the list
+The panel SHALL offer a search field that filters the loaded list by key, title or label, ignoring case, without a request to Plane. The completeness state and the status bar count SHALL always describe the whole list, not the filtered one.
+
+#### Scenario: Search by label
+- **WHEN** the user types a label's name into the search field
+- **THEN** only the items whose key, title or a label contains that text are shown, still grouped by state group
+
+#### Scenario: Nothing matches
+- **WHEN** no loaded item matches the search text
+- **THEN** the panel says that no items match and offers to clear the search
 
 ### Requirement: Show whether the list is complete
 The list SHALL always carry one of these completeness states:
@@ -156,11 +167,15 @@ Opening an item SHALL show its key, title, state, priority, assignees, labels, l
 - **THEN** Plane's page for that item opens in the browser, at `<app origin>/<slug>/browse/<KEY-N>/`
 
 ### Requirement: Start an agent workspace for an item
-Start SHALL create an Orca workspace named `<KEY-N>-<title slug>` in the chosen Git project. It SHALL start the chosen agent there with a prompt that holds the item's key, title, state, URL and description. The user can edit the prompt before starting.
+Start SHALL create an Orca workspace named `<KEY-N>-<title slug>` in the chosen Git project. It SHALL start the chosen agent there with a prompt that holds the item's key, title, state, URL and description. Start SHALL be offered on each list row and in the item detail. It SHALL first show a confirmation with the workspace name, project, agent and the prompt, which the user can edit. Nothing SHALL be created until the user confirms.
 
 #### Scenario: Start with an agent
-- **WHEN** the user picks a project and an agent and presses Start
+- **WHEN** the user picks a project and an agent, presses Start and confirms
 - **THEN** a workspace with that name is created and the agent starts with the prompt
+
+#### Scenario: Start from the list, then cancel
+- **WHEN** the user presses Start on a list row and then cancels the confirmation
+- **THEN** no workspace is created and the item can be started again
 
 #### Scenario: Start without an agent
 - **WHEN** the user picks "terminal only"

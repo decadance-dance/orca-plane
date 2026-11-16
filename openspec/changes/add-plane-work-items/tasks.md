@@ -137,6 +137,15 @@
 - [x] 6.4 Add `src/panel.check.ts` states: disconnected, loading, complete, partial, stale, empty, error, detail, start pending, start unknown.
   - Verify: `orca plugin dev watch . --check --shot .orca/shots` shows no errors, and the PNG of each state reads correctly.
 
+- [ ] 6.5 Carry label names into list items in `src/plane/map.ts`; read a cache without them as no labels (design D4).
+  - Verify: the list fixture maps its labels; an old cache entry without `labels` renders.
+- [ ] 6.6 Rebuild the List view per design D10: search, Project and Agent pickers at the top, collapsible groups with counts, rows with priority and label badges and Open and Start buttons that follow the Start state.
+  - Verify: panel tests for search by key, title and label, no match with Clear search, group counts, and each row Start state.
+- [ ] 6.7 Add the Start confirmation from a row and from the detail: name, project, agent, editable prompt; Confirm sends `item.start`, Cancel creates nothing.
+  - Verify: panel tests for confirm, cancel, an edited prompt and an empty project list.
+- [ ] 6.8 Update `src/panel.check.ts` for the new layout, adding `search` and `confirm` scenarios, and shoot every scenario again.
+  - Verify: `orca plugin check .` shows no issues, and the PNG of each scenario reads correctly.
+
 ## 7. Integration
 
 - [ ] 7.1 Run a live smoke test against the maintainer's Plane Cloud workspace.

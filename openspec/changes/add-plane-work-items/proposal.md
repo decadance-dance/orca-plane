@@ -15,11 +15,12 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
   - Disconnect removes the record and the connection's cached data.
 - **My open items:**
   - Lists the open work items assigned to me (state groups backlog, unstarted and started) across the workspace, through Plane API v2.
-  - Items are grouped by state group.
+  - Items are grouped by state group, in collapsible groups with counts. Each row shows the key, title, priority and labels, with Open and Start buttons.
+  - A search field filters the loaded list by key, title or label.
   - A completeness state is always shown: complete, partial, stale or error.
 - **Item detail:** key, title, state, priority, assignees, labels, last updated, the description as plain text, and a link to open the item in Plane.
 - **Start:**
-  - Creates an Orca workspace for an item, in a chosen Git project and with a chosen agent.
+  - Creates an Orca workspace for an item, in a chosen Git project and with a chosen agent, from a list row or the item detail, after a confirmation that shows the editable prompt.
   - The prompt holds the item as fenced, untrusted data.
   - Start never creates a second workspace for the same item, and it recovers from lost replies and agent failures.
 - **Status bar:** shows the count of my open items, `?` when the list is not complete, and nothing when disconnected.
@@ -38,7 +39,7 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
 | OAuth instead of a personal access token | #12 |
 | Several connections at once | #13 |
 | Plane servers without API v2 | #14 |
-| Filters and search (cycles, modules, priority, text) | #15 |
+| Filters (cycles, modules, priority); text search over the list is in this change | #15 |
 | Exact branch name for started workspaces | #16 |
 | Name the item in later agent prompts | #17 |
 | Notify when an item's agent finishes | #18 |
