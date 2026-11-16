@@ -13,7 +13,6 @@ import {
   IconButton,
   Input,
   KeyValue,
-  Link,
   List,
   ListItem,
   Markdown,
@@ -368,13 +367,9 @@ function ItemRow({ item }: { item: Item }) {
   const state = read(starts)[item.key]
   const asked = read(confirmation)
   return (
-    <ListItem key={item.key}>
+    <ListItem key={item.key} title={`${item.key} · ${item.title}`} description={item.stateName ?? 'Unknown state'}>
       <Stack gap="xs">
-        <Link onPress={() => openItem(item)}>{`${item.key} · ${item.title}`}</Link>
         <Row gap="xs" wrap>
-          <Text muted size="xs">
-            {item.stateName ?? 'Unknown state'}
-          </Text>
           {item.priority === 'none' ? null : <Badge tone={item.priority === 'urgent' ? 'danger' : item.priority === 'high' ? 'warning' : undefined}>{item.priority}</Badge>}
           {item.labels.map((label) => (
             <Badge key={label}>{label}</Badge>
@@ -384,7 +379,10 @@ function ItemRow({ item }: { item: Item }) {
         {asked?.key === item.key ? (
           <Confirmation current={asked} />
         ) : (
-          <Row>
+          <Row gap="xs">
+            <Button key={`open:${item.key}`} size="sm" variant="outline" onPress={() => openItem(item)}>
+              Open
+            </Button>
             <StartButton key={`start:${item.key}`} item={item} />
           </Row>
         )}

@@ -136,7 +136,9 @@ Constraints that shape the approach:
 ### D10. Panel layout follows backlog-md-orca
 - The panel stays a components panel in the right sidebar. Its layout follows the community plugin backlog-md-orca (maintainer's choice, 2026-11-16).
 - Top, from the top down: the connection line with Disconnect, the completeness badge with refresh, a search field, and the Project and Agent pickers that every Start uses.
-- Below them, one `Collapsible` per state group with its count. Each row shows `KEY · title` as a `Link` that opens the item detail, its state, priority and label badges, and a Start button that follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
+- Below them, one `Collapsible` per state group with its count. Each row is a `ListItem` titled `KEY · title` (text, not a link: maintainer's choice), with its state, priority and label badges and two buttons:
+  - Open, which shows the item detail;
+  - Start, which follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
 - The detail starts with a `← All items` button back to the list. Orca's icon set has no back icon, so the arrow is part of the text.
 - Start, from a row or the detail, shows a confirmation in place of that row's or the detail's buttons, so it appears where the person pressed, even deep in a long list: the workspace name, project and agent, and the prompt in an editable field, built from `item.get`. Confirm sends `item.start`; Cancel creates nothing. The open confirmation is remembered like the open item (`plane.confirm`).
 - Search filters the loaded list in the panel, by key, title or label, ignoring case. The search text is remembered per panel.

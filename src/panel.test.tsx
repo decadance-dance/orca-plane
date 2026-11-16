@@ -76,7 +76,7 @@ test('connect submits the form, clears the token field and shows the list', asyn
   assert.deepEqual(sent, [{ hostKind: 'cloud', serverUrl: '', slug: 'truelogic', token: 'plane_api_secret' }])
   assert.ok(connected)
   assert.ok(view.find({ text: 'Dima · truelogic' }))
-  assert.ok(view.find({ type: 'Link', text: 'WEB-1 · Title WEB-1' }))
+  assert.ok(view.find({ label: 'WEB-1 · Title WEB-1' }))
   assert.deepEqual(view.errors, [])
   assert.equal(JSON.stringify(view.persisted).includes('plane_api_secret'), false)
   await view.unmount()
@@ -120,11 +120,12 @@ test('the list: collapsible state groups with counts, rows with badges, a comple
   assert.match(view.find({ type: 'Collapsible', label: 'To do' })?.text ?? '', /2 items/)
   assert.equal(view.find({ type: 'Collapsible', label: 'Backlog' }), null)
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
-  const row = view.find({ type: 'ListItem', text: /WEB-2 · Title WEB-2/ })
+  const row = view.find({ label: 'WEB-2 · Title WEB-2' })
   assert.match(row?.text ?? '', /high/)
   assert.match(row?.text ?? '', /auth/)
-  assert.ok(view.find({ type: 'Link', text: 'WEB-2 · Title WEB-2' }))
-  assert.equal(view.find({ type: 'Button', text: 'Open' }), null)
+  // The title is text; Open opens the item.
+  assert.equal(view.find({ type: 'Link' }), null)
+  assert.equal(view.find({ testId: 'open:WEB-2' })?.text, 'Open')
   assert.equal(view.find({ testId: 'start:WEB-2' })?.text, 'Start')
   assert.deepEqual(view.errors, [])
   await view.unmount()
@@ -133,7 +134,7 @@ test('the list: collapsible state groups with counts, rows with badges, a comple
 test('search filters by key, title or label; nothing matching offers Clear search', async () => {
   const view = await mount(panel, { host: connectedHost() })
   await view.type({ label: 'Search' }, 'AUTH')
-  const links = () => view.findAll({ type: 'Link' }).map((link) => link.text)
+  const links = () => view.findAll({ type: 'ListItem' }).map((row) => row.label)
   assert.deepEqual(links(), ['WEB-2 · Title WEB-2'])
   await view.type({ label: 'Search' }, 'web-3', { replace: true })
   assert.deepEqual(links(), ['WEB-3 · Title WEB-3'])
@@ -243,7 +244,7 @@ test('Cancel creates nothing; a refused start shows its reason in the confirmati
   await view.unmount()
 })
 
-test('the title opens the detail: fields, Markdown description, Open in Plane, the same Start confirmation, and back', async () => {
+test('Open shows the detail: fields, Markdown description, Open in Plane, the same Start confirmation, and back', async () => {
   const opened: unknown[] = []
   const host = connectedHost({
     'item.start': { accepted: true },
@@ -253,7 +254,7 @@ test('the title opens the detail: fields, Markdown description, Open in Plane, t
     }
   })
   const view = await mount(panel, { host })
-  await view.press({ type: 'Link', text: 'WEB-1 · Title WEB-1' })
+  await view.press({ testId: 'open:WEB-1' })
   assert.ok(view.find({ text: 'WEB-1 Fix login' }))
   assert.equal(view.find({ type: 'Markdown' })?.props.content, DETAIL.description)
   assert.match(view.find({ type: 'KeyValue' })?.text ?? '', /bug/)
