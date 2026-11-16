@@ -10,8 +10,8 @@ permissions:
 
 env:
   # Orca CLI for Linux: the headless orca-server release; bump the version and its sha256 together.
-  ORCA_VERSION: 1.4.258
-  ORCA_SHA256: fd7f23f5fb6fe43fb2982d17438d772fac7cc65c8208a212d0ffb224b504e311
+  ORCA_VERSION: 1.4.261
+  ORCA_SHA256: fdb65eb961d3d4c1959601a51bc9bc5663b0403369ad50a422af16947ac3f3ba
 
 jobs:
   check:

@@ -2,9 +2,9 @@
 
 ## 1. Scaffold and CI
 
-- [ ] 1.1 Scaffold with `orca plugin create <tmp> --template worker-panel --id plane --name "Plane"` and copy the files into the repo root.
+- [x] 1.1 Scaffold with `orca plugin create <tmp> --template worker-panel --id plane --name "Plane"` and copy the files into the repo root.
   - Verify: `orca plugin validate . --json` exits 0.
-- [ ] 1.2 Write `orca-plugin.json`:
+- [x] 1.2 Write `orca-plugin.json`:
   - `engines.orca >=1.4.259`;
   - capabilities per proposal Impact;
   - panel `plane`;
@@ -12,9 +12,9 @@
   - settings `refreshMinutes` (integer 5–60, default 10) and `defaultAgent` (enum per design D8).
 
   Verify: `orca plugin inspect . --json` lists exactly those capabilities and contributions.
-- [ ] 1.3 Add `LICENSE` (MIT), `NOTICE` (Orca's MIT text, for code ported from stablyai/orca#29182), `README.md` (what it does, how to connect, use a separate token) and `docs/references.md`.
-  - Verify: the files exist and `git grep -n plane_api_` finds nothing.
-- [ ] 1.4 Bump `ORCA_VERSION` and `ORCA_SHA256` in `.github/workflows/ci.yml` to a release that is 1.4.259 or newer. The sha256 comes from the downloaded release asset.
+- [x] 1.3 Add `LICENSE` (MIT), `NOTICE` (Orca's MIT text, for code ported from stablyai/orca#29182), `README.md` (what it does, how to connect, use a separate token) and `docs/references.md`.
+  - Verify: the files exist and `git grep -nE 'plane_api_[A-Za-z0-9]{8,}'` (a token value) finds nothing.
+- [x] 1.4 Bump `ORCA_VERSION` and `ORCA_SHA256` in `.github/workflows/ci.yml` to a release that is 1.4.259 or newer. The sha256 comes from the downloaded release asset.
   - Verify: `sha256sum` of the asset matches the pinned value.
 - [ ] 1.5 Approval gate: show the maintainer the `inspect` access list and the `approval_required` data, and approve only after they say yes. Then run `bin/check`.
   - Verify: `bin/check` exits 0 on the scaffold.

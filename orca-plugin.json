@@ -1,0 +1,67 @@
+{
+  "manifestVersion": 2,
+  "id": "plane",
+  "name": "Plane",
+  "version": "0.1.0",
+  "description": "Your open Plane work items in Orca's sidebar: see what is assigned to you, read an item, and start a coding agent on it in a new workspace. Plane Cloud or self-hosted (API v2). Not affiliated with Plane.",
+  "author": {
+    "name": "decadance-dance",
+    "url": "https://github.com/decadance-dance"
+  },
+  "repository": "https://github.com/decadance-dance/orca-plane",
+  "license": "MIT",
+  "engines": {
+    "orca": ">=1.4.259"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "plane",
+        "title": "Plane",
+        "icon": "layers",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "count",
+        "icon": "layers",
+        "tooltip": "Plane: open work items assigned to you"
+      }
+    ],
+    "settings": [
+      {
+        "key": "refreshMinutes",
+        "title": "Refresh every (minutes)",
+        "description": "How often the list and the status bar count refresh in the background while connected.",
+        "type": "integer",
+        "default": 10,
+        "minimum": 5,
+        "maximum": 60
+      },
+      {
+        "key": "defaultAgent",
+        "title": "Default agent for Start",
+        "description": "The agent preselected when you start work on an item. You can change it for each start.",
+        "type": "string",
+        "default": "claude",
+        "enum": ["claude", "codex", "gemini", "opencode", "cursor", "none"],
+        "enumLabels": ["Claude Code", "Codex", "Gemini", "OpenCode", "Cursor", "Terminal only"]
+      }
+    ]
+  },
+  "capabilities": [
+    { "kind": "secrets:own" },
+    { "kind": "storage:own" },
+    { "kind": "settings:own" },
+    { "kind": "workspace:read" },
+    { "kind": "workspace:write" },
+    { "kind": "workspace:create" },
+    { "kind": "agent:launch" },
+    { "kind": "notifications:show" }
+  ]
+}
