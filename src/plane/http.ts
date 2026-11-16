@@ -89,7 +89,8 @@ async function once(conn: Conn, url: string, outer?: AbortSignal): Promise<unkno
   } catch (error) {
     if (error instanceof PlaneError) throw error
     if (timedOut) throw new PlaneError('timeout', 'Plane did not answer in time.')
-    if (outer?.aborted) throw new PlaneError('cancelled', 'Cancelled.')
+    // A caller's deadline aborts with its own PlaneError as the reason.
+    if (outer?.aborted) throw outer.reason instanceof PlaneError ? outer.reason : new PlaneError('cancelled', 'Cancelled.')
     throw new PlaneError('network', 'Could not reach the Plane server.')
   } finally {
     clearTimeout(timer)

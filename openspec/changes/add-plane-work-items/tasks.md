@@ -55,7 +55,7 @@
 
 ## 3. Connection
 
-- [ ] 3.1 Write `src/connection.ts`:
+- [x] 3.1 Write `src/connection.ts`:
   - the single secret record;
   - `connectionId`;
   - the connect lock;
@@ -69,16 +69,16 @@
   - concurrent connects run in order;
   - an account switch clears the old items and links;
   - a result after disconnect is discarded.
-- [ ] 3.2 Validate on connect: `users/me` first, then one list page. Map failures to the spec's messages: invalid token, unknown workspace, unsupported server, unsafe URL.
+- [x] 3.2 Validate on connect: `users/me` first, then one list page. Map failures to the spec's messages: invalid token, unknown workspace, unsupported server, unsafe URL.
   - Verify: one test per spec scenario of "Connect to a Plane workspace".
-- [ ] 3.3 Refuse to connect when `secrets.protection` is `unavailable`.
+- [x] 3.3 Refuse to connect when `secrets.protection` is `unavailable`.
   - Verify: a test asserts no secret and no storage write in that case.
-- [ ] 3.4 Write the sentinel-token test: drive every worker handler with a sentinel token, using `mockHost` capture and a fake `fetch`.
+- [x] 3.4 Write the sentinel-token test: drive every worker handler with a sentinel token, using `mockHost` capture and a fake `fetch`.
   - Verify: the sentinel appears only on the permitted paths of the spec requirement "Token is never exposed".
 
 ## 4. Items and status bar (worker)
 
-- [ ] 4.1 Implement the refresh model (design D4):
+- [x] 4.1 Implement the refresh model (design D4):
   - a cache under the connection id;
   - `items.list` answers from the cache at once;
   - one shared refresh with a 90 s deadline;
@@ -90,9 +90,9 @@
   - joined refreshes;
   - a closed panel still gets the result stored;
   - stale after a failure.
-- [ ] 4.2 Implement `item.get`, which returns the detail with the description converted to text and the web URL `<appOrigin>/<slug>/browse/<KEY-N>/`.
+- [x] 4.2 Implement `item.get`, which returns the detail with the description converted to text and the web URL `<appBase>/<slug>/browse/<KEY-N>/`.
   - Verify: tests use the item fixture.
-- [ ] 4.3 Implement the status bar:
+- [x] 4.3 Implement the status bar:
   - the count when the list is complete, `?` otherwise, hidden when disconnected;
   - the `refreshMinutes` timer, re-armed when the setting changes and stopped while disconnected.
 
@@ -100,12 +100,12 @@
 
 ## 5. Start
 
-- [ ] 5.1 Write `src/start.ts`:
+- [x] 5.1 Write `src/start.ts`:
   - the name `<KEY-N>-<title slug>` (ASCII, with a length cap);
   - the prompt builder with fencing and the 12,000-character cap (design D6).
 
   Verify: tests for slug edge cases, prompt contents, fence escaping and the truncation marker.
-- [ ] 5.2 Implement the per-item Start state machine (design D3):
+- [x] 5.2 Implement the per-item Start state machine (design D3):
   - `item.start` answers `accepted`;
   - `workspace.create` runs in the background;
   - `pending`→`unknown` on worker start;
@@ -121,7 +121,7 @@
   - an agent failure after create;
   - a create failure;
   - a deleted workspace.
-- [ ] 5.3 Implement the `orca.projects` handler (Git projects only, keeping `id` and `hostId`) and `workspace.open`.
+- [x] 5.3 Implement the `orca.projects` handler (Git projects only, keeping `id` and `hostId`) and `workspace.open`.
   - Verify: tests on a `project.list` fixture that contains a folder project.
 - [ ] 5.4 Do one real Start in a scratch Git project, and record the branch Orca derives from the name in `design.md` (Open Questions).
   - Verify: the recorded branch name, and the agent's prompt as seen in its terminal.

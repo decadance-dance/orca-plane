@@ -69,8 +69,9 @@ Constraints that shape the approach:
 - *Alternative:* v1, the approach the native PRs took. It needs about one request per project per refresh and metadata calls, risks incomplete lists under the cap, and is still the only API on old self-hosted servers. Deferred to #14.
 
 ### D2. Connection is one encrypted record
-- `secrets` holds a single JSON record, `{token, apiOrigin, appOrigin, slug, userId, userName}`, written with one `secrets.set`. A failed write leaves no half-saved connection.
-- `connectionId = sha256(apiOrigin + "\n" + slug + "\n" + userId)` keys every storage entry.
+- `secrets` holds a single JSON record, `{token, apiBase, appBase, hostKind, slug, userId, userName}`, written with one `secrets.set`. A failed write leaves no half-saved connection.
+  - `apiBase` and `appBase` are an origin plus the install's path prefix, if a self-hosted server has one. Requests are bound to the origin of `apiBase`.
+- `connectionId = sha256(apiBase + "\n" + slug + "\n" + userId)` keys every storage entry, as `c:<connectionId>:<name>`.
 - **Connect** runs one at a time, under an in-worker lock:
   1. validate the new destination (`users/me`, then one list page);
   2. write the record;
@@ -106,7 +107,7 @@ Constraints that shape the approach:
 - *Alternative:* the panel waits for a fresh list. Rejected: a refresh with retries can exceed 30 s.
 
 ### D5. HTTP layer
-- Every request is built from the connection. Headers are `X-API-Key` and `Accept: application/json`, with `redirect: 'error'`, and the origin must equal `apiOrigin`.
+- Every request is built from the connection. Headers are `X-API-Key` and `Accept: application/json`, with `redirect: 'error'`, and the origin must equal the origin of `apiBase`.
 - On 429, a GET is retried once when the wait (`Retry-After`, else `x-ratelimit-reset` minus now) is 30 s or less and fits the deadline.
 - Errors are classified as `auth` (401), `forbidden` (403), `not_found` (404), `rate_limited` (429), `unsupported_server`, `network`, `timeout` and `bad_response`.
   - `unsupported_server` is an HTML answer, or a 404 on `users/me`, which needs no slug.
@@ -148,5 +149,7 @@ A new plugin, so there is nothing to migrate.
 - **CI:** the Orca version bump ships in the same change.
 
 ## Open Questions
+
+- Is the id `workspace.create` returns the same id `workspace.list` rows carry? Until task 5.4 confirms it, a linked workspace counts as existing when a row has its id, or its recorded name in its project.
 
 - What exact branch name does Orca derive from `name` with the maintainer's settings? This is measured during task 5.4. It does not change the spec, which only names the workspace.

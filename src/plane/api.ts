@@ -59,7 +59,7 @@ export async function listMyOpenItems(
         {}) as Record<string, unknown>
     } catch (error) {
       // Page 1 failing is the caller's error; a later page keeps what loaded.
-      if (page === 0 || !(error instanceof PlaneError) || error.kind === 'cancelled') throw error
+      if (page === 0 || !(error instanceof PlaneError)) throw error
       return { rows, completeness: 'partial', error: error.message }
     }
     if (!Array.isArray(body.data)) {
