@@ -134,7 +134,7 @@
   - Verify: panel tests with mocked `items.list` and `start.changed` posts.
 - [x] 6.3 Build the Detail and Start views: detail fields, "Open in Plane", project and agent pickers, an editable prompt, a Start button that reflects the state, and "Open workspace".
   - Verify: panel tests, including an empty project list.
-- [ ] 6.4 Add `src/panel.check.ts` states: disconnected, loading, complete, partial, stale, empty, error, detail, start pending, start unknown.
+- [x] 6.4 Add `src/panel.check.ts` states: disconnected, loading, complete, partial, stale, empty, error, detail, start pending, start unknown.
   - Verify: `orca plugin dev watch . --check --shot .orca/shots` shows no errors, and the PNG of each state reads correctly.
 
 ## 7. Integration
