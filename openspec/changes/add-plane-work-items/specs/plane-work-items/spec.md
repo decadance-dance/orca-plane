@@ -171,10 +171,10 @@ Opening an item SHALL show its key, title, state, priority, assignees, labels, l
 - **THEN** Plane's page for that item opens in the browser, at `<app origin>/<slug>/browse/<KEY-N>/`
 
 ### Requirement: Start an agent workspace for an item
-Start SHALL create an Orca workspace named `<KEY-N>-<title slug>` in the chosen Git project. It SHALL start the chosen agent there with a prompt that holds the item's key, title, state, URL and description. Start SHALL be offered on each list row and in the item detail. It SHALL first show a confirmation with the workspace name, project, agent and the prompt, which the user can edit. Nothing SHALL be created until the user confirms.
+Start SHALL create an Orca workspace named `<KEY-N>-<title slug>` in the chosen Git project. It SHALL start the chosen agent there with a prompt that holds the item's key, title, state, URL and description. Start SHALL be offered on each list row and in the item detail. It SHALL first show a confirmation in which the user picks the project and the agent and can edit the prompt, and which shows the workspace name. Nothing SHALL be created until the user confirms.
 
 #### Scenario: Start with an agent
-- **WHEN** the user picks a project and an agent, presses Start and confirms
+- **WHEN** the user presses Start, picks a project and an agent in the confirmation and confirms
 - **THEN** a workspace with that name is created and the agent starts with the prompt
 
 #### Scenario: Start from the list, then cancel
@@ -188,6 +188,17 @@ Start SHALL create an Orca workspace named `<KEY-N>-<title slug>` in the chosen 
 #### Scenario: Only Git projects are offered
 - **WHEN** the user picks the project for Start
 - **THEN** only Orca Git projects are offered, and folder projects are not
+
+### Requirement: Start offers only installed agents
+The agent choices in the Start confirmation SHALL be the known agents whose command is found on this computer, plus terminal only. When none is found or the check fails, every known agent SHALL be offered.
+
+#### Scenario: Only installed agents are offered
+- **WHEN** of the known agents' commands, only `claude` and `codex` are found on this computer
+- **THEN** the agent choices are Claude Code, Codex and terminal only
+
+#### Scenario: Nothing found
+- **WHEN** no known agent's command is found, or the check fails
+- **THEN** every known agent and terminal only are offered
 
 ### Requirement: Ticket text is fenced as untrusted data
 The Start prompt SHALL place the item's title and description inside a block with a fixed header line, which says the block is data from the ticket and not instructions, and a fixed footer line. Ticket lines equal to the header or footer SHALL be escaped. The block SHALL be capped at 12,000 characters with a truncation marker.

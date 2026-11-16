@@ -1,6 +1,7 @@
 // The plugin's worker: the only part with network access and the only holder of the token.
 // Orca starts it with the plugin (it has a status bar item) and transpiles this file on load.
 import type { OrcaWorkerApi } from 'orca/worker'
+import { agentFinder } from './agents'
 import { Connections } from './connection'
 import { Items } from './items'
 import { Starts } from './starts'
@@ -26,6 +27,9 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('item.get', ({ key, projectId }) => items.detail(key, projectId))
   orca.panels.handle('starts.get', () => starts.all())
   orca.panels.handle('item.start', (input) => starts.start(input))
+
+  const installedAgents = agentFinder()
+  orca.panels.handle('agents.installed', async () => ({ agents: await installedAgents() }))
 
   orca.panels.handle('orca.projects', async () => {
     const { projects } = await orca.host.call('project.list')

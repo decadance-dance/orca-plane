@@ -33,19 +33,11 @@ import {
   type PanelContext
 } from 'orca'
 import type { Item, ItemDetail } from './plane/map'
-import type { ConnectionStatus, ItemsState, OrcaProject, StartState } from './protocol'
+import { type AgentChoice, type ConnectionStatus, type ItemsState, KNOWN_AGENTS, type OrcaProject, type StartState } from './protocol'
 import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
 
-export const AGENTS = [
-  { value: 'claude', label: 'Claude Code' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'opencode', label: 'OpenCode' },
-  { value: 'cursor', label: 'Cursor' },
-  { value: 'none', label: 'Terminal only' }
-]
 const GROUPS = [
   { group: 'started', label: 'In progress' },
   { group: 'unstarted', label: 'To do' },
@@ -64,6 +56,8 @@ const loadError = atom<string | null>(null)
 const items = atom<ItemsState | null>(null)
 const starts = atom<Record<string, StartState>>({})
 const projects = atom<OrcaProject[] | null>(null)
+/** Installed agents, then terminal only (design D8). */
+const agents = atom<AgentChoice[]>([])
 
 const hostKind = atom<'cloud' | 'self-hosted'>('cloud')
 const serverUrl = atom('')
@@ -102,13 +96,20 @@ function cancelStart(): void {
 }
 
 async function loadPickers(): Promise<void> {
-  const [list, fallback] = await Promise.all([
+  const [list, installed, fallback] = await Promise.all([
     plugin.request('orca.projects').catch(() => ({ projects: [] as OrcaProject[] })),
-    read(agent) ? null : settings.get('defaultAgent')
+    plugin
+      .request('agents.installed')
+      .catch(() => ({ agents: KNOWN_AGENTS.map(({ value, label }) => ({ value, label })) })),
+    settings.get('defaultAgent')
   ])
   set(projects, list.projects)
   if (!list.projects.some((project) => project.id === read(projectId))) set(projectId, list.projects[0]?.id ?? null)
-  if (!read(agent)) set(agent, typeof fallback === 'string' ? fallback : 'claude')
+  const offered = [...installed.agents, { value: 'none', label: 'Terminal only' }]
+  set(agents, offered)
+  // The remembered agent if offered, else the defaultAgent setting if offered, else the first.
+  const has = (value: unknown) => offered.some((entry) => entry.value === value)
+  if (!has(read(agent))) set(agent, has(fallback) ? String(fallback) : offered[0].value)
 }
 
 async function loadConnected(): Promise<void> {
@@ -285,7 +286,7 @@ function ConnectView() {
   )
 }
 
-/** The Project and Agent every Start uses. */
+/** The Project and Agent of a Start. */
 function Pickers() {
   const list = read(projects)
   return (
@@ -302,7 +303,7 @@ function Pickers() {
           onChange={(value) => set(projectId, value)}
         />
       )}
-      <Select label="Agent" value={read(agent)} options={AGENTS} onChange={(value) => set(agent, value)} />
+      <Select label="Agent" value={read(agent)} options={read(agents)} onChange={(value) => set(agent, value)} />
     </Stack>
   )
 }
@@ -324,7 +325,7 @@ function StartButton({ item }: { item: ItemRef }) {
       size="sm"
       tone="accent"
       icon="play"
-      disabled={busy || !read(projectId) || read(confirming)?.key === item.key}
+      disabled={busy || read(confirming)?.key === item.key}
       onPress={() => askStart(item)}
     >
       {state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : 'Start'}
@@ -334,17 +335,17 @@ function StartButton({ item }: { item: ItemRef }) {
 
 function Confirmation({ current }: { current: Loaded }) {
   const project = (read(projects) ?? []).find((entry) => entry.id === read(projectId))
-  const agentLabel = AGENTS.find((entry) => entry.value === read(agent))?.label ?? read(agent)
   const error = read(startError)
   return (
     <Card title={`Start ${current.key}`}>
       <Stack gap="sm">
         {current.error ? <Callout tone="danger">{current.error}</Callout> : null}
         {!current.item && !current.error ? <Skeleton lines={3} label={`Loading ${current.key}`} /> : null}
+        <Pickers />
         {current.item ? (
           <Stack gap="sm">
             <Text size="sm">
-              {`Workspace ${workspaceName(current.item.key, current.item.title)} in ${project?.name ?? '—'}, with ${agentLabel}.`}
+              {`Workspace ${workspaceName(current.item.key, current.item.title)}`}
             </Text>
             <Textarea label="Prompt" rows={8} value={read(prompt)} onChange={(value) => set(prompt, value)} />
           </Stack>
@@ -429,7 +430,6 @@ function ListView({ state }: { state: ItemsState | null }) {
         value={read(search)}
         onChange={(value) => set(search, value)}
       />
-      <Pickers />
       {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
       {state.completeness !== 'error' && state.items.length === 0 ? (
         <EmptyState icon="check" title="Nothing open is assigned to you" />
@@ -492,7 +492,6 @@ function DetailView({ current }: { current: Loaded }) {
             </Button>
           </Row>
           {item.description ? <Markdown content={item.description} /> : <Text muted size="sm">No description.</Text>}
-          <Pickers />
           {state?.kind === 'failed' ? (
             <Callout tone="danger" title={state.workspaceId ? 'The agent did not start' : 'Start failed'}>
               {state.error}

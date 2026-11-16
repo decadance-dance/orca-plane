@@ -124,9 +124,14 @@ Constraints that shape the approach:
 - Each ported file gets a header naming its source, and `NOTICE` carries Orca's MIT text.
 - *Alternative:* port the whole client, which is v1-centric and coupled to Electron. Rejected by D1.
 
-### D8. Fixed agent list
-- `claude`, `codex`, `gemini`, `opencode` and `cursor`, or terminal only. The default is the `defaultAgent` setting, and the last choice is remembered.
-- No host API lists installed agents (#19).
+### D8. Agents found on this computer
+- No host API lists installed agents: `agents.list` lists only the agents running in the focused workspace (#19).
+- The worker knows a fixed table of Orca agent ids and their commands: `claude`, `codex`, `gemini`, `opencode`, `cursor` (`cursor-agent`), `copilot`, `qwen-code` (`qwen`), `droid` and `kimi`.
+- Once per worker run it asks the person's login shell (`$SHELL -lc`, else `/bin/zsh`) which of those commands exist (`command -v`), with a 5 s timeout, and answers `agents.installed` with those agents. The script is fixed text: no input reaches it.
+- No command found, a failed check, or Windows: every known agent is offered.
+- Start offers those agents plus terminal only. The default is the `defaultAgent` setting when it is offered, else the first one offered; the last choice is remembered.
+- Limits: only this computer is checked, so an SSH project's host is not; an agent that Orca launches through some other command is not seen.
+- *Alternative:* the agents in Orca's Agent Session History (`agent.listSessions`). Rejected: it needs `history:read`, and an agent never run in Orca would be missing. A fixed list was the first version; the maintainer asked for installed agents only (2026-11-16).
 
 ### D9. Status bar press toggles the right sidebar
 - The status bar item runs a declarative command with the built-in action `sidebar.right.toggle`; it needs no worker code.
@@ -135,12 +140,12 @@ Constraints that shape the approach:
 
 ### D10. Panel layout follows backlog-md-orca
 - The panel stays a components panel in the right sidebar. Its layout follows the community plugin backlog-md-orca (maintainer's choice, 2026-11-16).
-- Top, from the top down: the connection line with Disconnect, the completeness badge with refresh, a search field, and the Project and Agent pickers that every Start uses.
+- Top, from the top down: the connection line with Disconnect, the completeness badge with refresh, and a search field.
 - Below them, one `Collapsible` per state group with its count. Each row is a `ListItem` titled `KEY · title` (text, not a link: maintainer's choice), with its state, priority and label badges and two buttons:
   - Open, which shows the item detail;
   - Start, which follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
 - The detail starts with a `← All items` button back to the list. Orca's icon set has no back icon, so the arrow is part of the text.
-- Start, from a row or the detail, shows a confirmation in place of that row's or the detail's buttons, so it appears where the person pressed, even deep in a long list: the workspace name, project and agent, and the prompt in an editable field, built from `item.get`. Confirm sends `item.start`; Cancel creates nothing. The open confirmation is remembered like the open item (`plane.confirm`).
+- Start, from a row or the detail, shows a confirmation in place of that row's or the detail's buttons, so it appears where the person pressed, even deep in a long list: the Project and Agent pickers (D8), the workspace name, and the prompt in an editable field, built from `item.get`. A missing Git project shows a hint there and disables Confirm. Confirm sends `item.start`; Cancel creates nothing. The open confirmation is remembered like the open item (`plane.confirm`).
 - Search filters the loaded list in the panel, by key, title or label, ignoring case. The search text is remembered per panel.
 - *Alternative:* an html panel like beads-orca, with views, filters, a table and a board. Rejected for now: a rewrite with its own design that needs a wide window. Filters stay in #15.
 

@@ -149,6 +149,10 @@
   - Verify: panel tests for Open and going back.
 - [x] 6.10 Convert the description to Markdown in `src/plane/markdown.ts`, draw it with `Markdown`, and use it in the prompt; remove `src/plane/html.ts` (design D11).
   - Verify: tests for paragraphs, headings, nested and task lists, marks, code blocks, links (unsafe targets dropped), quotes and entities; a panel test that the detail draws `Markdown`.
+- [x] 6.11 Move the Project and Agent pickers from the top of the list into the Start confirmation (design D10).
+  - Verify: panel tests that no picker shows before Start, and that the confirmation's choices reach `item.start`; no Git projects shows the hint and disables Confirm.
+- [x] 6.12 Add `agents.installed` in the worker (design D8) and offer only those agents, plus terminal only.
+  - Verify: tests for found commands, none found and a failed check; a panel test that the Agent options are the installed ones.
 
 ## 7. Integration
 

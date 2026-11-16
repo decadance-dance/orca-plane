@@ -38,14 +38,16 @@ const DETAIL: ItemDetail = {
   url: 'https://app.plane.so/truelogic/browse/WEB-1/'
 }
 
-function connectedHost(extra: Record<string, unknown> = {}, starts: Record<string, StartState> = {}) {
+function connectedHost(extra: Record<string, unknown> = {}, starts: Record<string, StartState> = {}, settings: Record<string, string> = {}) {
   return mockHost({
+    settings,
     requests: {
       'connection.get': CONNECTED,
       'items.list': list(),
       'starts.get': starts,
       'item.get': { ok: true, item: DETAIL },
       'orca.projects': { projects: [{ id: 'p1', name: 'repo', hostId: 'local' }] },
+      'agents.installed': { agents: [{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }] },
       ...extra
     }
   })
@@ -198,7 +200,7 @@ test('refresh asks for a forced refresh; posts update the list and each row foll
 
 // --- 6.3 and 6.7 Detail and Start ---
 
-test('Start on a row asks for confirmation with the editable prompt, then starts with the chosen project and agent', async () => {
+test('Start on a row asks for the project, an installed agent and the editable prompt, then starts with them', async () => {
   const started: unknown[] = []
   const host = connectedHost({
     'item.start': (input: unknown) => {
@@ -207,13 +209,15 @@ test('Start on a row asks for confirmation with the editable prompt, then starts
     }
   })
   const view = await mount(panel, { host })
-  assert.equal(view.valueOf({ label: 'Project' }), 'p1')
-  await view.select({ label: 'Agent' }, 'none')
+  // The pickers belong to the confirmation, not to the list.
+  assert.equal(view.find({ label: 'Project' }), null)
+  assert.equal(view.find({ label: 'Agent' }), null)
   await view.press({ testId: 'start:WEB-1' })
-  const card = view.find({ type: 'Card', label: 'Start WEB-1' })
-  assert.match(card?.text ?? '', /WEB-1-fix-login/)
-  assert.match(card?.text ?? '', /repo/)
-  assert.match(card?.text ?? '', /Terminal only/)
+  assert.match(view.find({ type: 'Card', label: 'Start WEB-1' })?.text ?? '', /WEB-1-fix-login/)
+  assert.equal(view.valueOf({ label: 'Project' }), 'p1')
+  const options = view.find({ label: 'Agent' })?.props.options as { value: string }[]
+  assert.deepEqual(options.map((option) => option.value), ['claude', 'codex', 'none'])
+  await view.select({ label: 'Agent' }, 'none')
   assert.match(String(view.valueOf({ label: 'Prompt' })), /BEGIN PLANE TICKET/)
   await view.type({ label: 'Prompt' }, 'Do it', { replace: true })
   await view.press({ text: 'Confirm' })
@@ -272,12 +276,28 @@ test('Open shows the detail: fields, Markdown description, Open in Plane, the sa
   await view.unmount()
 })
 
-test('no Git projects: a hint instead of the project picker, and Start is disabled', async () => {
+test('no Git projects: the confirmation shows a hint instead of the project picker, and Confirm is disabled', async () => {
   const view = await mount(panel, { host: connectedHost({ 'orca.projects': { projects: [] } }) })
+  await view.press({ testId: 'start:WEB-1' })
   assert.ok(view.find(part('No Git projects')))
   assert.equal(view.find({ label: 'Project' }), null)
-  assert.equal(view.find({ testId: 'start:WEB-1' })?.disabled, true)
+  assert.equal(view.find({ text: 'Confirm' })?.disabled, true)
   await view.unmount()
+})
+
+test('the preselected agent: the remembered one if installed, else defaultAgent if installed, else the first', async () => {
+  const cases: [Record<string, string>, Record<string, string>, string][] = [
+    [{ 'plane.agent': 'codex' }, {}, 'codex'],
+    [{ 'plane.agent': 'gemini' }, { defaultAgent: 'codex' }, 'codex'],
+    [{}, { defaultAgent: 'gemini' }, 'claude']
+  ]
+  for (const [persisted, settings, expected] of cases) {
+    const host = connectedHost({}, {}, settings)
+    const view = await mount(panel, { host, persisted: { plugin: persisted } })
+    await view.press({ testId: 'start:WEB-1' })
+    assert.equal(view.valueOf({ label: 'Agent' }), expected, JSON.stringify([persisted, settings]))
+    await view.unmount()
+  }
 })
 
 test('a worker that does not answer shows the error and Retry loads again', async () => {

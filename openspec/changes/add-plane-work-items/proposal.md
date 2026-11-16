@@ -20,7 +20,8 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
   - A completeness state is always shown: complete, partial, stale or error.
 - **Item detail:** key, title, state, priority, assignees, labels, last updated, the description with its formatting, and a link to open the item in Plane.
 - **Start:**
-  - Creates an Orca workspace for an item, in a chosen Git project and with a chosen agent, from a list row or the item detail, after a confirmation that shows the editable prompt.
+  - Creates an Orca workspace for an item, in a chosen Git project and with a chosen agent, from a list row or the item detail, after a confirmation where the project and the agent are picked and the prompt can be edited.
+  - Offers only the agents whose command is found on this computer.
   - The prompt holds the item as fenced, untrusted data.
   - Start never creates a second workspace for the same item, and it recovers from lost replies and agent failures.
 - **Status bar:** shows the count of my open items, `?` when the list is not complete, and nothing when disconnected.
@@ -43,7 +44,6 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
 | Exact branch name for started workspaces | #16 |
 | Name the item in later agent prompts | #17 |
 | Notify when an item's agent finishes | #18 |
-| Offer only installed agents in Start | #19 |
 | Agents reading and updating Plane (skill or MCP) | #20 |
 | Listing in Orca's community catalog | #21 |
 

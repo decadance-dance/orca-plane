@@ -56,7 +56,8 @@ const connected = (list: ItemsState, starts: Record<string, StartState> = {}) =>
     'items.list': list,
     'starts.get': starts,
     'item.get': { ok: true as const, item: DETAIL },
-    'orca.projects': { projects: [{ id: 'p1', name: 'web-app', hostId: 'local' }] }
+    'orca.projects': { projects: [{ id: 'p1', name: 'web-app', hostId: 'local' }] },
+    'agents.installed': { agents: [{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }] }
   }
 })
 const onDetail = { persisted: { plugin: { 'plane.open': { key: 'WEB-12', projectId: 'plane-project' } } } }

@@ -35,6 +35,21 @@ export type StartState =
 
 export type OrcaProject = { id: string; name: string; hostId: string | null }
 
+export type AgentChoice = { value: string; label: string }
+
+/** The agents Start knows, as Orca agent ids with the command that runs each (design D8). */
+export const KNOWN_AGENTS = [
+  { value: 'claude', label: 'Claude Code', command: 'claude' },
+  { value: 'codex', label: 'Codex', command: 'codex' },
+  { value: 'gemini', label: 'Gemini', command: 'gemini' },
+  { value: 'opencode', label: 'OpenCode', command: 'opencode' },
+  { value: 'cursor', label: 'Cursor', command: 'cursor-agent' },
+  { value: 'copilot', label: 'GitHub Copilot', command: 'copilot' },
+  { value: 'qwen-code', label: 'Qwen Code', command: 'qwen' },
+  { value: 'droid', label: 'Droid', command: 'droid' },
+  { value: 'kimi', label: 'Kimi', command: 'kimi' }
+] as const
+
 export type Result<T> = ({ ok: true } & T) | { ok: false; error: string }
 
 declare module 'orca' {
@@ -54,6 +69,8 @@ declare module 'orca' {
       input: { key: string; orcaProjectId: string; hostId: string | null; agent: string | null; prompt: string }
       output: { accepted: true } | { accepted: false; reason: string }
     }
+    /** The known agents found on this computer; all of them when none is found. */
+    'agents.installed': { output: { agents: AgentChoice[] } }
     /** Orca's Git projects, the only ones Start can use. */
     'orca.projects': { output: { projects: OrcaProject[] } }
     'workspace.open': { input: { workspaceId: string }; output: Result<{}> }
