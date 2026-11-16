@@ -201,7 +201,7 @@ Start SHALL be refused for an item while a Start for it is pending, or while its
 - **THEN** the item offers Start again
 
 ### Requirement: Status bar count
-While connected, the status bar SHALL show the number of my open items when the list is complete, and `?` otherwise. It SHALL show nothing while disconnected. Pressing it SHALL open the panel. It SHALL refresh on the configured interval: at least 5 minutes, 10 by default.
+While connected, the status bar SHALL show the number of my open items when the list is complete, and `?` otherwise. It SHALL show nothing while disconnected. Pressing it SHALL toggle Orca's right sidebar, where the Plane panel lives. It SHALL refresh on the configured interval: at least 5 minutes, 10 by default.
 
 #### Scenario: Complete list
 - **WHEN** the list is complete with 12 items

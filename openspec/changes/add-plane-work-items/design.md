@@ -127,6 +127,11 @@ Constraints that shape the approach:
 - `claude`, `codex`, `gemini`, `opencode` and `cursor`, or terminal only. The default is the `defaultAgent` setting, and the last choice is remembered.
 - No host API lists installed agents (#19).
 
+### D9. Status bar press toggles the right sidebar
+- The status bar item runs a declarative command with the built-in action `sidebar.right.toggle`; it needs no worker code.
+- Orca has no action or host API that opens one plugin panel. The Plane panel shows when it is the selected tab of the right sidebar.
+- *Alternative:* the worker runs `orca plugin open <key> --panel plane` through the CLI, as orca-redmine does. Rejected: it brings back binary discovery (maintainer's choice, 2026-11-16).
+
 ## Risks / Trade-offs
 
 - **The branch name is Orca's derivation of `name`, which may add a user prefix.** → Measure it on the first real Start (task 5.4) and record it here. Exact names are #16.

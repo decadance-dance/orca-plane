@@ -30,7 +30,8 @@
       {
         "id": "count",
         "icon": "layers",
-        "tooltip": "Plane: open work items assigned to you"
+        "tooltip": "Plane: open work items assigned to you",
+        "command": "plane.toggleSidebar"
       }
     ],
     "settings": [
@@ -49,19 +50,56 @@
         "description": "The agent preselected when you start work on an item. You can change it for each start.",
         "type": "string",
         "default": "claude",
-        "enum": ["claude", "codex", "gemini", "opencode", "cursor", "none"],
-        "enumLabels": ["Claude Code", "Codex", "Gemini", "OpenCode", "Cursor", "Terminal only"]
+        "enum": [
+          "claude",
+          "codex",
+          "gemini",
+          "opencode",
+          "cursor",
+          "none"
+        ],
+        "enumLabels": [
+          "Claude Code",
+          "Codex",
+          "Gemini",
+          "OpenCode",
+          "Cursor",
+          "Terminal only"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "id": "plane.toggleSidebar",
+        "title": "Plane: toggle the right sidebar",
+        "action": "sidebar.right.toggle"
       }
     ]
   },
   "capabilities": [
-    { "kind": "secrets:own" },
-    { "kind": "storage:own" },
-    { "kind": "settings:own" },
-    { "kind": "workspace:read" },
-    { "kind": "workspace:write" },
-    { "kind": "workspace:create" },
-    { "kind": "agent:launch" },
-    { "kind": "notifications:show" }
+    {
+      "kind": "secrets:own"
+    },
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "workspace:write"
+    },
+    {
+      "kind": "workspace:create"
+    },
+    {
+      "kind": "agent:launch"
+    },
+    {
+      "kind": "notifications:show"
+    }
   ]
 }
