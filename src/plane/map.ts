@@ -14,12 +14,13 @@ export type Item = {
   stateName: string | null
   stateGroup: StateGroup
   priority: Priority
+  /** Label names. */
+  labels: string[]
   updatedAt: string
 }
 
 export type ItemDetail = Item & {
   assignees: string[]
-  labels: string[]
   description: string
   url: string
 }
@@ -29,6 +30,11 @@ const PRIORITIES = new Set<string>(['urgent', 'high', 'medium', 'low', 'none'])
 
 type Row = Record<string, unknown>
 const str = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+const names = (value: unknown, field: string): string[] =>
+  Array.isArray(value)
+    ? value.map((entry) => str((entry as Row | null)?.[field])).filter(Boolean)
+    : []
 
 /** null for a row without the fields an item needs. */
 export function toItem(raw: unknown): Item | null {
@@ -47,14 +53,10 @@ export function toItem(raw: unknown): Item | null {
     stateName: state ? str(state.name) || null : null,
     stateGroup: GROUPS.has(group) ? (group as StateGroup) : 'unknown',
     priority: PRIORITIES.has(priority) ? (priority as Priority) : 'none',
+    labels: names(row.labels, 'name'),
     updatedAt: str(row.updated_at)
   }
 }
-
-const names = (value: unknown, field: string): string[] =>
-  Array.isArray(value)
-    ? value.map((entry) => str((entry as Row | null)?.[field])).filter(Boolean)
-    : []
 
 export function toDetail(raw: unknown, url: (key: string) => string): ItemDetail | null {
   const item = toItem(raw)
@@ -63,7 +65,6 @@ export function toDetail(raw: unknown, url: (key: string) => string): ItemDetail
   return {
     ...item,
     assignees: names(row.assignees, 'display_name'),
-    labels: names(row.labels, 'name'),
     description: htmlToText(str(row.description_html)),
     url: url(item.key)
   }

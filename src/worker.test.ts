@@ -342,6 +342,18 @@ test('the result is stored even with no panel asking again', async () => {
   await worker.deactivate()
 })
 
+test('a cache written before list items had labels reads as items with no labels', async () => {
+  plane()
+  const record = { token: TOKEN, apiBase: 'https://api.plane.so', appBase: 'https://app.plane.so', hostKind: 'cloud', slug: 'truelogic', userId: USER, userName: 'Dima' }
+  const id = await connectionId(record.apiBase, record.slug, USER)
+  const old = { id: 'i1', key: 'DIOGEN-1', title: 'Old', projectId: 'p', stateName: 'Todo', stateGroup: 'unstarted', priority: 'none', updatedAt: '' }
+  const cache = { items: [old], completeness: 'complete', fetchedAt: Date.now(), error: null, checkedAt: Date.now() }
+  const h = host({}, { secrets: { connection: JSON.stringify(record) }, storage: { [`c:${id}:items`]: cache as never } })
+  const worker = await mountWorker(main, { host: h })
+  assert.deepEqual((await worker.request('items.list')).items, [{ ...old, labels: [] }])
+  await worker.deactivate()
+})
+
 test('a failed refresh after a good one is stale and keeps the items; status ?', async () => {
   let fail = false
   plane((url) => (fail && url.pathname.endsWith('/work-items/') ? { status: 500, json: { detail: 'boom' } } : undefined) as never)

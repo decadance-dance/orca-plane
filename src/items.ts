@@ -37,8 +37,10 @@ export class Items {
   }
 
   private async cache(conn: Connection): Promise<Cache> {
-    const saved = await this.orca.storage.get(keyOf(conn.id, 'items'))
-    return saved && typeof saved === 'object' ? (saved as Cache) : EMPTY
+    const saved = (await this.orca.storage.get(keyOf(conn.id, 'items'))) as Cache | null
+    if (!saved || typeof saved !== 'object') return EMPTY
+    // A cache written before list items carried labels.
+    return { ...saved, items: saved.items.map((item) => ({ ...item, labels: item.labels ?? [] })) }
   }
 
   async state(): Promise<ItemsState> {

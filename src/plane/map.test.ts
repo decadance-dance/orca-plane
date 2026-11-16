@@ -14,6 +14,7 @@ test('the probe list page maps', () => {
     stateName: '<name>',
     stateGroup: 'started',
     priority: 'low',
+    labels: [],
     updatedAt: '2026-11-16T18:20:38.353144Z'
   })
   assert.equal(items[1]?.stateGroup, 'unstarted')
@@ -40,6 +41,10 @@ test('an unexpanded state stays listed as unknown; an unknown priority is none',
 test('a row without id or key is dropped', () => {
   assert.equal(toItem({ identifier: 'A-1' }), null)
   assert.equal(toItem(null), null)
+})
+
+test('list rows carry their label names', () => {
+  assert.deepEqual(toItem({ ...page.data[0], labels: [{ name: 'bug' }, { name: 'auth' }, {}] })?.labels, ['bug', 'auth'])
 })
 
 test('labels and description', () => {
