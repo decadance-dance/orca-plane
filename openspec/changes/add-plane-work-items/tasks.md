@@ -21,16 +21,16 @@
 
 ## 2. Plane client
 
-- [ ] 2.1 Port server URL normalization from #29182 into `src/plane/url.ts`, with a source header. Cover:
+- [x] 2.1 Port server URL normalization from #29182 into `src/plane/url.ts`, with a source header. Cover:
   - Cloud vs self-hosted;
   - API and app origins;
   - stripping `/api…`;
   - refusing `http:` off loopback and URLs with userinfo.
 
   Verify: `src/plane/url.test.ts` covers each case and passes under `orca plugin test .`.
-- [ ] 2.2 Port HTML to text from #29182 into `src/plane/html.ts`.
+- [x] 2.2 Port HTML to text from #29182 into `src/plane/html.ts`.
   - Verify: tests for paragraphs, line breaks, entities and nested markup pass.
-- [ ] 2.3 Write `src/plane/http.ts`, a connection-bound `fetch` per design D5:
+- [x] 2.3 Write `src/plane/http.ts`, a connection-bound `fetch` per design D5:
   - headers;
   - `redirect: 'error'`;
   - origin check;
@@ -39,7 +39,7 @@
   - the error kinds.
 
   Verify: tests with a fake `fetch` cover every rule, including no retry on a long wait, and that errors carry no request headers.
-- [ ] 2.4 Write `src/plane/api.ts`:
+- [x] 2.4 Write `src/plane/api.ts`:
   - `me()`;
   - `listMyOpenItems()`, which walks cursor pages and repeats filters, `order_by` and `per_page` on every page;
   - `getItem()`.
@@ -50,7 +50,7 @@
   - exactly 1,000 items with `has_more` false and true;
   - a repeated or malformed cursor gives `partial`;
   - a failing page n>1 gives `partial` plus the error.
-- [ ] 2.5 Write `src/plane/map.ts`, which maps v2 payloads to the plugin's item model.
+- [x] 2.5 Write `src/plane/map.ts`, which maps v2 payloads to the plugin's item model.
   - Verify: the probe fixtures in `test/fixtures/` map. An unexpanded state stays listed as unknown. An unknown priority becomes `none`.
 
 ## 3. Connection
