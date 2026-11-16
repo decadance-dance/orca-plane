@@ -28,9 +28,7 @@ jobs:
           echo "$ORCA_SHA256  orca.AppImage" | sha256sum -c -
           # Unpacks without FUSE; the CLI runs Electron in Node mode, so no display is needed.
           chmod +x orca.AppImage && ./orca.AppImage --appimage-extract >/dev/null && rm orca.AppImage
-          cli=$(find "$RUNNER_TEMP/squashfs-root" -path '*/resources/bin/orca' -type f | head -n1)
-          test -n "$cli" || { echo "no orca CLI in the AppImage"; exit 1; }
-          mkdir -p "$RUNNER_TEMP/bin" && ln -s "$cli" "$RUNNER_TEMP/bin/orca"
+          mkdir -p "$RUNNER_TEMP/bin" && ln -s "$RUNNER_TEMP/squashfs-root/resources/bin/orca-ide" "$RUNNER_TEMP/bin/orca"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - run: orca plugin check --help >/dev/null
       - run: bin/check
