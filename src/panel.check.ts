@@ -35,7 +35,9 @@ const ITEMS = [
 const DETAIL: ItemDetail = {
   ...ITEMS[0],
   assignees: ['Ada'],
-  description: 'After signing in, users land on the home page instead of the page they asked for.\n\nKeep the original URL through the login flow.',
+  description:
+    '## Problem\n\nAfter signing in, users land on the **home page** instead of the page they asked for.\n\n' +
+    '## Steps\n\n1. Open `/settings` while signed out.\n2. Sign in.\n\n- [x] Reproduced\n- [ ] Fixed\n\nSee [the login flow](https://example.com/login).',
   url: 'https://app.plane.so/acme/browse/WEB-12/'
 }
 

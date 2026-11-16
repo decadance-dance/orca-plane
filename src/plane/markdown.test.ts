@@ -1,0 +1,62 @@
+import { assert, test } from 'orca/testing'
+import { htmlToMarkdown } from './markdown'
+
+test('paragraphs and line breaks', () => {
+  assert.equal(htmlToMarkdown('<p>one</p><p>two<br>three<br/>four</p>'), 'one\n\ntwo  \nthree  \nfour')
+  assert.equal(htmlToMarkdown(''), '')
+  assert.equal(htmlToMarkdown('<p></p><p>  spaced\n  out  </p>'), 'spaced out')
+})
+
+test('entities are decoded and Markdown characters in text are escaped', () => {
+  assert.equal(
+    htmlToMarkdown('<p>a &lt;b&gt; &amp; &quot;c&quot; &#39;d&#39;&nbsp;e &#8212; &#x41;</p>'),
+    'a \\<b\\> & "c" \'d\' e — A'
+  )
+  assert.equal(htmlToMarkdown('<p>1. not a list *x* [y] _z_ `q`</p>'), '1\\. not a list \\*x\\* \\[y\\] \\_z\\_ \\`q\\`')
+  assert.equal(htmlToMarkdown('<p># not a heading</p><p>- not an item</p>'), '\\# not a heading\n\n\\- not an item')
+})
+
+test('headings and inline marks', () => {
+  assert.equal(
+    htmlToMarkdown('<h2>Title</h2><p><strong>bold <em>it</em></strong> <s>gone</s> <code>x()</code></p>'),
+    '## Title\n\n**bold *it*** ~~gone~~ `x()`'
+  )
+  assert.equal(htmlToMarkdown('<p><code>a`b</code></p>'), '``a`b``')
+})
+
+test('nested, ordered and task lists', () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<ul><li><p>a</p><ul><li>b</li></ul></li><li>c</li></ul>' +
+        '<ol><li>one</li><li>two</li></ol>' +
+        '<ul data-type="taskList"><li data-checked="true"><label><input type="checkbox" checked></label><div><p>done</p></div></li>' +
+        '<li data-checked="false"><label><input type="checkbox"></label><div><p>todo</p></div></li></ul>'
+    ),
+    '- a\n  - b\n- c\n\n1. one\n2. two\n\n- [x] done\n- [ ] todo'
+  )
+})
+
+test('code blocks keep their text and language', () => {
+  assert.equal(
+    htmlToMarkdown('<pre><code class="language-ts">const a = 1 &lt; 2\n  b *c*</code></pre><p>after</p>'),
+    '```ts\nconst a = 1 < 2\n  b *c*\n```\n\nafter'
+  )
+  assert.equal(htmlToMarkdown('<pre><code>has ``` inside</code></pre>'), '~~~~\nhas ``` inside\n~~~~')
+})
+
+test('links keep only http, https and mailto targets; images become their alt text', () => {
+  assert.equal(
+    htmlToMarkdown('<p><a href="https://x.dev/a b(c)">site</a> <a href="javascript:alert(1)">bad</a> <a href="mailto:a@b.c">mail</a></p>'),
+    '[site](https://x.dev/a%20b%28c%29) bad [mail](mailto:a@b.c)'
+  )
+  assert.equal(htmlToMarkdown('<p><img src="https://x/a.png" alt="diagram"><img src="b.png"></p>'), 'diagram')
+})
+
+test('quotes, rules, unknown tags and unclosed markup', () => {
+  assert.equal(
+    htmlToMarkdown('<blockquote><p>q1</p><p>q2</p></blockquote><hr><p>after <mention-component label="Ada">@Ada</mention-component></p>'),
+    '> q1\n>\n> q2\n\n---\n\nafter @Ada'
+  )
+  assert.equal(htmlToMarkdown('<p>open <strong>bold</p><p>next</p>'), 'open **bold**\n\nnext')
+  assert.equal(htmlToMarkdown('loose text <div>block</div> tail'), 'loose text\n\nblock\n\ntail')
+})

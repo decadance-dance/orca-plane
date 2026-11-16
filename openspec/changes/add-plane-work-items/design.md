@@ -119,8 +119,8 @@ Constraints that shape the approach:
 - The block is capped at 12,000 characters with `[truncated]`. Orca uses the same limit for its own integrations.
 - This is guidance for the agent, not an injection guarantee.
 
-### D7. Port only two pure modules from stablyai/orca#29182 (`b86a6e39`, MIT)
-- The modules are server URL normalization and origin rules (`src/shared/plane-url.ts`), and HTML to text (`src/main/plane/plane-comment-html.ts`).
+### D7. Port only pure modules from stablyai/orca#29182 (`b86a6e39`, MIT)
+- The module is server URL normalization and origin rules (`src/shared/plane-url.ts`). HTML to text (`src/main/plane/plane-comment-html.ts`) was ported first and then replaced by D11.
 - Each ported file gets a header naming its source, and `NOTICE` carries Orca's MIT text.
 - *Alternative:* port the whole client, which is v1-centric and coupled to Electron. Rejected by D1.
 
@@ -136,12 +136,18 @@ Constraints that shape the approach:
 ### D10. Panel layout follows backlog-md-orca
 - The panel stays a components panel in the right sidebar. Its layout follows the community plugin backlog-md-orca (maintainer's choice, 2026-11-16).
 - Top, from the top down: the connection line with Disconnect, the completeness badge with refresh, a search field, and the Project and Agent pickers that every Start uses.
-- Below them, one `Collapsible` per state group with its count. Each row is a `ListItem` titled `KEY · title`, with priority and label badges and two buttons:
-  - Open, which shows the item detail as before;
-  - Start, which follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
+- Below them, one `Collapsible` per state group with its count. Each row shows `KEY · title` as a `Link` that opens the item detail, its state, priority and label badges, and a Start button that follows the item's Start state: Start, Starting…, Checking…, or Open workspace.
+- The detail starts with a `← All items` button back to the list. Orca's icon set has no back icon, so the arrow is part of the text.
 - Start, from a row or the detail, shows a confirmation in place of that row's or the detail's buttons, so it appears where the person pressed, even deep in a long list: the workspace name, project and agent, and the prompt in an editable field, built from `item.get`. Confirm sends `item.start`; Cancel creates nothing. The open confirmation is remembered like the open item (`plane.confirm`).
 - Search filters the loaded list in the panel, by key, title or label, ignoring case. The search text is remembered per panel.
 - *Alternative:* an html panel like beads-orca, with views, filters, a table and a board. Rejected for now: a rewrite with its own design that needs a wide window. Filters stay in #15.
+
+### D11. The description is Markdown
+- The worker converts `description_html` to GitHub-flavoured Markdown (`src/plane/markdown.ts`): paragraphs, headings, nested and task lists, bold, italic, strikethrough, inline code and code blocks, links, quotes and rules. Other tags keep their text.
+- The panel draws it with Orca's `Markdown`, which sanitizes it and opens links like `Link`. Images must be plugin files there, so a Plane image shows as its alt text.
+- Links keep only `http`, `https` and `mailto` targets; any other target keeps its text without the link.
+- The Start prompt carries the same Markdown inside its fence (D6).
+- *Alternative:* plain text, split into paragraphs. Rejected after use: lists, headings and line breaks ran together into one block.
 
 ## Risks / Trade-offs
 

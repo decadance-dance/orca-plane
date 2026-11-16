@@ -1,5 +1,5 @@
 // Maps Plane API v2 payloads (rows with `expand=state,assignees,labels`) to the plugin's model.
-import { htmlToText } from './html'
+import { htmlToMarkdown } from './markdown'
 
 export type StateGroup = 'backlog' | 'unstarted' | 'started' | 'unknown'
 export type Priority = 'urgent' | 'high' | 'medium' | 'low' | 'none'
@@ -65,7 +65,7 @@ export function toDetail(raw: unknown, url: (key: string) => string): ItemDetail
   return {
     ...item,
     assignees: names(row.assignees, 'display_name'),
-    description: htmlToText(str(row.description_html)),
+    description: htmlToMarkdown(str(row.description_html)),
     url: url(item.key)
   }
 }

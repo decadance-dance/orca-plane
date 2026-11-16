@@ -156,11 +156,15 @@ On a 429 answer to a read, the plugin SHALL retry at most once, and only when th
 - **THEN** the plugin does not retry, and shows that it is rate limited until then
 
 ### Requirement: Item detail
-Opening an item SHALL show its key, title, state, priority, assignees, labels, last update and description as plain text, plus a control that opens the item in Plane's web app.
+Opening an item SHALL show its key, title, state, priority, assignees, labels, last update and description, plus a control that opens the item in Plane's web app. The description SHALL keep its formatting: paragraphs, headings, lists, links, code and quotes. An item's title in the list SHALL open it, and the detail SHALL offer a way back to the list.
 
 #### Scenario: Open an item
 - **WHEN** the user opens an item from the list
-- **THEN** its details and plain-text description are shown
+- **THEN** its details and formatted description are shown
+
+#### Scenario: Open from the list and go back
+- **WHEN** the user presses an item's title in the list, then the back control in the detail
+- **THEN** the detail opens, then the list shows again
 
 #### Scenario: Open in Plane
 - **WHEN** the user presses "Open in Plane"

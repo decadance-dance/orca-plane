@@ -18,7 +18,7 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
   - Items are grouped by state group, in collapsible groups with counts. Each row shows the key, title, priority and labels, with Open and Start buttons.
   - A search field filters the loaded list by key, title or label.
   - A completeness state is always shown: complete, partial, stale or error.
-- **Item detail:** key, title, state, priority, assignees, labels, last updated, the description as plain text, and a link to open the item in Plane.
+- **Item detail:** key, title, state, priority, assignees, labels, last updated, the description with its formatting, and a link to open the item in Plane.
 - **Start:**
   - Creates an Orca workspace for an item, in a chosen Git project and with a chosen agent, from a list row or the item detail, after a confirmation that shows the editable prompt.
   - The prompt holds the item as fenced, untrusted data.

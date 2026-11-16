@@ -13,8 +13,10 @@ import {
   IconButton,
   Input,
   KeyValue,
+  Link,
   List,
   ListItem,
+  Markdown,
   plugin,
   RadioGroup,
   read,
@@ -366,9 +368,13 @@ function ItemRow({ item }: { item: Item }) {
   const state = read(starts)[item.key]
   const asked = read(confirmation)
   return (
-    <ListItem key={item.key} title={`${item.key} · ${item.title}`} description={item.stateName ?? 'Unknown state'}>
+    <ListItem key={item.key}>
       <Stack gap="xs">
+        <Link onPress={() => openItem(item)}>{`${item.key} · ${item.title}`}</Link>
         <Row gap="xs" wrap>
+          <Text muted size="xs">
+            {item.stateName ?? 'Unknown state'}
+          </Text>
           {item.priority === 'none' ? null : <Badge tone={item.priority === 'urgent' ? 'danger' : item.priority === 'high' ? 'warning' : undefined}>{item.priority}</Badge>}
           {item.labels.map((label) => (
             <Badge key={label}>{label}</Badge>
@@ -378,10 +384,7 @@ function ItemRow({ item }: { item: Item }) {
         {asked?.key === item.key ? (
           <Confirmation current={asked} />
         ) : (
-          <Row gap="xs">
-            <Button key={`open:${item.key}`} size="sm" variant="outline" onPress={() => openItem(item)}>
-              Open
-            </Button>
+          <Row>
             <StartButton key={`start:${item.key}`} item={item} />
           </Row>
         )}
@@ -468,7 +471,7 @@ function DetailView({ current }: { current: Loaded }) {
     <Stack gap="md">
       <Row>
         <Button variant="ghost" size="sm" onPress={closeItem}>
-          All items
+          ← All items
         </Button>
       </Row>
       {current.error ? <Callout tone="danger" title={current.key}>{current.error}</Callout> : null}
@@ -490,13 +493,7 @@ function DetailView({ current }: { current: Loaded }) {
               Open in Plane
             </Button>
           </Row>
-          <Stack gap="xs">
-            {(item.description || 'No description.').split(/\n{2,}/).map((paragraph, index) => (
-              <Text key={String(index)} size="sm">
-                {paragraph}
-              </Text>
-            ))}
-          </Stack>
+          {item.description ? <Markdown content={item.description} /> : <Text muted size="sm">No description.</Text>}
           <Pickers />
           {state?.kind === 'failed' ? (
             <Callout tone="danger" title={state.workspaceId ? 'The agent did not start' : 'Start failed'}>

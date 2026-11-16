@@ -34,7 +34,7 @@ const DETAIL: ItemDetail = {
   ...item('WEB-1', 'started', 'Fix login'),
   assignees: ['Dima'],
   labels: ['bug'],
-  description: 'First paragraph.\n\nSecond paragraph.',
+  description: 'First paragraph.\n\n- one\n- two',
   url: 'https://app.plane.so/truelogic/browse/WEB-1/'
 }
 
@@ -76,7 +76,7 @@ test('connect submits the form, clears the token field and shows the list', asyn
   assert.deepEqual(sent, [{ hostKind: 'cloud', serverUrl: '', slug: 'truelogic', token: 'plane_api_secret' }])
   assert.ok(connected)
   assert.ok(view.find({ text: 'Dima · truelogic' }))
-  assert.ok(view.find({ label: 'WEB-1 · Title WEB-1' }))
+  assert.ok(view.find({ type: 'Link', text: 'WEB-1 · Title WEB-1' }))
   assert.deepEqual(view.errors, [])
   assert.equal(JSON.stringify(view.persisted).includes('plane_api_secret'), false)
   await view.unmount()
@@ -120,10 +120,11 @@ test('the list: collapsible state groups with counts, rows with badges, a comple
   assert.match(view.find({ type: 'Collapsible', label: 'To do' })?.text ?? '', /2 items/)
   assert.equal(view.find({ type: 'Collapsible', label: 'Backlog' }), null)
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
-  const row = view.find({ label: 'WEB-2 · Title WEB-2' })
+  const row = view.find({ type: 'ListItem', text: /WEB-2 · Title WEB-2/ })
   assert.match(row?.text ?? '', /high/)
   assert.match(row?.text ?? '', /auth/)
-  assert.ok(view.find({ testId: 'open:WEB-2' }))
+  assert.ok(view.find({ type: 'Link', text: 'WEB-2 · Title WEB-2' }))
+  assert.equal(view.find({ type: 'Button', text: 'Open' }), null)
   assert.equal(view.find({ testId: 'start:WEB-2' })?.text, 'Start')
   assert.deepEqual(view.errors, [])
   await view.unmount()
@@ -132,12 +133,12 @@ test('the list: collapsible state groups with counts, rows with badges, a comple
 test('search filters by key, title or label; nothing matching offers Clear search', async () => {
   const view = await mount(panel, { host: connectedHost() })
   await view.type({ label: 'Search' }, 'AUTH')
-  assert.ok(view.find({ label: 'WEB-2 · Title WEB-2' }))
-  assert.equal(view.find({ label: 'WEB-1 · Title WEB-1' }), null)
+  const links = () => view.findAll({ type: 'Link' }).map((link) => link.text)
+  assert.deepEqual(links(), ['WEB-2 · Title WEB-2'])
   await view.type({ label: 'Search' }, 'web-3', { replace: true })
-  assert.deepEqual(view.findAll({ type: 'ListItem' }).map((row) => row.label), ['WEB-3 · Title WEB-3'])
+  assert.deepEqual(links(), ['WEB-3 · Title WEB-3'])
   await view.type({ label: 'Search' }, 'title web-1', { replace: true })
-  assert.deepEqual(view.findAll({ type: 'ListItem' }).map((row) => row.label), ['WEB-1 · Title WEB-1'])
+  assert.deepEqual(links(), ['WEB-1 · Title WEB-1'])
   await view.type({ label: 'Search' }, 'zzz', { replace: true })
   assert.ok(view.find({ label: 'No matching items' }))
   // The badge describes the whole list, not the filtered one.
@@ -242,7 +243,7 @@ test('Cancel creates nothing; a refused start shows its reason in the confirmati
   await view.unmount()
 })
 
-test('the detail shows its fields, opens in Plane, and starts through the same confirmation', async () => {
+test('the title opens the detail: fields, Markdown description, Open in Plane, the same Start confirmation, and back', async () => {
   const opened: unknown[] = []
   const host = connectedHost({
     'item.start': { accepted: true },
@@ -252,9 +253,9 @@ test('the detail shows its fields, opens in Plane, and starts through the same c
     }
   })
   const view = await mount(panel, { host })
-  await view.press({ testId: 'open:WEB-1' })
+  await view.press({ type: 'Link', text: 'WEB-1 · Title WEB-1' })
   assert.ok(view.find({ text: 'WEB-1 Fix login' }))
-  assert.ok(view.find({ text: 'Second paragraph.' }))
+  assert.equal(view.find({ type: 'Markdown' })?.props.content, DETAIL.description)
   assert.match(view.find({ type: 'KeyValue' })?.text ?? '', /bug/)
   await view.press({ text: 'Open in Plane' })
   assert.deepEqual(host.callsOf('shell.openExternal'), [{ url: DETAIL.url }])
@@ -265,7 +266,7 @@ test('the detail shows its fields, opens in Plane, and starts through the same c
   assert.ok(view.find(part('agent crashed')))
   await view.press({ testId: 'start:WEB-1' })
   assert.deepEqual(opened, [{ workspaceId: 'w5' }])
-  await view.press({ text: 'All items' })
+  await view.press({ text: '← All items' })
   assert.ok(view.find({ type: 'Collapsible', label: 'To do' }))
   await view.unmount()
 })

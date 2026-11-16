@@ -145,6 +145,10 @@
   - Verify: panel tests for confirm, cancel, an edited prompt and an empty project list.
 - [ ] 6.8 Update `src/panel.check.ts` for the new layout, adding `search` and `confirm` scenarios, and shoot every scenario again.
   - Verify: `orca plugin check .` shows no issues, and the PNG of each scenario reads correctly.
+- [x] 6.9 Make the row's `KEY · title` a link that opens the detail, drop the Open button, and start the detail with `← All items` (design D10).
+  - Verify: panel tests for opening from the title and going back.
+- [x] 6.10 Convert the description to Markdown in `src/plane/markdown.ts`, draw it with `Markdown`, and use it in the prompt; remove `src/plane/html.ts` (design D11).
+  - Verify: tests for paragraphs, headings, nested and task lists, marks, code blocks, links (unsafe targets dropped), quotes and entities; a panel test that the detail draws `Markdown`.
 
 ## 7. Integration
 
