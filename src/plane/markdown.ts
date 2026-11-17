@@ -209,13 +209,15 @@ export function preview(markdown: string): string | null {
     if (last >= 0 && (blocks[last].match(/^\s*```/gm)?.length ?? 0) % 2 === 1) blocks[last] += `\n\n${part}`
     else blocks.push(part)
   }
-  let shown = ''
-  for (const block of blocks) {
-    const next = shown ? `${shown}\n\n${block}` : block
-    if (!fits(next)) break
-    shown = next
-  }
-  if (shown) return shown
-  const start = blocks[0].split('\n').slice(0, PREVIEW_LINES).join('\n')
+  const isHeading = (block: string) => /^#{1,6}\s[^\n]*$/.test(block)
+  let count = 0
+  while (count < blocks.length && fits(blocks.slice(0, count + 1).join('\n\n'))) count++
+  // A heading belongs with the text under it, so the preview never ends on one.
+  while (count > 0 && isHeading(blocks[count - 1])) count--
+  if (count > 0) return blocks.slice(0, count).join('\n\n')
+  // Nothing whole fits: the leading headings and the start of the first block of text.
+  const body = blocks.findIndex((block) => !isHeading(block))
+  const first = blocks.slice(0, body < 0 ? blocks.length : body + 1).join('\n\n')
+  const start = first.split('\n').slice(0, PREVIEW_LINES).join('\n')
   return `${start.length > PREVIEW_CHARS ? start.slice(0, PREVIEW_CHARS - 2).replace(/\s+\S*$/, '') : start} …`
 }

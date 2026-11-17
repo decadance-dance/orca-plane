@@ -85,3 +85,10 @@ test('preview: a too-long first block is cut at a word', () => {
   const list = Array.from({ length: 20 }, (_, i) => `- item ${i}`).join('\n')
   assert.equal(preview(list), `${Array.from({ length: 10 }, (_, i) => `- item ${i}`).join('\n')} …`)
 })
+
+test('preview: a heading never ends it; a long block after it is cut at a word', () => {
+  const long = 'alpha '.repeat(120).trim()
+  const cut = preview(`## Description\n\n${long}\n\n## Acceptance Criteria\n\n- one`)
+  assert.ok(cut && cut.startsWith(`## Description\n\nalpha alpha`) && cut.endsWith(' …') && cut.length <= 502, cut ?? 'null')
+  assert.equal(preview(`Intro.\n\n## Details\n\n${long}`), 'Intro.')
+})

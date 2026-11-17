@@ -14,3 +14,7 @@ In the item detail, a description longer than about 500 characters or 10 lines S
 #### Scenario: Another item opens collapsed
 - **WHEN** the user expands an item's description, goes back to the list and opens another item with a long description
 - **THEN** that description shows collapsed
+
+#### Scenario: Description that starts with a heading
+- **WHEN** the user opens an item whose description starts with a heading followed by a paragraph longer than the limits
+- **THEN** the detail shows the heading and the start of that paragraph, cut at a word and ending with "…", and "Show more"
