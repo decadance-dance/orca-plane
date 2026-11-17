@@ -35,6 +35,7 @@ import {
   type Tone
 } from 'orca'
 import type { Item, ItemDetail } from './plane/map'
+import { preview } from './plane/markdown'
 import { type AgentChoice, type ConnectionStatus, type ItemsState, KNOWN_AGENTS, type OrcaProject, type StartState } from './protocol'
 import { buildPrompt, workspaceName } from './start'
 
@@ -79,6 +80,8 @@ const tab = atom<string | null>('plane.tab', null, { persist: 'plugin' })
 /** The open item; persisted, so reopening the panel returns to it. */
 const opened = atom<ItemRef | null>('plane.open', null, { persist: 'plugin' })
 const detail = atom<Loaded | null>(null)
+/** The detail shows the whole description; each opened item starts collapsed. */
+const descriptionOpen = atom(false)
 /** The Start waiting for confirmation; persisted like the open item. */
 const confirming = atom<ItemRef | null>('plane.confirm', null, { persist: 'plugin' })
 const confirmation = atom<Loaded | null>(null)
@@ -209,6 +212,7 @@ async function openItem(ref: ItemRef): Promise<void> {
   set(opened, { key: ref.key, projectId: ref.projectId })
   set(detail, { key: ref.key, projectId: ref.projectId, item: null, error: null })
   set(openError, null)
+  set(descriptionOpen, false)
   const loaded = await fetchDetail(ref)
   if (read(detail)?.key === ref.key) set(detail, loaded)
 }
@@ -572,6 +576,22 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
   )
 }
 
+function Description({ text }: { text: string }) {
+  const short = preview(text)
+  const open = read(descriptionOpen)
+  if (!short) return <Markdown content={text} />
+  return (
+    <Stack gap="xs">
+      <Markdown content={open ? text : short} />
+      <Row>
+        <Button variant="ghost" size="sm" onPress={() => set(descriptionOpen, !open)}>
+          {open ? 'Show less' : 'Show more'}
+        </Button>
+      </Row>
+    </Stack>
+  )
+}
+
 function DetailView({ current }: { current: Loaded }) {
   const item = current.item
   const state = read(starts)[current.key]
@@ -603,7 +623,7 @@ function DetailView({ current }: { current: Loaded }) {
               Open in Plane
             </Button>
           </Row>
-          {item.description ? <Markdown content={item.description} /> : <Text muted size="sm">No description.</Text>}
+          {item.description ? <Description text={item.description} /> : <Text muted size="sm">No description.</Text>}
           {state?.kind === 'failed' ? (
             <Callout tone="danger" title={state.workspaceId ? 'The agent did not start' : 'Start failed'}>
               {state.error}
