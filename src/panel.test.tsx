@@ -207,12 +207,12 @@ test('a project whose items carry different key prefixes is named by its newest 
   await view.unmount()
 })
 
-test('priority pills: urgent danger, high accent, medium warning, low success, none without a pill', async () => {
+test('priority pills: urgent danger, high accent, medium warning, low accent (Orca draws a success border at 25%), none without a pill', async () => {
   const at = (key: string, priority: Item['priority']): Item => ({ ...item(key, 'started'), priority })
   const items = [at('WEB-1', 'urgent'), at('WEB-2', 'high'), at('WEB-3', 'medium'), at('WEB-4', 'low'), at('WEB-5', 'none')]
   const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
   const tone = (key: string) => view.find({ testId: `priority:${key}` })?.props.border ?? null
-  assert.deepEqual(['WEB-1', 'WEB-2', 'WEB-3', 'WEB-4', 'WEB-5'].map(tone), ['danger', 'accent', 'warning', 'success', null])
+  assert.deepEqual(['WEB-1', 'WEB-2', 'WEB-3', 'WEB-4', 'WEB-5'].map(tone), ['danger', 'accent', 'warning', 'accent', null])
   await view.unmount()
 })
 
