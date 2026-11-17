@@ -72,6 +72,8 @@ const connectError = atom<string | null>(null)
 type ItemRef = { key: string; projectId: string }
 type Loaded = ItemRef & { item: ItemDetail | null; error: string | null }
 const search = atom('plane.search', '', { persist: 'plugin' })
+/** Active tag filters, `priority:<p>` or `label:<name>`; an item must have them all (design D10). */
+const tags = atom<string[]>('plane.tags', [], { persist: 'plugin' })
 /** The selected Plane project's id (design D10). */
 const tab = atom<string | null>('plane.tab', null, { persist: 'plugin' })
 /** The open item; persisted, so reopening the panel returns to it. */
@@ -254,6 +256,12 @@ async function openWorkspace(workspaceId: string): Promise<void> {
 
 const matches = (item: Item, query: string) =>
   [item.key, item.title, ...item.labels].some((value) => value.toLowerCase().includes(query))
+const tagsOf = (item: Item) => [...(item.priority === 'none' ? [] : [`priority:${item.priority}`]), ...item.labels.map((label) => `label:${label}`)]
+const toggleTag = (tag: string) => update(tags, (all) => (all.includes(tag) ? all.filter((entry) => entry !== tag) : [...all, tag]))
+function clearFilters(): void {
+  set(search, '')
+  set(tags, [])
+}
 /** The key prefix names the project: Plane keeps it unique per workspace. */
 const prefix = (key: string) => key.replace(/-[^-]*$/, '')
 
@@ -398,20 +406,6 @@ function ItemRow({ item }: { item: Item }) {
                 {Number.isNaN(updated) ? meta : `${meta} · `}
                 {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
               </Text>
-              {item.priority !== 'none' || item.labels.length > 0 ? (
-                <Box direction="row" wrap gap="xs">
-                  {item.priority === 'none' ? null : (
-                    <Pill key={`priority:${item.key}`} tone={PRIORITY_TONE[item.priority]}>
-                      {item.priority}
-                    </Pill>
-                  )}
-                  {item.labels.map((label) => (
-                    <Pill key={label} tone="neutral">
-                      {label}
-                    </Pill>
-                  ))}
-                </Box>
-              ) : null}
               {state?.kind === 'failed' ? (
                 <Row>
                   <Badge tone="danger">Start failed</Badge>
@@ -426,6 +420,20 @@ function ItemRow({ item }: { item: Item }) {
           </Box>
         )}
       </Box>
+      {item.priority !== 'none' || item.labels.length > 0 ? (
+        <Box direction="row" wrap gap="xs" paddingX="sm">
+          {item.priority === 'none' ? null : (
+            <TagButton key={`priority:${item.key}`} tag={`priority:${item.priority}`} tone={PRIORITY_TONE[item.priority]}>
+              {item.priority}
+            </TagButton>
+          )}
+          {item.labels.map((label) => (
+            <TagButton key={label} tag={`label:${label}`}>
+              {label}
+            </TagButton>
+          ))}
+        </Box>
+      ) : null}
       {asked?.key === item.key ? <Confirmation current={asked} /> : null}
     </Stack>
   )
@@ -437,7 +445,8 @@ function ListView({ state }: { state: ItemsState | null }) {
   }
   const badge = COMPLETENESS[state.completeness]
   const query = read(search).trim().toLowerCase()
-  const shown = state.items.filter((item) => matches(item, query))
+  const active = read(tags)
+  const shown = state.items.filter((item) => matches(item, query) && active.every((tag) => tagsOf(item).includes(tag)))
   // One tab per project with listed items, ordered by name; a project no longer listed falls back to the first.
   // The newest item names it: Plane keeps old keys when a project's identifier changes.
   const names = new Map<string, string>()
@@ -504,13 +513,15 @@ function ListView({ state }: { state: ItemsState | null }) {
   )
 }
 
-/** A tag with an outline in its tone; neutral is grey with muted text. */
-function Pill({ tone, children }: { tone: Tone; children: string }) {
+/** A tag that toggles itself in the filter: outlined in its tone, filled with it while active (design D10).
+ *  The colour is on a Box: Orca colours only `danger` Buttons, so the Button inside is ghost. */
+function TagButton({ tag, tone = 'neutral', children }: { tag: string; tone?: Tone; children: string }) {
+  const active = read(tags).includes(tag)
   return (
-    <Box border={tone} radius="full" paddingX="xs">
-      <Text size="xs" tone={tone === 'neutral' ? undefined : tone} muted={tone === 'neutral'}>
+    <Box border={tone} background={active ? (tone === 'neutral' ? 'muted' : tone) : 'none'} radius="full">
+      <Button size="xs" variant="ghost" onPress={() => toggleTag(tag)}>
         {children}
-      </Text>
+      </Button>
     </Box>
   )
 }
@@ -536,7 +547,7 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
       <Stack gap="xs">
         <EmptyState icon="search" title="No matching items" description="Try another key, title or label." />
         <Row>
-          <Button variant="ghost" onPress={() => set(search, '')}>
+          <Button variant="ghost" onPress={clearFilters}>
             Clear search
           </Button>
         </Row>
@@ -549,7 +560,7 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
         const inGroup = entries.filter((item) => (item.stateName ?? UNKNOWN_STATE) === name)
         return inGroup.length === 0 ? null : (
           <Collapsible key={name} title={name} description={`${inGroup.length} ${inGroup.length === 1 ? 'item' : 'items'}`} defaultOpen>
-            <Stack gap="none">
+            <Stack gap="sm">
               {inGroup.map((item) => (
                 <ItemRow key={item.key} item={item} />
               ))}

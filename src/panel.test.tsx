@@ -131,10 +131,10 @@ test('the list after the Agents panel: header, status line, count bar, groups, r
   const row = view.find({ testId: 'WEB-2' })
   assert.match(row?.text ?? '', /Title WEB-2/)
   assert.match(row?.text ?? '', /WEB-2 · Todo · /)
-  // Pills: the priority outlined in its tone, labels in grey.
-  assert.equal(view.find({ testId: 'priority:WEB-2' })?.props.border, 'accent')
-  assert.match(view.find({ testId: 'priority:WEB-2' })?.text ?? '', /high/)
-  assert.deepEqual(view.findAll({ type: 'Box' }).filter((box) => box.text === 'auth').map((box) => box.props.border), ['neutral'])
+  // Tags: outlined in their tone (the priority) or grey (labels), not filled while inactive.
+  const priority = view.find({ testId: 'priority:WEB-2' })
+  assert.deepEqual([priority?.text, priority?.props.border, priority?.props.background], ['high', 'accent', 'none'])
+  assert.deepEqual(view.findAll({ type: 'Box', text: 'auth' }).map((tag) => [tag.props.border, tag.props.background]), [['neutral', 'none']])
   // The title is text; the icon buttons are named by their tooltips.
   assert.equal(view.find({ type: 'Link' }), null)
   // The row itself opens the item; Start sits beside it, outside the pressable row.
@@ -213,6 +213,55 @@ test('priority pills: urgent danger, high accent, medium warning, low success, n
   const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
   const tone = (key: string) => view.find({ testId: `priority:${key}` })?.props.border ?? null
   assert.deepEqual(['WEB-1', 'WEB-2', 'WEB-3', 'WEB-4', 'WEB-5'].map(tone), ['danger', 'accent', 'warning', 'success', null])
+  await view.unmount()
+})
+
+// --- 6.16 Tag filters ---
+
+const tagged = () =>
+  list({
+    items: [
+      { ...item('WEB-1', 'started', 'Title WEB-1', ['dst', 'deploy']), priority: 'high' },
+      { ...item('WEB-2', 'started', 'Title WEB-2', ['dst']), priority: 'medium' },
+      { ...item('API-3', 'started', 'Title API-3', ['deploy']), priority: 'high' }
+    ]
+  })
+
+test('tags filter the list: every active tag must match, in every project; an active tag is solid and a second press drops it', async () => {
+  const view = await mount(panel, { host: connectedHost({ 'items.list': tagged() }) })
+  const tag = (text: string) => view.findAll({ type: 'Button', text })[0]
+  const fill = (text: string) => view.findAll({ type: 'Box', text }).find((box) => box.props.border)?.props.background
+  await view.press(tag('deploy'))
+  assert.deepEqual(tabLabels(view), ['API 1', 'WEB 1'])
+  assert.equal(fill('deploy'), 'muted')
+  await view.press({ testId: 'tab:project-WEB' })
+  assert.deepEqual(rows(view), ['WEB-1'])
+  await view.press(tag('dst'))
+  assert.deepEqual(tabLabels(view), ['API 0', 'WEB 1'])
+  // Pressing the active tag again drops it: every dst item shows again.
+  await view.press(tag('deploy'))
+  assert.deepEqual(rows(view), ['WEB-1', 'WEB-2'])
+  assert.equal(fill('deploy'), 'none')
+  await view.press(tag('high'))
+  assert.deepEqual(rows(view), ['WEB-1'])
+  assert.deepEqual([view.find({ testId: 'priority:WEB-1' })?.props.border, view.find({ testId: 'priority:WEB-1' })?.props.background], ['accent', 'accent'])
+  assert.deepEqual(view.persisted.plugin['plane.tags'], ['label:dst', 'priority:high'])
+  // The badge describes the whole list.
+  assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
+  await view.type({ label: 'Search' }, 'zzz')
+  await view.press({ text: 'Clear search' })
+  assert.deepEqual(view.persisted.plugin['plane.tags'], [])
+  assert.deepEqual(rows(view), ['WEB-1', 'WEB-2'])
+  await view.unmount()
+})
+
+test('the active tags are remembered', async () => {
+  const view = await mount(panel, {
+    host: connectedHost({ 'items.list': tagged() }),
+    persisted: { plugin: { 'plane.tags': ['label:deploy'] } }
+  })
+  assert.deepEqual(tabLabels(view), ['API 1', 'WEB 1'])
+  assert.deepEqual(rows(view), ['API-3'])
   await view.unmount()
 })
 
