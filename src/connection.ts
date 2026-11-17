@@ -71,7 +71,11 @@ export class Connections {
   }
 
   async current(): Promise<Connection | null> {
-    if (this.record === undefined) this.record = await this.load()
+    if (this.record === undefined) {
+      const loaded = await this.load()
+      // A connect or disconnect that ran during the read wins over it.
+      if (this.record === undefined) this.record = loaded
+    }
     return this.record
   }
 

@@ -89,6 +89,7 @@ Constraints that shape the approach:
 - Before Start is offered again for an `unknown` item, `workspace.list` is searched in that project for a workspace with the recorded name. A match becomes `created`; no match becomes `idle`.
 - When the host reports an agent failure that names a workspace id, the item becomes `failed` with that id, and "Open workspace" is offered.
 - When the item is shown, a `created` link is checked against `workspace.list`; a missing workspace falls back to `idle`.
+- `workspace.list` may say it is truncated. Such a list proves only the workspaces it shows: a match still resolves `unknown` or confirms a link, but a missing one leaves `unknown`, `created` and `failed` as they are, and Start stays refused.
 - The result is posted as `start.changed`.
 - *Alternative:* the `orca worktree create` CLI with `--branch` and `--reference`, as the Redmine and YouTrack plugins do. Rejected: it needs binary discovery and was only a workaround for Orca < 1.4.259.
 - *Alternative:* a synchronous `item.start` request. Rejected: setup and the agent launch can exceed the panel request timeout.
