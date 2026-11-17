@@ -26,7 +26,7 @@ orca plugin dev watch . --check    # load into Orca, reload on save; needs your 
 bin/check                          # what CI runs
 ```
 
-Behavior is specified in OpenSpec: `openspec/changes/add-plane-work-items/` until it is archived, then `openspec/specs/plane-work-items/`. Project rules are in `AGENTS.md`.
+Behavior is specified in OpenSpec: `openspec/specs/plane-work-items/`; the design notes are in `openspec/changes/archive/`. Project rules are in `AGENTS.md`.
 
 ## License
 

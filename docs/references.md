@@ -1,7 +1,7 @@
 # References
 
 Collected while planning #7 (2026-11-13 to 2026-11-16). Historical notes: where they differ from
-`openspec/changes/add-plane-work-items/design.md`, the design wins (it chose Plane API v2; the v1
+`openspec/changes/archive/2026-11-17-add-plane-work-items/design.md`, the design wins (it chose Plane API v2; the v1
 notes below are kept for #14).
 
 
