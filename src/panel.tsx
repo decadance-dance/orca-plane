@@ -576,19 +576,21 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
   )
 }
 
+/** The description sits in its own framed block, apart from the detail around it. */
 function Description({ text }: { text: string }) {
   const short = preview(text)
   const open = read(descriptionOpen)
-  if (!short) return <Markdown content={text} />
   return (
-    <Stack gap="xs">
-      <Markdown content={open ? text : short} />
-      <Row>
-        <Button variant="ghost" size="sm" onPress={() => set(descriptionOpen, !open)}>
-          {open ? 'Show less' : 'Show more'}
-        </Button>
-      </Row>
-    </Stack>
+    <Box direction="column" gap="xs" padding="sm" border radius="md" background="muted">
+      <Markdown content={short && !open ? short : text} />
+      {short ? (
+        <Row>
+          <Button variant="ghost" size="sm" onPress={() => set(descriptionOpen, !open)}>
+            {open ? 'Show less' : 'Show more'}
+          </Button>
+        </Row>
+      ) : null}
+    </Box>
   )
 }
 
