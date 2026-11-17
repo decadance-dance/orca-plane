@@ -453,17 +453,20 @@ function ListView({ state }: { state: ItemsState | null }) {
       ) : null}
       {tabs.length > 0 ? (
         <Stack gap="sm">
-          {/* A segmented switcher like the Agents panel's; Orca Tabs scroll sideways and cut labels off. */}
-          <Box direction="row" wrap justify="center" gap="xs" padding="xs" radius="md" background="muted">
+          {/* A segmented switcher like the Agents panel's; Orca Tabs scroll sideways and cut labels off.
+              Each segment grows, so every line of segments fills the width. */}
+          <Box direction="row" wrap gap="xs" padding="xs" radius="md" background="muted">
             {tabs.map(([id, name]) => (
-              <Button
-                key={`tab:${id}`}
-                size="xs"
-                variant={id === selected ? 'outline' : 'ghost'}
-                onPress={() => set(tab, id)}
-              >
-                {`${name} ${shown.filter((item) => item.projectId === id).length}`}
-              </Button>
+              <Box key={id} grow align="stretch">
+                <Button
+                  key={`tab:${id}`}
+                  size="xs"
+                  variant={id === selected ? 'outline' : 'ghost'}
+                  onPress={() => set(tab, id)}
+                >
+                  {`${name} ${shown.filter((item) => item.projectId === id).length}`}
+                </Button>
+              </Box>
             ))}
           </Box>
           <Box direction="row" justify="between" paddingX="sm" paddingY="xs" radius="sm" background="muted">
@@ -597,16 +600,17 @@ export default function Panel() {
   const list = read(items)
   return (
     <Stack gap="md">
-      <Row justify="between">
-        <Stack gap="none">
+      {/* The name shrinks and truncates; the buttons keep their size, so a narrow sidebar does not scroll. */}
+      <Box direction="row" justify="between" align="center" gap="xs" width="100%" minWidth={0}>
+        <Box grow shrink minWidth={0}>
           <Text size="xs" weight="semibold">
             Plane
           </Text>
           <Text size="xs" muted truncate>
             {`${current.userName} · ${current.slug}`}
           </Text>
-        </Stack>
-        <Row gap="xs">
+        </Box>
+        <Box direction="row" gap="xs" align="center" shrink={false}>
           <IconButton
             icon="refresh"
             label={list?.refreshing ? 'Refreshing' : 'Refresh'}
@@ -616,8 +620,8 @@ export default function Panel() {
           <Button variant="ghost" size="xs" onPress={disconnect}>
             Disconnect
           </Button>
-        </Row>
-      </Row>
+        </Box>
+      </Box>
       {open ? <DetailView current={open} /> : <ListView state={read(items)} />}
     </Stack>
   )
