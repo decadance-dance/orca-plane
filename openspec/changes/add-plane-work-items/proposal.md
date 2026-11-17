@@ -15,8 +15,8 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
   - Disconnect removes the record and the connection's cached data.
 - **My open items:**
   - Lists the open work items assigned to me (state groups backlog, unstarted and started) across the workspace, through Plane API v2.
-  - Items are grouped by state group, in collapsible groups with counts. Each row shows the key, title, priority and labels, with Open and Start buttons.
-  - A search field filters the loaded list by key, title or label.
+  - Items are split into one tab per Plane project, named by the project's key prefix (e.g. `DIOGEN`). Inside a tab they are grouped by state group, in collapsible groups with counts. Each row shows the key, title, priority and labels, with Open and Start buttons.
+  - A search field filters the loaded list across all projects by key, title or label; each tab shows how many of its items match.
   - A completeness state is always shown: complete, partial, stale or error.
 - **Item detail:** key, title, state, priority, assignees, labels, last updated, the description with its formatting, and a link to open the item in Plane.
 - **Start:**

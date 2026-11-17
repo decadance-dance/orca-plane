@@ -87,11 +87,11 @@ Disconnecting SHALL delete the secret record and that connection's cached items 
 - **THEN** none of the previous user's items or links are shown
 
 ### Requirement: List my open work items
-The plugin SHALL list the work items of the connected workspace that are assigned to the connected user and in state group backlog, unstarted or started. The list SHALL be grouped by state group and, within a group, newest update first. Each group SHALL show its item count and can be collapsed.
+The plugin SHALL list the work items of the connected workspace that are assigned to the connected user and in state group backlog, unstarted or started. Within a project's tab, the list SHALL be grouped by state group and, within a group, newest update first. Each group SHALL show its item count and can be collapsed.
 
 #### Scenario: Items across projects
 - **WHEN** open items assigned to me exist in several projects
-- **THEN** all of them are listed, each with its key, title, state, priority, labels and last update
+- **THEN** each project has its own tab, and every item is listed in its project's tab with its key, title, state, priority, labels and last update
 
 #### Scenario: Closed or unassigned items
 - **WHEN** an item is completed, cancelled, or not assigned to me
@@ -101,15 +101,26 @@ The plugin SHALL list the work items of the connected workspace that are assigne
 - **WHEN** an item's state details are missing from the server's answer
 - **THEN** the item is still listed, with its state shown as unknown
 
+### Requirement: One tab per Plane project
+The list SHALL be split into one tab per Plane project that has listed items, named by the project's key prefix (`DIOGEN` for `DIOGEN-449`) and ordered alphabetically. There SHALL be no tab for all projects. The panel SHALL remember the selected tab; when its project has no listed items anymore, the first tab SHALL be selected.
+
+#### Scenario: Selected tab is remembered
+- **WHEN** the user selects the tab `ENGAUTUMNS` and the panel is opened again
+- **THEN** the tab `ENGAUTUMNS` is selected
+
+#### Scenario: Selected project has no items anymore
+- **WHEN** the remembered tab's project has no listed items after a refresh
+- **THEN** the first tab is selected
+
 ### Requirement: Search the list
-The panel SHALL offer a search field that filters the loaded list by key, title or label, ignoring case, without a request to Plane. The completeness state and the status bar count SHALL always describe the whole list, not the filtered one.
+The panel SHALL offer a search field that filters the loaded list of every project by key, title or label, ignoring case, without a request to Plane. Each tab label SHALL show the number of its items that match. The completeness state and the status bar count SHALL always describe the whole list, not the filtered one.
 
 #### Scenario: Search by label
 - **WHEN** the user types a label's name into the search field
-- **THEN** only the items whose key, title or a label contains that text are shown, still grouped by state group
+- **THEN** only the items whose key, title or a label contains that text are shown, still in their project's tab and grouped by state group, and each tab shows its count of matches
 
 #### Scenario: Nothing matches
-- **WHEN** no loaded item matches the search text
+- **WHEN** no item in the selected tab matches the search text
 - **THEN** the panel says that no items match and offers to clear the search
 
 ### Requirement: Show whether the list is complete

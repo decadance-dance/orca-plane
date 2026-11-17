@@ -143,7 +143,7 @@
   - Verify: panel tests for search by key, title and label, no match with Clear search, group counts, and each row Start state.
 - [x] 6.7 Add the Start confirmation from a row and from the detail: name, project, agent, editable prompt; Confirm sends `item.start`, Cancel creates nothing.
   - Verify: panel tests for confirm, cancel, an edited prompt and an empty project list.
-- [ ] 6.8 Update `src/panel.check.ts` for the new layout, adding `search` and `confirm` scenarios, and shoot every scenario again.
+- [ ] 6.8 Update `src/panel.check.ts` for the new layout, adding `search` and `confirm` scenarios, with items from two projects so the tabs show, and shoot every scenario again.
   - Verify: `orca plugin check .` shows no issues, and the PNG of each scenario reads correctly.
 - [x] 6.9 Start the detail with `← All items` (design D10). The row's title stays text and Open stays a button (a title link was tried and reverted at the maintainer's request).
   - Verify: panel tests for Open and going back.
@@ -153,6 +153,8 @@
   - Verify: panel tests that no picker shows before Start, and that the confirmation's choices reach `item.start`; no Git projects shows the hint and disables Confirm.
 - [x] 6.12 Add `agents.installed` in the worker (design D8) and offer only those agents, plus terminal only.
   - Verify: tests for found commands, none found and a failed check; a panel test that the Agent options are the installed ones.
+- [ ] 6.13 Split the List view into one tab per Plane project (design D10): the label is the key prefix with the count of shown items, tabs ordered by label, the selected tab persisted as `plane.tab` with a fallback to the first; state groups inside the tab; search across all projects.
+  - Verify: panel tests for two projects in two tabs, the label counts with and without search, the remembered tab, the fallback when its project is gone, and an empty selected tab under search.
 
 ## 7. Integration
 
