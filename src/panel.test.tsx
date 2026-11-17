@@ -448,6 +448,32 @@ test('Open shows the detail: fields, Markdown description, Open in Plane, the sa
   await view.unmount()
 })
 
+test('a long description opens collapsed; Show more and Show less toggle it; a short one has no button', async () => {
+  const long = Array.from({ length: 12 }, (_, i) => `Paragraph ${i} ${'word '.repeat(15).trim()}.`).join('\n\n')
+  const descriptions: Record<string, string> = { 'WEB-1': long, 'WEB-2': long, 'WEB-3': 'Short.' }
+  const host = connectedHost({
+    'item.get': ({ key }: { key: string }) => ({ ok: true, item: { ...DETAIL, key, description: descriptions[key] } })
+  })
+  const view = await mount(panel, { host })
+  const shown = () => view.find({ type: 'Markdown' })?.props.content as string
+  await view.press({ testId: 'WEB-1' })
+  assert.ok(shown().length < long.length && long.startsWith(shown()))
+  await view.press({ text: 'Show more' })
+  assert.equal(shown(), long)
+  await view.press({ text: 'Show less' })
+  assert.ok(shown().length < long.length)
+  await view.press({ text: 'Show more' })
+  await view.press({ text: '← All items' })
+  await view.press({ testId: 'WEB-2' })
+  assert.ok(shown().length < long.length, 'another item opens collapsed')
+  assert.ok(view.find({ text: 'Show more' }))
+  await view.press({ text: '← All items' })
+  await view.press({ testId: 'WEB-3' })
+  assert.equal(shown(), 'Short.')
+  assert.equal(view.find({ text: 'Show more' }), null)
+  await view.unmount()
+})
+
 test('going back to the list closes a Start confirmation opened in the detail', async () => {
   const view = await mount(panel, { host: connectedHost() })
   await view.press({ testId: 'WEB-1' })

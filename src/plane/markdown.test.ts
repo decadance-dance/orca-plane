@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { htmlToMarkdown } from './markdown'
+import { htmlToMarkdown, preview } from './markdown'
 
 test('paragraphs and line breaks', () => {
   assert.equal(htmlToMarkdown('<p>one</p><p>two<br>three<br/>four</p>'), 'one\n\ntwo  \nthree  \nfour')
@@ -59,4 +59,29 @@ test('quotes, rules, unknown tags and unclosed markup', () => {
   )
   assert.equal(htmlToMarkdown('<p>open <strong>bold</p><p>next</p>'), 'open **bold**\n\nnext')
   assert.equal(htmlToMarkdown('loose text <div>block</div> tail'), 'loose text\n\nblock\n\ntail')
+})
+
+test('preview: a short description has none', () => {
+  assert.equal(preview('First paragraph.\n\n- one\n- two'), null)
+})
+
+test('preview: whole blocks within the limits', () => {
+  const para = (n: number) => `Paragraph ${n} ${'word '.repeat(20).trim()}.`
+  const text = [1, 2, 3, 4, 5, 6].map(para).join('\n\n')
+  assert.equal(preview(text), [1, 2, 3, 4].map(para).join('\n\n'))
+})
+
+test('preview: a fenced code block with blank lines stays whole', () => {
+  const fence = '```\na\n\nb\n```'
+  const text = `Intro.\n\n${fence}\n\n${'tail '.repeat(150)}`
+  assert.equal(preview(text), `Intro.\n\n${fence}`)
+})
+
+test('preview: a too-long first block is cut at a word', () => {
+  const long = 'alpha '.repeat(120).trim()
+  const cut = preview(long)
+  assert.ok(cut && cut.endsWith(' …') && cut.length <= 502, cut ?? 'null')
+  assert.ok(long.startsWith(cut.slice(0, -2)))
+  const list = Array.from({ length: 20 }, (_, i) => `- item ${i}`).join('\n')
+  assert.equal(preview(list), `${Array.from({ length: 10 }, (_, i) => `- item ${i}`).join('\n')} …`)
 })

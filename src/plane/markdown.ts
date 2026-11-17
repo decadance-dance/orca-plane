@@ -194,3 +194,28 @@ function blocks(nodes: Node[]): string[] {
 export function htmlToMarkdown(html: string): string {
   return blocks(parse(html)).join('\n\n').replace(/\n{3,}/g, '\n\n').trim()
 }
+
+const PREVIEW_CHARS = 500
+const PREVIEW_LINES = 10
+const fits = (text: string) => text.length <= PREVIEW_CHARS && text.split('\n').length <= PREVIEW_LINES
+
+/** The collapsed part of a long description: its first whole blocks within the limits, or `null` when it all fits. */
+export function preview(markdown: string): string | null {
+  if (fits(markdown)) return null
+  const blocks: string[] = []
+  for (const part of markdown.split(/\n[ \t]*\n/)) {
+    const last = blocks.length - 1
+    // A blank line inside a fenced code block does not end the block.
+    if (last >= 0 && (blocks[last].match(/^\s*```/gm)?.length ?? 0) % 2 === 1) blocks[last] += `\n\n${part}`
+    else blocks.push(part)
+  }
+  let shown = ''
+  for (const block of blocks) {
+    const next = shown ? `${shown}\n\n${block}` : block
+    if (!fits(next)) break
+    shown = next
+  }
+  if (shown) return shown
+  const start = blocks[0].split('\n').slice(0, PREVIEW_LINES).join('\n')
+  return `${start.length > PREVIEW_CHARS ? start.slice(0, PREVIEW_CHARS - 2).replace(/\s+\S*$/, '') : start} …`
+}
