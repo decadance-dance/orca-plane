@@ -87,7 +87,7 @@ Disconnecting SHALL delete the secret record and that connection's cached items 
 - **THEN** none of the previous user's items or links are shown
 
 ### Requirement: List my open work items
-The plugin SHALL list the work items of the connected workspace that are assigned to the connected user and in state group backlog, unstarted or started. Within a project's tab, the list SHALL be grouped by state group and, within a group, newest update first. Each group SHALL show its item count and can be collapsed.
+The plugin SHALL list the work items of the connected workspace that are assigned to the connected user and in state group backlog, unstarted or started.
 
 #### Scenario: Items across projects
 - **WHEN** open items assigned to me exist in several projects
@@ -112,12 +112,19 @@ The list SHALL be split into one tab per Plane project that has listed items, na
 - **WHEN** the remembered tab's project has no listed items after a refresh
 - **THEN** the first tab is selected
 
+### Requirement: Group a tab by state
+Within a project's tab, the list SHALL be grouped by state (its name in Plane), newest update first within a state. States SHALL be ordered by their Plane group (started, unstarted, backlog), then by their number of items in the tab, most first, then by name. Items whose state is unknown SHALL come last. Each group SHALL show its item count and can be collapsed.
+
+#### Scenario: States of one group
+- **WHEN** a project has 3 items In Progress, 2 Blocked and 1 In Review, all in group started, and 4 items in Todo, in group unstarted
+- **THEN** its tab shows the groups In Progress, Blocked, In Review and Todo, in that order
+
 ### Requirement: Search the list
 The panel SHALL offer a search field that filters the loaded list of every project by key, title or label, ignoring case, without a request to Plane. Each tab label SHALL show the number of its items that match. The completeness state and the status bar count SHALL always describe the whole list, not the filtered one.
 
 #### Scenario: Search by label
 - **WHEN** the user types a label's name into the search field
-- **THEN** only the items whose key, title or a label contains that text are shown, still in their project's tab and grouped by state group, and each tab shows its count of matches
+- **THEN** only the items whose key, title or a label contains that text are shown, still in their project's tab and grouped by state, and each tab shows its count of matches
 
 #### Scenario: Nothing matches
 - **WHEN** no item in the selected tab matches the search text
