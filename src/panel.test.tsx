@@ -199,8 +199,8 @@ test('one tab per project, named by key prefix and ordered; state groups inside 
   await view.unmount()
 })
 
-test('a project whose older items carry an old key prefix is named by its newest item', async () => {
-  // The list is newest first; Plane keeps old keys when a project's identifier changes.
+test('a project whose items carry different key prefixes is named by its newest item', async () => {
+  // The list is newest first.
   const items = [item('WEB-2', 'started'), { ...item('OLD-1', 'backlog'), projectId: 'project-WEB' }]
   const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
   assert.deepEqual(tabLabels(view), ['WEB 2'])

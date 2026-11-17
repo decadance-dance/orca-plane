@@ -448,7 +448,7 @@ function ListView({ state }: { state: ItemsState | null }) {
   const active = read(tags)
   const shown = state.items.filter((item) => matches(item, query) && active.every((tag) => tagsOf(item).includes(tag)))
   // One tab per project with listed items, ordered by name; a project no longer listed falls back to the first.
-  // The newest item names it: Plane keeps old keys when a project's identifier changes.
+  // The newest item names it, so the name is one fixed choice.
   const names = new Map<string, string>()
   for (const item of state.items) if (!names.has(item.projectId)) names.set(item.projectId, prefix(item.key))
   const tabs = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]))
