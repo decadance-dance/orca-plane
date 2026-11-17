@@ -153,7 +153,7 @@
   - Verify: panel tests that no picker shows before Start, and that the confirmation's choices reach `item.start`; no Git projects shows the hint and disables Confirm.
 - [x] 6.12 Add `agents.installed` in the worker (design D8) and offer only those agents, plus terminal only.
   - Verify: tests for found commands, none found and a failed check; a panel test that the Agent options are the installed ones.
-- [ ] 6.13 Split the List view into one tab per Plane project (design D10): the label is the key prefix with the count of shown items, tabs ordered by label, the selected tab persisted as `plane.tab` with a fallback to the first; state groups inside the tab; search across all projects.
+- [x] 6.13 Split the List view into one tab per Plane project (design D10): the label is the key prefix with the count of shown items, tabs ordered by label, the selected tab persisted as `plane.tab` with a fallback to the first; state groups inside the tab; search across all projects.
   - Verify: panel tests for two projects in two tabs, the label counts with and without search, the remembered tab, the fallback when its project is gone, and an empty selected tab under search.
 
 ## 7. Integration

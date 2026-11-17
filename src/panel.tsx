@@ -27,6 +27,8 @@ import {
   shell,
   Skeleton,
   Stack,
+  Tab,
+  Tabs,
   Text,
   Textarea,
   update,
@@ -70,6 +72,8 @@ const connectError = atom<string | null>(null)
 type ItemRef = { key: string; projectId: string }
 type Loaded = ItemRef & { item: ItemDetail | null; error: string | null }
 const search = atom('plane.search', '', { persist: 'plugin' })
+/** The selected Plane project's id (design D10). */
+const tab = atom<string | null>('plane.tab', null, { persist: 'plugin' })
 /** The open item; persisted, so reopening the panel returns to it. */
 const opened = atom<ItemRef | null>('plane.open', null, { persist: 'plugin' })
 const detail = atom<Loaded | null>(null)
@@ -244,6 +248,8 @@ async function openWorkspace(workspaceId: string): Promise<void> {
 
 const matches = (item: Item, query: string) =>
   [item.key, item.title, ...item.labels].some((value) => value.toLowerCase().includes(query))
+/** The key prefix names the project: Plane keeps it unique per workspace. */
+const prefix = (key: string) => key.replace(/-[^-]*$/, '')
 
 function ConnectView() {
   const error = read(connectError)
@@ -399,6 +405,11 @@ function ListView({ state }: { state: ItemsState | null }) {
   const badge = COMPLETENESS[state.completeness]
   const query = read(search).trim().toLowerCase()
   const shown = state.items.filter((item) => matches(item, query))
+  // One tab per project with listed items, ordered by name; a project no longer listed falls back to the first.
+  const tabs = [...new Map(state.items.map((item) => [item.projectId, prefix(item.key)])).entries()].sort((a, b) =>
+    a[1].localeCompare(b[1])
+  )
+  const selected = tabs.some(([id]) => id === read(tab)) ? (read(tab) ?? undefined) : tabs[0]?.[0]
   const failedOpen = read(openError)
   return (
     <Stack gap="md">
@@ -434,22 +445,44 @@ function ListView({ state }: { state: ItemsState | null }) {
       {state.completeness !== 'error' && state.items.length === 0 ? (
         <EmptyState icon="check" title="Nothing open is assigned to you" />
       ) : null}
-      {state.items.length > 0 && shown.length === 0 ? (
-        <Stack gap="xs">
-          <EmptyState icon="search" title="No matching items" description="Try another key, title or label." />
-          <Row>
-            <Button variant="ghost" onPress={() => set(search, '')}>
-              Clear search
-            </Button>
-          </Row>
-        </Stack>
+      {tabs.length > 0 ? (
+        <Tabs label="Projects" value={selected} onChange={(value) => set(tab, value)}>
+          {tabs.map(([id, name]) => {
+            const entries = shown.filter((item) => item.projectId === id)
+            return (
+              <Tab key={id} value={id} label={`${name} ${entries.length}`}>
+                <Groups entries={entries} />
+              </Tab>
+            )
+          })}
+        </Tabs>
       ) : null}
+    </Stack>
+  )
+}
+
+/** One tab's items by state group; empty only under a search. */
+function Groups({ entries }: { entries: Item[] }) {
+  if (entries.length === 0) {
+    return (
+      <Stack gap="xs">
+        <EmptyState icon="search" title="No matching items" description="Try another key, title or label." />
+        <Row>
+          <Button variant="ghost" onPress={() => set(search, '')}>
+            Clear search
+          </Button>
+        </Row>
+      </Stack>
+    )
+  }
+  return (
+    <Stack gap="md">
       {GROUPS.map(({ group, label }) => {
-        const entries = shown.filter((item) => item.stateGroup === group)
-        return entries.length === 0 ? null : (
-          <Collapsible key={group} title={label} description={`${entries.length} ${entries.length === 1 ? 'item' : 'items'}`} defaultOpen>
+        const inGroup = entries.filter((item) => item.stateGroup === group)
+        return inGroup.length === 0 ? null : (
+          <Collapsible key={group} title={label} description={`${inGroup.length} ${inGroup.length === 1 ? 'item' : 'items'}`} defaultOpen>
             <List label={label}>
-              {entries.map((item) => (
+              {inGroup.map((item) => (
                 <ItemRow key={item.key} item={item} />
               ))}
             </List>

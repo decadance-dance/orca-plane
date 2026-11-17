@@ -18,7 +18,7 @@ const row = (
   id: key,
   key,
   title,
-  projectId: 'plane-project',
+  projectId: `project-${key.split('-')[0]}`,
   stateName,
   stateGroup,
   priority,
@@ -60,7 +60,7 @@ const connected = (list: ItemsState, starts: Record<string, StartState> = {}) =>
     'agents.installed': { agents: [{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }] }
   }
 })
-const onDetail = { persisted: { plugin: { 'plane.open': { key: 'WEB-12', projectId: 'plane-project' } } } }
+const onDetail = { persisted: { plugin: { 'plane.open': { key: 'WEB-12', projectId: 'project-WEB' } } } }
 const persisted = (plugin: Record<string, unknown>) => ({ persisted: { plugin } }) as const
 
 export default defineCheck({
@@ -73,7 +73,7 @@ export default defineCheck({
   error: connected(state({ items: [], completeness: 'error', fetchedAt: null, error: 'Could not reach the Plane server.' })),
   search: { ...connected(state({})), ...persisted({ 'plane.search': 'auth' }) },
   'search-none': { ...connected(state({})), ...persisted({ 'plane.search': 'billing' }) },
-  confirm: { ...connected(state({})), ...persisted({ 'plane.confirm': { key: 'WEB-12', projectId: 'plane-project' } }) },
+  confirm: { ...connected(state({})), ...persisted({ 'plane.confirm': { key: 'WEB-12', projectId: 'project-WEB' }, 'plane.tab': 'project-WEB' }) },
   detail: { ...connected(state({})), ...onDetail },
   'start-pending': {
     ...connected(state({}), { 'WEB-12': { kind: 'pending', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1', startedAt: now } }),
