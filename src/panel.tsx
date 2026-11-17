@@ -93,6 +93,12 @@ function closeItem(): void {
   set(detail, null)
 }
 
+/** The detail's back button: a Start confirmation opened there closes with it. */
+function backToList(): void {
+  closeItem()
+  cancelStart()
+}
+
 function cancelStart(): void {
   set(confirming, null)
   set(confirmation, null)
@@ -563,7 +569,7 @@ function DetailView({ current }: { current: Loaded }) {
   return (
     <Stack gap="md">
       <Row>
-        <Button variant="ghost" size="sm" onPress={closeItem}>
+        <Button variant="ghost" size="sm" onPress={backToList}>
           ← All items
         </Button>
       </Row>

@@ -399,6 +399,18 @@ test('Open shows the detail: fields, Markdown description, Open in Plane, the sa
   await view.unmount()
 })
 
+test('going back to the list closes a Start confirmation opened in the detail', async () => {
+  const view = await mount(panel, { host: connectedHost() })
+  await view.press({ testId: 'WEB-1' })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-1' }))
+  await view.press({ text: '← All items' })
+  assert.equal(view.find({ type: 'Card', label: 'Start WEB-1' }), null)
+  assert.equal(view.persisted.plugin['plane.confirm'], null)
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.disabled, false)
+  await view.unmount()
+})
+
 test('no Git projects: the confirmation shows a hint instead of the project picker, and Confirm is disabled', async () => {
   const view = await mount(panel, { host: connectedHost({ 'orca.projects': { projects: [] } }) })
   await view.press({ testId: 'start:WEB-1' })
