@@ -17,4 +17,4 @@ In the item detail, a description longer than about 500 characters or 10 lines S
 
 #### Scenario: Description that starts with a heading
 - **WHEN** the user opens an item whose description starts with a heading followed by a paragraph longer than the limits
-- **THEN** the detail shows the heading and the start of that paragraph, cut at a word and ending with "…", and "Show more"
+- **THEN** the detail shows the heading and the start of that paragraph, cut at a word and ending with "…", and "Show more"; a heading longer than half the character limit is left out, so the paragraph keeps room
