@@ -9,13 +9,15 @@ const part = (text: string) => ({ text: new RegExp(text.replace(/[.*+?^${}()|[\]
 
 const CONNECTED = { connected: true as const, hostKind: 'cloud' as const, server: 'https://app.plane.so', slug: 'truelogic', userName: 'Dima' }
 
+const STATE_NAMES = { started: 'In Progress', unstarted: 'Todo', backlog: 'Backlog', unknown: null }
+
 const item = (key: string, stateGroup: Item['stateGroup'], title = `Title ${key}`, labels: string[] = []): Item => ({
   id: key,
   key,
   title,
   // One Plane project per key prefix, as in Plane.
   projectId: `project-${key.split('-')[0]}`,
-  stateName: stateGroup === 'unknown' ? null : stateGroup,
+  stateName: STATE_NAMES[stateGroup],
   stateGroup,
   priority: 'high',
   labels,
@@ -122,13 +124,13 @@ test('the list after the Agents panel: header, status line, count bar, groups, r
   assert.ok(view.find({ text: 'Plane' }))
   assert.ok(view.find({ text: 'Dima · truelogic' }))
   assert.ok(view.find({ type: 'Text', text: '3 items' }))
-  assert.ok(view.find({ type: 'Collapsible', label: 'In progress' }))
-  assert.match(view.find({ type: 'Collapsible', label: 'To do' })?.text ?? '', /2 items/)
+  assert.ok(view.find({ type: 'Collapsible', label: 'In Progress' }))
+  assert.match(view.find({ type: 'Collapsible', label: 'Todo' })?.text ?? '', /2 items/)
   assert.equal(view.find({ type: 'Collapsible', label: 'Backlog' }), null)
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
   const row = view.find({ testId: 'WEB-2' })
   assert.match(row?.text ?? '', /Title WEB-2/)
-  assert.match(row?.text ?? '', /WEB-2 · unstarted · high · auth · /)
+  assert.match(row?.text ?? '', /WEB-2 · Todo · high · auth · /)
   // The title is text; the icon buttons are named by their tooltips.
   assert.equal(view.find({ type: 'Link' }), null)
   // The row itself opens the item; Start sits beside it, outside the pressable row.
@@ -181,13 +183,13 @@ test('one tab per project, named by key prefix and ordered; state groups inside 
   assert.equal(selectedTab(view), 'tab:project-API')
   assert.deepEqual(rows(view), ['API-7', 'API-8'])
   assert.ok(view.find({ type: 'Text', text: '2 items' }))
-  assert.ok(view.find({ type: 'Collapsible', label: 'To do' }))
+  assert.ok(view.find({ type: 'Collapsible', label: 'Todo' }))
   assert.ok(view.find({ type: 'Collapsible', label: 'Backlog' }))
-  assert.equal(view.find({ type: 'Collapsible', label: 'In progress' }), null)
+  assert.equal(view.find({ type: 'Collapsible', label: 'In Progress' }), null)
   await view.press({ testId: 'tab:project-WEB' })
   assert.equal(selectedTab(view), 'tab:project-WEB')
   assert.deepEqual(rows(view), ['WEB-1', 'WEB-2'])
-  assert.ok(view.find({ type: 'Collapsible', label: 'In progress' }))
+  assert.ok(view.find({ type: 'Collapsible', label: 'In Progress' }))
   assert.equal(view.persisted.plugin['plane.tab'], 'project-WEB')
   assert.deepEqual(view.errors, [])
   await view.unmount()
@@ -198,6 +200,31 @@ test('a project whose older items carry an old key prefix is named by its newest
   const items = [item('WEB-2', 'started'), { ...item('OLD-1', 'backlog'), projectId: 'project-WEB' }]
   const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
   assert.deepEqual(tabLabels(view), ['WEB 2'])
+  await view.unmount()
+})
+
+// --- 6.15 Groups by state ---
+
+test('a tab groups by state: by Plane group, then item count, then name; an unknown state last; search keeps the order', async () => {
+  const at = (key: string, group: Item['stateGroup'], stateName: string | null): Item => ({ ...item(key, group), stateName })
+  const items = [
+    at('WEB-1', 'started', 'In Review'),
+    at('WEB-2', 'started', 'Blocked'),
+    at('WEB-3', 'unstarted', 'Todo'),
+    at('WEB-4', 'started', 'In Progress'),
+    at('WEB-5', 'started', 'Blocked'),
+    at('WEB-6', 'unknown', null),
+    at('WEB-7', 'started', 'In Progress'),
+    at('WEB-8', 'started', 'Ready'),
+    at('WEB-9', 'backlog', 'Backlog')
+  ]
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  const groups = () => view.findAll({ type: 'Collapsible' }).map((group) => `${group.label} ${group.props.description}`)
+  // Blocked and In Progress tie on count, so their names order them; In Review and Ready likewise.
+  assert.deepEqual(groups(), ['Blocked 2 items', 'In Progress 2 items', 'In Review 1 item', 'Ready 1 item', 'Todo 1 item', 'Backlog 1 item', 'Unknown state 1 item'])
+  await view.type({ label: 'Search' }, 'web-5')
+  assert.deepEqual(groups(), ['Blocked 1 item'])
+  assert.deepEqual(view.findAll({ type: 'ListItem' }).map((row) => row.key), ['WEB-5'])
   await view.unmount()
 })
 
@@ -355,7 +382,7 @@ test('Open shows the detail: fields, Markdown description, Open in Plane, the sa
   await view.press({ testId: 'start:WEB-1' })
   assert.deepEqual(opened, [{ workspaceId: 'w5' }])
   await view.press({ text: '← All items' })
-  assert.ok(view.find({ type: 'Collapsible', label: 'To do' }))
+  assert.ok(view.find({ type: 'Collapsible', label: 'Todo' }))
   await view.unmount()
 })
 

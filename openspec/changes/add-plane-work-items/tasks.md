@@ -155,7 +155,7 @@
   - Verify: tests for found commands, none found and a failed check; a panel test that the Agent options are the installed ones.
 - [x] 6.13 Split the List view into one tab per Plane project (design D10): the label is the key prefix with the count of shown items, tabs ordered by label, the selected tab persisted as `plane.tab` with a fallback to the first; state groups inside the tab; search across all projects.
   - Verify: panel tests for two projects in two tabs, the label counts with and without search, the remembered tab, the fallback when its project is gone, and an empty selected tab under search.
-- [ ] 6.15 Group each tab's items by state name instead of state group (design D10): ordered by Plane group, then item count, then name; unknown state last.
+- [x] 6.15 Group each tab's items by state name instead of state group (design D10): ordered by Plane group, then item count, then name; unknown state last.
   - Verify: panel tests for the order of several states in one group, the counts, an unknown state last, and search keeping the order.
 - [ ] 6.14 Restyle the List view after Orca's Agents panel (design D10): header, status line, segmented project switcher, count bar, rows with icon buttons and a meta line.
   - Verify: panel tests updated for the new controls (row actions by their accessible names, the switcher selects and persists the tab); a live shot of the panel read with the maintainer.

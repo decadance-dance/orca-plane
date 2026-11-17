@@ -39,12 +39,9 @@ import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
 
-const GROUPS = [
-  { group: 'started', label: 'In progress' },
-  { group: 'unstarted', label: 'To do' },
-  { group: 'backlog', label: 'Backlog' },
-  { group: 'unknown', label: 'Unknown state' }
-] as const
+/** States sort by their Plane group first (design D10). */
+const GROUP_RANK = { started: 0, unstarted: 1, backlog: 2, unknown: 3 } as const
+const UNKNOWN_STATE = 'Unknown state'
 const COMPLETENESS = {
   complete: { tone: 'success', label: 'Complete' },
   partial: { tone: 'warning', label: 'Partial' },
@@ -475,15 +472,29 @@ function ListView({ state }: { state: ItemsState | null }) {
               Last updated
             </Text>
           </Box>
-          <Groups entries={inTab} />
+          <Groups entries={inTab} all={state.items.filter((item) => item.projectId === selected)} />
         </Stack>
       ) : null}
     </Stack>
   )
 }
 
-/** One tab's items by state group; empty only under a search. */
-function Groups({ entries }: { entries: Item[] }) {
+function stateOrder(items: Item[]): string[] {
+  const states = new Map<string, { rank: number; count: number }>()
+  for (const item of items) {
+    const name = item.stateName ?? UNKNOWN_STATE
+    const known = states.get(name)
+    if (known) known.count++
+    else states.set(name, { rank: GROUP_RANK[item.stateName ? item.stateGroup : 'unknown'], count: 1 })
+  }
+  return [...states.entries()]
+    .sort(([an, a], [bn, b]) => a.rank - b.rank || b.count - a.count || an.localeCompare(bn))
+    .map(([name]) => name)
+}
+
+/** One tab's shown items by state, ordered by Plane group, then the state's count among `all` (the tab's
+ *  loaded items, so a search does not reorder them), then name; empty only under a search. */
+function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
   if (entries.length === 0) {
     return (
       <Stack gap="xs">
@@ -498,10 +509,10 @@ function Groups({ entries }: { entries: Item[] }) {
   }
   return (
     <Stack gap="md">
-      {GROUPS.map(({ group, label }) => {
-        const inGroup = entries.filter((item) => item.stateGroup === group)
+      {stateOrder(all).map((name) => {
+        const inGroup = entries.filter((item) => (item.stateName ?? UNKNOWN_STATE) === name)
         return inGroup.length === 0 ? null : (
-          <Collapsible key={group} title={label} description={`${inGroup.length} ${inGroup.length === 1 ? 'item' : 'items'}`} defaultOpen>
+          <Collapsible key={name} title={name} description={`${inGroup.length} ${inGroup.length === 1 ? 'item' : 'items'}`} defaultOpen>
             <Stack gap="none">
               {inGroup.map((item) => (
                 <ItemRow key={item.key} item={item} />
