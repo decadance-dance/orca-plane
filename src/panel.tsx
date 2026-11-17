@@ -41,7 +41,7 @@ import { buildPrompt, workspaceName } from './start'
 const SLOW = { timeoutMs: 60_000 }
 
 /** Priority pill outlines (design D10); Orca's theme tones are the only colours a plugin has. */
-const PRIORITY_TONE = { urgent: 'danger', high: 'warning', medium: 'accent', low: 'success' } as const
+const PRIORITY_TONE = { urgent: 'danger', high: 'accent', medium: 'warning', low: 'success' } as const
 
 /** States sort by their Plane group first (design D10). */
 const GROUP_RANK = { started: 0, unstarted: 1, backlog: 2, unknown: 3 } as const
