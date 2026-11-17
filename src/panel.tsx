@@ -454,7 +454,7 @@ function ListView({ state }: { state: ItemsState | null }) {
       {tabs.length > 0 ? (
         <Stack gap="sm">
           {/* A segmented switcher like the Agents panel's; Orca Tabs scroll sideways and cut labels off. */}
-          <Box direction="row" wrap gap="xs" padding="xs" radius="md" background="muted">
+          <Box direction="row" wrap justify="center" gap="xs" padding="xs" radius="md" background="muted">
             {tabs.map(([id, name]) => (
               <Button
                 key={`tab:${id}`}
