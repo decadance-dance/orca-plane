@@ -131,7 +131,9 @@ test('the list after the Agents panel: header, status line, count bar, groups, r
   assert.match(row?.text ?? '', /WEB-2 · unstarted · high · auth · /)
   // The title is text; the icon buttons are named by their tooltips.
   assert.equal(view.find({ type: 'Link' }), null)
-  assert.deepEqual([view.find({ testId: 'open:WEB-2' })?.type, view.find({ testId: 'open:WEB-2' })?.label], ['IconButton', 'Open'])
+  // The row itself opens the item; Start sits beside it, outside the pressable row.
+  assert.ok(view.find({ testId: 'WEB-2' })?.props.onPress)
+  assert.equal(view.find({ testId: 'open:WEB-2' }), null)
   assert.deepEqual([view.find({ testId: 'start:WEB-2' })?.type, view.find({ testId: 'start:WEB-2' })?.label], ['IconButton', 'Start'])
   assert.deepEqual(view.errors, [])
   await view.unmount()
@@ -339,7 +341,7 @@ test('Open shows the detail: fields, Markdown description, Open in Plane, the sa
     }
   })
   const view = await mount(panel, { host })
-  await view.press({ testId: 'open:WEB-1' })
+  await view.press({ testId: 'WEB-1' })
   assert.ok(view.find({ text: 'WEB-1 Fix login' }))
   assert.equal(view.find({ type: 'Markdown' })?.props.content, DETAIL.description)
   assert.match(view.find({ type: 'KeyValue' })?.text ?? '', /bug/)

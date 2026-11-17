@@ -370,7 +370,8 @@ function Confirmation({ current }: { current: Loaded }) {
   )
 }
 
-/** A row after Orca's Agents panel: the title with icon actions, then a muted meta line (design D10). */
+/** A row after Orca's Agents panel (design D10): the pressable item (title, then a muted meta line) opens
+ *  it; Start sits beside it, since a pressable ListItem cannot hold other controls. */
 function ItemRow({ item }: { item: Item }) {
   const state = read(starts)[item.key]
   const asked = read(confirmation)
@@ -379,34 +380,35 @@ function ItemRow({ item }: { item: Item }) {
     .join(' · ')
   const updated = Date.parse(item.updatedAt)
   return (
-    <ListItem>
-      <Box gap="xs" width="100%" minWidth={0}>
-        {/* The title shrinks and truncates; the actions keep their size, so the row never overflows. */}
-        <Box direction="row" justify="between" align="center" gap="xs" width="100%" minWidth={0}>
-          <Box grow shrink minWidth={0}>
-            <Text weight="medium" truncate>
-              {item.title}
-            </Text>
-          </Box>
-          {asked?.key === item.key ? null : (
-            <Box direction="row" shrink={false}>
-              <IconButton key={`open:${item.key}`} size="sm" variant="ghost" icon="next" label="Open" onPress={() => openItem(item)} />
-              <StartButton key={`start:${item.key}`} item={item} compact />
-            </Box>
-          )}
+    <Stack gap="xs">
+      {/* The item shrinks and truncates; Start keeps its size, so the row never overflows. */}
+      <Box direction="row" align="center" gap="xs" width="100%" minWidth={0}>
+        <Box grow shrink minWidth={0}>
+          <List label={item.key}>
+            <ListItem key={item.key} onPress={() => openItem(item)}>
+              <Text weight="medium" truncate>
+                {item.title}
+              </Text>
+              <Text muted size="xs">
+                {Number.isNaN(updated) ? meta : `${meta} · `}
+                {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
+              </Text>
+              {state?.kind === 'failed' ? (
+                <Row>
+                  <Badge tone="danger">Start failed</Badge>
+                </Row>
+              ) : null}
+            </ListItem>
+          </List>
         </Box>
-        <Text muted size="xs">
-          {Number.isNaN(updated) ? meta : `${meta} · `}
-          {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
-        </Text>
-        {state?.kind === 'failed' ? (
-          <Row>
-            <Badge tone="danger">Start failed</Badge>
-          </Row>
-        ) : null}
-        {asked?.key === item.key ? <Confirmation current={asked} /> : null}
+        {asked?.key === item.key ? null : (
+          <Box shrink={false}>
+            <StartButton key={`start:${item.key}`} item={item} compact />
+          </Box>
+        )}
       </Box>
-    </ListItem>
+      {asked?.key === item.key ? <Confirmation current={asked} /> : null}
+    </Stack>
   )
 }
 
@@ -500,11 +502,11 @@ function Groups({ entries }: { entries: Item[] }) {
         const inGroup = entries.filter((item) => item.stateGroup === group)
         return inGroup.length === 0 ? null : (
           <Collapsible key={group} title={label} description={`${inGroup.length} ${inGroup.length === 1 ? 'item' : 'items'}`} defaultOpen>
-            <List label={label}>
+            <Stack gap="none">
               {inGroup.map((item) => (
                 <ItemRow key={item.key} item={item} />
               ))}
-            </List>
+            </Stack>
           </Collapsible>
         )
       })}
