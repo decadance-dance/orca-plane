@@ -384,7 +384,7 @@ function ItemRow({ item }: { item: Item }) {
         {/* The title shrinks and truncates; the actions keep their size, so the row never overflows. */}
         <Box direction="row" justify="between" align="center" gap="xs" width="100%" minWidth={0}>
           <Box grow shrink minWidth={0}>
-            <Text weight="semibold" truncate>
+            <Text weight="medium" truncate>
               {item.title}
             </Text>
           </Box>
@@ -395,7 +395,7 @@ function ItemRow({ item }: { item: Item }) {
             </Box>
           )}
         </Box>
-        <Text muted size="sm">
+        <Text muted size="xs">
           {Number.isNaN(updated) ? meta : `${meta} · `}
           {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
         </Text>
@@ -459,7 +459,7 @@ function ListView({ state }: { state: ItemsState | null }) {
             {tabs.map(([id, name]) => (
               <Button
                 key={`tab:${id}`}
-                size="sm"
+                size="xs"
                 variant={id === selected ? 'outline' : 'ghost'}
                 onPress={() => set(tab, id)}
               >
@@ -468,8 +468,8 @@ function ListView({ state }: { state: ItemsState | null }) {
             ))}
           </Box>
           <Box direction="row" justify="between" paddingX="sm" paddingY="xs" radius="sm" background="muted">
-            <Text weight="semibold" size="sm">{`${inTab.length} ${inTab.length === 1 ? 'item' : 'items'}`}</Text>
-            <Text muted size="sm">
+            <Text weight="semibold" size="xs">{`${inTab.length} ${inTab.length === 1 ? 'item' : 'items'}`}</Text>
+            <Text muted size="xs">
               Last updated
             </Text>
           </Box>
@@ -586,8 +586,10 @@ export default function Panel() {
     <Stack gap="md">
       <Row justify="between">
         <Stack gap="none">
-          <Text weight="semibold">Plane</Text>
-          <Text size="sm" muted truncate>
+          <Text size="xs" weight="semibold">
+            Plane
+          </Text>
+          <Text size="xs" muted truncate>
             {`${current.userName} · ${current.slug}`}
           </Text>
         </Stack>
@@ -598,7 +600,7 @@ export default function Panel() {
             disabled={!list || list.refreshing}
             onPress={refresh}
           />
-          <Button variant="ghost" size="sm" onPress={disconnect}>
+          <Button variant="ghost" size="xs" onPress={disconnect}>
             Disconnect
           </Button>
         </Row>
