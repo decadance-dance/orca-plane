@@ -79,7 +79,7 @@ test('connect submits the form, clears the token field and shows the list', asyn
   assert.deepEqual(sent, [{ hostKind: 'cloud', serverUrl: '', slug: 'truelogic', token: 'plane_api_secret' }])
   assert.ok(connected)
   assert.ok(view.find({ text: 'Dima · truelogic' }))
-  assert.ok(view.find({ label: 'WEB-1 · Title WEB-1' }))
+  assert.ok(view.find({ testId: 'WEB-1' }))
   assert.deepEqual(view.errors, [])
   assert.equal(JSON.stringify(view.persisted).includes('plane_api_secret'), false)
   await view.unmount()
@@ -117,19 +117,22 @@ test('disconnect goes back to the connect form', async () => {
 
 // --- 6.2 and 6.6 List ---
 
-test('the list: collapsible state groups with counts, rows with badges, a completeness badge', async () => {
+test('the list after the Agents panel: header, status line, count bar, groups, rows with a meta line and icon actions', async () => {
   const view = await mount(panel, { host: connectedHost() })
+  assert.ok(view.find({ text: 'Plane' }))
+  assert.ok(view.find({ text: 'Dima · truelogic' }))
+  assert.ok(view.find({ type: 'Text', text: '3 items' }))
   assert.ok(view.find({ type: 'Collapsible', label: 'In progress' }))
   assert.match(view.find({ type: 'Collapsible', label: 'To do' })?.text ?? '', /2 items/)
   assert.equal(view.find({ type: 'Collapsible', label: 'Backlog' }), null)
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
-  const row = view.find({ label: 'WEB-2 · Title WEB-2' })
-  assert.match(row?.text ?? '', /high/)
-  assert.match(row?.text ?? '', /auth/)
-  // The title is text; Open opens the item.
+  const row = view.find({ testId: 'WEB-2' })
+  assert.match(row?.text ?? '', /Title WEB-2/)
+  assert.match(row?.text ?? '', /WEB-2 · unstarted · high · auth · /)
+  // The title is text; the icon buttons are named by their tooltips.
   assert.equal(view.find({ type: 'Link' }), null)
-  assert.equal(view.find({ testId: 'open:WEB-2' })?.text, 'Open')
-  assert.equal(view.find({ testId: 'start:WEB-2' })?.text, 'Start')
+  assert.deepEqual([view.find({ testId: 'open:WEB-2' })?.type, view.find({ testId: 'open:WEB-2' })?.label], ['IconButton', 'Open'])
+  assert.deepEqual([view.find({ testId: 'start:WEB-2' })?.type, view.find({ testId: 'start:WEB-2' })?.label], ['IconButton', 'Start'])
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
@@ -137,12 +140,12 @@ test('the list: collapsible state groups with counts, rows with badges, a comple
 test('search filters by key, title or label; nothing matching offers Clear search', async () => {
   const view = await mount(panel, { host: connectedHost() })
   await view.type({ label: 'Search' }, 'AUTH')
-  const links = () => view.findAll({ type: 'ListItem' }).map((row) => row.label)
-  assert.deepEqual(links(), ['WEB-2 · Title WEB-2'])
+  const links = () => view.findAll({ type: 'ListItem' }).map((row) => row.key)
+  assert.deepEqual(links(), ['WEB-2'])
   await view.type({ label: 'Search' }, 'web-3', { replace: true })
-  assert.deepEqual(links(), ['WEB-3 · Title WEB-3'])
+  assert.deepEqual(links(), ['WEB-3'])
   await view.type({ label: 'Search' }, 'title web-1', { replace: true })
-  assert.deepEqual(links(), ['WEB-1 · Title WEB-1'])
+  assert.deepEqual(links(), ['WEB-1'])
   await view.type({ label: 'Search' }, 'zzz', { replace: true })
   assert.ok(view.find({ label: 'No matching items' }))
   // The badge describes the whole list, not the filtered one.
@@ -163,24 +166,36 @@ const twoProjects = () =>
       item('API-8', 'backlog')
     ]
   })
-const rows = (view: { findAll: (query: { type: string }) => { label?: string }[] }) =>
-  view.findAll({ type: 'ListItem' }).map((row) => row.label)
-const tabLabels = (view: { findAll: (query: { type: string }) => { label?: string }[] }) =>
-  view.findAll({ type: 'Tab' }).map((tab) => tab.label)
+type Finder = { findAll: (query: { type: string }) => { key?: string; text: string; props: Readonly<Record<string, unknown>> }[] }
+const rows = (view: Finder) => view.findAll({ type: 'ListItem' }).map((row) => row.key)
+const switcher = (view: Finder) => view.findAll({ type: 'Button' }).filter((button) => button.key?.startsWith('tab:'))
+const tabLabels = (view: Finder) => switcher(view).map((button) => button.text)
+/** The selected tab is the outlined one. */
+const selectedTab = (view: Finder) => switcher(view).find((button) => button.props.variant === 'outline')?.key
 
 test('one tab per project, named by key prefix and ordered; state groups inside the selected tab', async () => {
   const view = await mount(panel, { host: connectedHost({ 'items.list': twoProjects() }) })
   assert.deepEqual(tabLabels(view), ['API 2', 'WEB 2'])
-  assert.equal(view.valueOf({ type: 'Tabs' }), 'project-API')
-  assert.deepEqual(rows(view), ['API-7 · Title API-7', 'API-8 · Title API-8'])
+  assert.equal(selectedTab(view), 'tab:project-API')
+  assert.deepEqual(rows(view), ['API-7', 'API-8'])
+  assert.ok(view.find({ type: 'Text', text: '2 items' }))
   assert.ok(view.find({ type: 'Collapsible', label: 'To do' }))
   assert.ok(view.find({ type: 'Collapsible', label: 'Backlog' }))
   assert.equal(view.find({ type: 'Collapsible', label: 'In progress' }), null)
-  await view.select({ type: 'Tabs' }, 'project-WEB')
-  assert.deepEqual(rows(view), ['WEB-1 · Title WEB-1', 'WEB-2 · Title WEB-2'])
+  await view.press({ testId: 'tab:project-WEB' })
+  assert.equal(selectedTab(view), 'tab:project-WEB')
+  assert.deepEqual(rows(view), ['WEB-1', 'WEB-2'])
   assert.ok(view.find({ type: 'Collapsible', label: 'In progress' }))
   assert.equal(view.persisted.plugin['plane.tab'], 'project-WEB')
   assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('a project whose older items carry an old key prefix is named by its newest item', async () => {
+  // The list is newest first; Plane keeps old keys when a project's identifier changes.
+  const items = [item('WEB-2', 'started'), { ...item('OLD-1', 'backlog'), projectId: 'project-WEB' }]
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  assert.deepEqual(tabLabels(view), ['WEB 2'])
   await view.unmount()
 })
 
@@ -189,15 +204,15 @@ test('the remembered tab is selected again; a project with no items falls back t
     host: connectedHost({ 'items.list': twoProjects() }),
     persisted: { plugin: { 'plane.tab': 'project-WEB' } }
   })
-  assert.equal(again.valueOf({ type: 'Tabs' }), 'project-WEB')
-  assert.deepEqual(rows(again), ['WEB-1 · Title WEB-1', 'WEB-2 · Title WEB-2'])
+  assert.equal(selectedTab(again), 'tab:project-WEB')
+  assert.deepEqual(rows(again), ['WEB-1', 'WEB-2'])
   await again.unmount()
   const gone = await mount(panel, {
     host: connectedHost({ 'items.list': twoProjects() }),
     persisted: { plugin: { 'plane.tab': 'project-OPS' } }
   })
-  assert.equal(gone.valueOf({ type: 'Tabs' }), 'project-API')
-  assert.deepEqual(rows(gone), ['API-7 · Title API-7', 'API-8 · Title API-8'])
+  assert.equal(selectedTab(gone), 'tab:project-API')
+  assert.deepEqual(rows(gone), ['API-7', 'API-8'])
   await gone.unmount()
 })
 
@@ -206,11 +221,11 @@ test('search spans every project: tab labels count the matches; an empty tab off
   await view.type({ label: 'Search' }, 'web-1')
   assert.deepEqual(tabLabels(view), ['API 0', 'WEB 1'])
   assert.ok(view.find({ label: 'No matching items' }))
-  await view.select({ type: 'Tabs' }, 'project-WEB')
-  assert.deepEqual(rows(view), ['WEB-1 · Title WEB-1'])
+  await view.press({ testId: 'tab:project-WEB' })
+  assert.deepEqual(rows(view), ['WEB-1'])
   await view.type({ label: 'Search' }, 'auth', { replace: true })
   assert.deepEqual(tabLabels(view), ['API 1', 'WEB 1'])
-  assert.deepEqual(rows(view), ['WEB-2 · Title WEB-2'])
+  assert.deepEqual(rows(view), ['WEB-2'])
   await view.type({ label: 'Search' }, 'zzz', { replace: true })
   await view.press({ text: 'Clear search' })
   assert.deepEqual(tabLabels(view), ['API 2', 'WEB 2'])
@@ -253,14 +268,14 @@ test('refresh asks for a forced refresh; posts update the list and each row foll
   assert.ok(view.find({ type: 'Collapsible', label: 'Backlog' }))
   const button = () => view.find({ testId: 'start:WEB-9' })
   await view.post('start.changed', { key: 'WEB-9', state: { kind: 'pending', name: 'n', projectId: 'p1', startedAt: 1 } })
-  assert.deepEqual([button()?.text, button()?.disabled], ['Starting…', true])
+  assert.deepEqual([button()?.label, button()?.disabled], ['Starting…', true])
   await view.post('start.changed', { key: 'WEB-9', state: { kind: 'unknown', name: 'n', projectId: 'p1' } })
-  assert.deepEqual([button()?.text, button()?.disabled], ['Checking…', true])
+  assert.deepEqual([button()?.label, button()?.disabled], ['Checking…', true])
   await view.post('start.changed', { key: 'WEB-9', state: { kind: 'failed', error: 'refused' } })
   assert.ok(view.find({ type: 'Badge', text: 'Start failed' }))
-  assert.equal(button()?.text, 'Start')
+  assert.equal(button()?.label, 'Start')
   await view.post('start.changed', { key: 'WEB-9', state: { kind: 'created', workspaceId: 'w', name: 'n', projectId: 'p1' } })
-  assert.equal(button()?.text, 'Open workspace')
+  assert.equal(button()?.label, 'Open workspace')
   await view.unmount()
 })
 

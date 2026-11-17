@@ -4,6 +4,7 @@
 import {
   atom,
   Badge,
+  Box,
   Button,
   Callout,
   Card,
@@ -27,8 +28,6 @@ import {
   shell,
   Skeleton,
   Stack,
-  Tab,
-  Tabs,
   Text,
   Textarea,
   update,
@@ -314,27 +313,28 @@ function Pickers() {
   )
 }
 
-/** Start, Starting…, Checking… or Open workspace, by the item's Start state. Callers key it `start:<KEY>`. */
-function StartButton({ item }: { item: ItemRef }) {
+/** Start, Starting…, Checking… or Open workspace, by the item's Start state; `compact` draws only
+ *  the icon, named by its tooltip (list rows). Callers key it `start:<KEY>`. */
+function StartButton({ item, compact = false }: { item: ItemRef; compact?: boolean }) {
   const state = read(starts)[item.key]
   const workspaceId = state?.kind === 'created' || state?.kind === 'failed' ? state.workspaceId : undefined
   if (workspaceId) {
-    return (
-      <Button size="sm" icon="open-external" onPress={() => openWorkspace(workspaceId)}>
+    const open = () => openWorkspace(workspaceId)
+    return compact ? (
+      <IconButton size="sm" variant="ghost" icon="open-external" label="Open workspace" onPress={open} />
+    ) : (
+      <Button size="sm" icon="open-external" onPress={open}>
         Open workspace
       </Button>
     )
   }
-  const busy = state?.kind === 'pending' || state?.kind === 'unknown'
-  return (
-    <Button
-      size="sm"
-      tone="accent"
-      icon="play"
-      disabled={busy || read(confirming)?.key === item.key}
-      onPress={() => askStart(item)}
-    >
-      {state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : 'Start'}
+  const disabled = state?.kind === 'pending' || state?.kind === 'unknown' || read(confirming)?.key === item.key
+  const label = state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : 'Start'
+  return compact ? (
+    <IconButton size="sm" variant="ghost" tone="accent" icon="play" label={label} disabled={disabled} onPress={() => askStart(item)} />
+  ) : (
+    <Button size="sm" tone="accent" icon="play" disabled={disabled} onPress={() => askStart(item)}>
+      {label}
     </Button>
   )
 }
@@ -370,30 +370,42 @@ function Confirmation({ current }: { current: Loaded }) {
   )
 }
 
+/** A row after Orca's Agents panel: the title with icon actions, then a muted meta line (design D10). */
 function ItemRow({ item }: { item: Item }) {
   const state = read(starts)[item.key]
   const asked = read(confirmation)
+  const meta = [item.key, item.stateName ?? 'Unknown state', item.priority === 'none' ? '' : item.priority, item.labels.join(', ')]
+    .filter(Boolean)
+    .join(' · ')
+  const updated = Date.parse(item.updatedAt)
   return (
-    <ListItem key={item.key} title={`${item.key} · ${item.title}`} description={item.stateName ?? 'Unknown state'}>
-      <Stack gap="xs">
-        <Row gap="xs" wrap>
-          {item.priority === 'none' ? null : <Badge tone={item.priority === 'urgent' ? 'danger' : item.priority === 'high' ? 'warning' : undefined}>{item.priority}</Badge>}
-          {item.labels.map((label) => (
-            <Badge key={label}>{label}</Badge>
-          ))}
-          {state?.kind === 'failed' ? <Badge tone="danger">Start failed</Badge> : null}
-        </Row>
-        {asked?.key === item.key ? (
-          <Confirmation current={asked} />
-        ) : (
-          <Row gap="xs">
-            <Button key={`open:${item.key}`} size="sm" variant="outline" onPress={() => openItem(item)}>
-              Open
-            </Button>
-            <StartButton key={`start:${item.key}`} item={item} />
+    <ListItem>
+      <Box gap="xs" width="100%" minWidth={0}>
+        {/* The title shrinks and truncates; the actions keep their size, so the row never overflows. */}
+        <Box direction="row" justify="between" align="center" gap="xs" width="100%" minWidth={0}>
+          <Box grow shrink minWidth={0}>
+            <Text weight="semibold" truncate>
+              {item.title}
+            </Text>
+          </Box>
+          {asked?.key === item.key ? null : (
+            <Box direction="row" shrink={false}>
+              <IconButton key={`open:${item.key}`} size="sm" variant="ghost" icon="next" label="Open" onPress={() => openItem(item)} />
+              <StartButton key={`start:${item.key}`} item={item} compact />
+            </Box>
+          )}
+        </Box>
+        <Text muted size="sm">
+          {Number.isNaN(updated) ? meta : `${meta} · `}
+          {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
+        </Text>
+        {state?.kind === 'failed' ? (
+          <Row>
+            <Badge tone="danger">Start failed</Badge>
           </Row>
-        )}
-      </Stack>
+        ) : null}
+        {asked?.key === item.key ? <Confirmation current={asked} /> : null}
+      </Box>
     </ListItem>
   )
 }
@@ -406,56 +418,63 @@ function ListView({ state }: { state: ItemsState | null }) {
   const query = read(search).trim().toLowerCase()
   const shown = state.items.filter((item) => matches(item, query))
   // One tab per project with listed items, ordered by name; a project no longer listed falls back to the first.
-  const tabs = [...new Map(state.items.map((item) => [item.projectId, prefix(item.key)])).entries()].sort((a, b) =>
-    a[1].localeCompare(b[1])
-  )
+  // The newest item names it: Plane keeps old keys when a project's identifier changes.
+  const names = new Map<string, string>()
+  for (const item of state.items) if (!names.has(item.projectId)) names.set(item.projectId, prefix(item.key))
+  const tabs = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   const selected = tabs.some(([id]) => id === read(tab)) ? (read(tab) ?? undefined) : tabs[0]?.[0]
+  const inTab = shown.filter((item) => item.projectId === selected)
   const failedOpen = read(openError)
   return (
     <Stack gap="md">
+      <Input
+        label="Search"
+        labelHidden
+        type="search"
+        placeholder="Search by key, title or label"
+        value={read(search)}
+        onChange={(value) => set(search, value)}
+      />
       <Row justify="between">
-        <Row gap="xs">
-          <Badge tone={badge.tone}>{badge.label}</Badge>
-          {state.fetchedAt ? (
-            <Text muted size="xs">
-              updated <RelativeTime at={state.fetchedAt} />
-            </Text>
-          ) : null}
-        </Row>
-        <IconButton
-          icon="refresh"
-          label={state.refreshing ? 'Refreshing' : 'Refresh'}
-          disabled={state.refreshing}
-          onPress={refresh}
-        />
+        <Badge tone={badge.tone}>{badge.label}</Badge>
+        {state.fetchedAt ? (
+          <Text muted size="xs">
+            updated <RelativeTime at={state.fetchedAt} />
+          </Text>
+        ) : null}
       </Row>
       {state.error ? (
         <Callout tone={state.completeness === 'error' ? 'danger' : 'warning'} title={badge.label}>
           {state.error}
         </Callout>
       ) : null}
-      <Input
-        label="Search"
-        type="search"
-        placeholder="Key, title or label"
-        value={read(search)}
-        onChange={(value) => set(search, value)}
-      />
       {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
       {state.completeness !== 'error' && state.items.length === 0 ? (
         <EmptyState icon="check" title="Nothing open is assigned to you" />
       ) : null}
       {tabs.length > 0 ? (
-        <Tabs label="Projects" value={selected} onChange={(value) => set(tab, value)}>
-          {tabs.map(([id, name]) => {
-            const entries = shown.filter((item) => item.projectId === id)
-            return (
-              <Tab key={id} value={id} label={`${name} ${entries.length}`}>
-                <Groups entries={entries} />
-              </Tab>
-            )
-          })}
-        </Tabs>
+        <Stack gap="sm">
+          {/* A segmented switcher like the Agents panel's; Orca Tabs scroll sideways and cut labels off. */}
+          <Box direction="row" wrap gap="xs" padding="xs" radius="md" background="muted">
+            {tabs.map(([id, name]) => (
+              <Button
+                key={`tab:${id}`}
+                size="sm"
+                variant={id === selected ? 'outline' : 'ghost'}
+                onPress={() => set(tab, id)}
+              >
+                {`${name} ${shown.filter((item) => item.projectId === id).length}`}
+              </Button>
+            ))}
+          </Box>
+          <Box direction="row" justify="between" paddingX="sm" paddingY="xs" radius="sm" background="muted">
+            <Text weight="semibold" size="sm">{`${inTab.length} ${inTab.length === 1 ? 'item' : 'items'}`}</Text>
+            <Text muted size="sm">
+              Last updated
+            </Text>
+          </Box>
+          <Groups entries={inTab} />
+        </Stack>
       ) : null}
     </Stack>
   )
@@ -562,15 +581,27 @@ export default function Panel() {
   if (current === null) return <Skeleton lines={3} label="Loading" />
   if (!current.connected) return <ConnectView />
   const open = read(detail)
+  const list = read(items)
   return (
     <Stack gap="md">
       <Row justify="between">
-        <Text size="sm" muted truncate>
-          {`${current.userName} · ${current.slug}`}
-        </Text>
-        <Button variant="ghost" size="sm" onPress={disconnect}>
-          Disconnect
-        </Button>
+        <Stack gap="none">
+          <Text weight="semibold">Plane</Text>
+          <Text size="sm" muted truncate>
+            {`${current.userName} · ${current.slug}`}
+          </Text>
+        </Stack>
+        <Row gap="xs">
+          <IconButton
+            icon="refresh"
+            label={list?.refreshing ? 'Refreshing' : 'Refresh'}
+            disabled={!list || list.refreshing}
+            onPress={refresh}
+          />
+          <Button variant="ghost" size="sm" onPress={disconnect}>
+            Disconnect
+          </Button>
+        </Row>
       </Row>
       {open ? <DetailView current={open} /> : <ListView state={read(items)} />}
     </Stack>

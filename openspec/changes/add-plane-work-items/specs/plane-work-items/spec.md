@@ -102,7 +102,7 @@ The plugin SHALL list the work items of the connected workspace that are assigne
 - **THEN** the item is still listed, with its state shown as unknown
 
 ### Requirement: One tab per Plane project
-The list SHALL be split into one tab per Plane project that has listed items, named by the project's key prefix (`DIOGEN` for `DIOGEN-449`) and ordered alphabetically. There SHALL be no tab for all projects. The panel SHALL remember the selected tab; when its project has no listed items anymore, the first tab SHALL be selected.
+The list SHALL be split into one tab per Plane project that has listed items, named by the key prefix of its newest item (`DIOGEN` for `DIOGEN-449`) and ordered alphabetically. There SHALL be no tab for all projects. The panel SHALL remember the selected tab; when its project has no listed items anymore, the first tab SHALL be selected.
 
 #### Scenario: Selected tab is remembered
 - **WHEN** the user selects the tab `ENGAUTUMNS` and the panel is opened again
