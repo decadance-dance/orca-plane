@@ -17,6 +17,7 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
   - Lists the open work items assigned to me (state groups backlog, unstarted and started) across the workspace, through Plane API v2.
   - Items are split into one tab per Plane project, named by the project's key prefix (e.g. `DIOGEN`). Inside a tab they are grouped by state, in collapsible groups with counts. Each row shows the key, title, priority and labels; pressing it opens the item, and a Start button sits beside it.
   - A search field filters the loaded list across all projects by key, title or label; each tab shows how many of its items match.
+  - Pressing a row's priority or label tag shows only the items that have it; pressing it again shows all items again.
   - A completeness state is always shown: complete, partial, stale or error.
 - **Item detail:** key, title, state, priority, assignees, labels, last updated, the description with its formatting, and a link to open the item in Plane.
 - **Start:**
@@ -40,7 +41,7 @@ Orca has built-in drawers for Linear and Jira but not for Plane. Upstream will a
 | OAuth instead of a personal access token | #12 |
 | Several connections at once | #13 |
 | Plane servers without API v2 | #14 |
-| Filters (cycles, modules, priority); text search over the list is in this change | #15 |
+| Filters (cycles, modules); text search and tag filters (priority, labels) are in this change | #15 |
 | Exact branch name for started workspaces | #16 |
 | Name the item in later agent prompts | #17 |
 | Notify when an item's agent finishes | #18 |

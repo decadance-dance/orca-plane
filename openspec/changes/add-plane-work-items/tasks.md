@@ -157,6 +157,8 @@
   - Verify: panel tests for two projects in two tabs, the label counts with and without search, the remembered tab, the fallback when its project is gone, and an empty selected tab under search.
 - [x] 6.15 Group each tab's items by state name instead of state group (design D10): ordered by Plane group, then item count, then name; unknown state last.
   - Verify: panel tests for the order of several states in one group, the counts, an unknown state last, and search keeping the order.
+- [ ] 6.16 Make the row's priority and label tags toggle a filter (design D10, spec "Filter by a tag"): tag buttons below the pressable row, active ones solid, every active tag must match, persisted as `plane.tags`, cleared by Clear search.
+  - Verify: panel tests for filtering by a label and by a priority, two tags together, pressing an active tag again, the tab counts, the remembered tags and Clear search.
 - [ ] 6.14 Restyle the List view after Orca's Agents panel (design D10): header, status line, segmented project switcher, count bar, rows with icon buttons and a meta line.
   - Verify: panel tests updated for the new controls (row actions by their accessible names, the switcher selects and persists the tab); a live shot of the panel read with the maintainer.
 

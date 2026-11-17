@@ -130,6 +130,21 @@ The panel SHALL offer a search field that filters the loaded list of every proje
 - **WHEN** no item in the selected tab matches the search text
 - **THEN** the panel says that no items match and offers to clear the search
 
+### Requirement: Filter by a tag
+Each row's priority and labels SHALL be shown as tags that can be pressed. Pressing a tag SHALL add it to the active filter, which shows only the items that have every active tag, in every project and together with the search text. Pressing an active tag SHALL remove it. Active tags SHALL be drawn filled. The panel SHALL remember the active tags, and clearing the search SHALL clear them too. The completeness state and the status bar count SHALL describe the whole list.
+
+#### Scenario: Filter by a label
+- **WHEN** the user presses the label `dst` on a row
+- **THEN** only the items labelled `dst` are shown, each tab shows its count of them, and every `dst` tag is filled
+
+#### Scenario: Two tags
+- **WHEN** the labels `dst` and `deploy` are active
+- **THEN** only the items that have both labels are shown
+
+#### Scenario: Press an active tag again
+- **WHEN** the user presses an active tag
+- **THEN** it is no longer active, and the items it hid are shown again
+
 ### Requirement: Show whether the list is complete
 The list SHALL always carry one of these completeness states:
 - `complete`;
