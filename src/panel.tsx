@@ -31,13 +31,17 @@ import {
   Text,
   Textarea,
   update,
-  type PanelContext
+  type PanelContext,
+  type Tone
 } from 'orca'
 import type { Item, ItemDetail } from './plane/map'
 import { type AgentChoice, type ConnectionStatus, type ItemsState, KNOWN_AGENTS, type OrcaProject, type StartState } from './protocol'
 import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
+
+/** Priority pill outlines (design D10); Orca's theme tones are the only colours a plugin has. */
+const PRIORITY_TONE = { urgent: 'danger', high: 'warning', medium: 'accent', low: 'success' } as const
 
 /** States sort by their Plane group first (design D10). */
 const GROUP_RANK = { started: 0, unstarted: 1, backlog: 2, unknown: 3 } as const
@@ -372,9 +376,7 @@ function Confirmation({ current }: { current: Loaded }) {
 function ItemRow({ item }: { item: Item }) {
   const state = read(starts)[item.key]
   const asked = read(confirmation)
-  const meta = [item.key, item.stateName ?? 'Unknown state', item.priority === 'none' ? '' : item.priority, item.labels.join(', ')]
-    .filter(Boolean)
-    .join(' · ')
+  const meta = `${item.key} · ${item.stateName ?? UNKNOWN_STATE}`
   const updated = Date.parse(item.updatedAt)
   return (
     <Stack gap="xs">
@@ -390,6 +392,20 @@ function ItemRow({ item }: { item: Item }) {
                 {Number.isNaN(updated) ? meta : `${meta} · `}
                 {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
               </Text>
+              {item.priority !== 'none' || item.labels.length > 0 ? (
+                <Box direction="row" wrap gap="xs">
+                  {item.priority === 'none' ? null : (
+                    <Pill key={`priority:${item.key}`} tone={PRIORITY_TONE[item.priority]}>
+                      {item.priority}
+                    </Pill>
+                  )}
+                  {item.labels.map((label) => (
+                    <Pill key={label} tone="neutral">
+                      {label}
+                    </Pill>
+                  ))}
+                </Box>
+              ) : null}
               {state?.kind === 'failed' ? (
                 <Row>
                   <Badge tone="danger">Start failed</Badge>
@@ -479,6 +495,17 @@ function ListView({ state }: { state: ItemsState | null }) {
         </Stack>
       ) : null}
     </Stack>
+  )
+}
+
+/** A tag with an outline in its tone; neutral is grey with muted text. */
+function Pill({ tone, children }: { tone: Tone; children: string }) {
+  return (
+    <Box border={tone} radius="full" paddingX="xs">
+      <Text size="xs" tone={tone === 'neutral' ? undefined : tone} muted={tone === 'neutral'}>
+        {children}
+      </Text>
+    </Box>
   )
 }
 

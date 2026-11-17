@@ -130,7 +130,11 @@ test('the list after the Agents panel: header, status line, count bar, groups, r
   assert.ok(view.find({ type: 'Badge', text: 'Complete' }))
   const row = view.find({ testId: 'WEB-2' })
   assert.match(row?.text ?? '', /Title WEB-2/)
-  assert.match(row?.text ?? '', /WEB-2 · Todo · high · auth · /)
+  assert.match(row?.text ?? '', /WEB-2 · Todo · /)
+  // Pills: the priority outlined in its tone, labels in grey.
+  assert.equal(view.find({ testId: 'priority:WEB-2' })?.props.border, 'warning')
+  assert.match(view.find({ testId: 'priority:WEB-2' })?.text ?? '', /high/)
+  assert.deepEqual(view.findAll({ type: 'Box' }).filter((box) => box.text === 'auth').map((box) => box.props.border), ['neutral'])
   // The title is text; the icon buttons are named by their tooltips.
   assert.equal(view.find({ type: 'Link' }), null)
   // The row itself opens the item; Start sits beside it, outside the pressable row.
@@ -200,6 +204,15 @@ test('a project whose older items carry an old key prefix is named by its newest
   const items = [item('WEB-2', 'started'), { ...item('OLD-1', 'backlog'), projectId: 'project-WEB' }]
   const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
   assert.deepEqual(tabLabels(view), ['WEB 2'])
+  await view.unmount()
+})
+
+test('priority pills: urgent danger, high warning, medium accent, low success, none without a pill', async () => {
+  const at = (key: string, priority: Item['priority']): Item => ({ ...item(key, 'started'), priority })
+  const items = [at('WEB-1', 'urgent'), at('WEB-2', 'high'), at('WEB-3', 'medium'), at('WEB-4', 'low'), at('WEB-5', 'none')]
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  const tone = (key: string) => view.find({ testId: `priority:${key}` })?.props.border ?? null
+  assert.deepEqual(['WEB-1', 'WEB-2', 'WEB-3', 'WEB-4', 'WEB-5'].map(tone), ['danger', 'warning', 'accent', 'success', null])
   await view.unmount()
 })
 
