@@ -93,4 +93,8 @@ test('preview: a heading never ends it; a long block after it is cut at a word',
   assert.equal(preview(`Intro.\n\n## Details\n\n${long}`), 'Intro.')
   const url = `https://example.com/${'x'.repeat(600)}`
   assert.ok(preview(`## Links\n\n${url}`)?.startsWith('## Links\n\nhttps://example.com/xx'), 'a long word after a heading is cut, not dropped')
+  const longHeading = `## ${'Title '.repeat(90).trim()}`
+  assert.ok(preview(`${longHeading}\n\n${long}`)?.startsWith('alpha alpha'), 'a heading too long to leave room is left out')
+  const headings = Array.from({ length: 5 }, (_, i) => `${'#'.repeat(i + 1)} Heading`).join('\n\n')
+  assert.ok(preview(`${headings}\n\n${long}`)?.startsWith('##### Heading\n\nalpha alpha'), 'only the heading above the text shows')
 })

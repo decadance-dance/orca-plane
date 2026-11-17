@@ -215,9 +215,11 @@ export function preview(markdown: string): string | null {
   // A heading belongs with the text under it, so the preview never ends on one.
   while (count > 0 && isHeading(blocks[count - 1])) count--
   if (count > 0) return blocks.slice(0, count).join('\n\n')
-  // Nothing whole fits: the leading headings and the start of the first block of text.
+  // Nothing whole fits: the start of the first block of text, under its own heading when that leaves room for the text.
   const body = blocks.findIndex((block) => !isHeading(block))
-  const first = blocks.slice(0, body < 0 ? blocks.length : body + 1).join('\n\n')
+  const above = body > 0 ? blocks[body - 1] : ''
+  const first =
+    body < 0 ? blocks[0] : above.length > 0 && above.length <= PREVIEW_CHARS / 2 ? `${above}\n\n${blocks[body]}` : blocks[body]
   const start = first.split('\n').slice(0, PREVIEW_LINES).join('\n')
   return `${start.length > PREVIEW_CHARS ? start.slice(0, PREVIEW_CHARS - 2).replace(/[ \t]+\S*$/, '') : start} …`
 }
