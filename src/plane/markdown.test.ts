@@ -91,4 +91,6 @@ test('preview: a heading never ends it; a long block after it is cut at a word',
   const cut = preview(`## Description\n\n${long}\n\n## Acceptance Criteria\n\n- one`)
   assert.ok(cut && cut.startsWith(`## Description\n\nalpha alpha`) && cut.endsWith(' …') && cut.length <= 502, cut ?? 'null')
   assert.equal(preview(`Intro.\n\n## Details\n\n${long}`), 'Intro.')
+  const url = `https://example.com/${'x'.repeat(600)}`
+  assert.ok(preview(`## Links\n\n${url}`)?.startsWith('## Links\n\nhttps://example.com/xx'), 'a long word after a heading is cut, not dropped')
 })

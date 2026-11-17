@@ -219,5 +219,5 @@ export function preview(markdown: string): string | null {
   const body = blocks.findIndex((block) => !isHeading(block))
   const first = blocks.slice(0, body < 0 ? blocks.length : body + 1).join('\n\n')
   const start = first.split('\n').slice(0, PREVIEW_LINES).join('\n')
-  return `${start.length > PREVIEW_CHARS ? start.slice(0, PREVIEW_CHARS - 2).replace(/\s+\S*$/, '') : start} …`
+  return `${start.length > PREVIEW_CHARS ? start.slice(0, PREVIEW_CHARS - 2).replace(/[ \t]+\S*$/, '') : start} …`
 }
