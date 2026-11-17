@@ -123,7 +123,7 @@
   - a deleted workspace.
 - [x] 5.3 Implement the `orca.projects` handler (Git projects only, keeping `id` and `hostId`) and `workspace.open`.
   - Verify: tests on a `project.list` fixture that contains a folder project.
-- [ ] 5.4 Do one real Start in a scratch Git project, and record the branch Orca derives from the name in `design.md` (Open Questions).
+- [x] 5.4 Moved to #24. Do one real Start in a scratch Git project, and record the branch Orca derives from the name in `design.md` (Open Questions).
   - Verify: the recorded branch name, and the agent's prompt as seen in its terminal.
 
 ## 6. Panel
@@ -143,7 +143,7 @@
   - Verify: panel tests for search by key, title and label, no match with Clear search, group counts, and each row Start state.
 - [x] 6.7 Add the Start confirmation from a row and from the detail: name, project, agent, editable prompt; Confirm sends `item.start`, Cancel creates nothing.
   - Verify: panel tests for confirm, cancel, an edited prompt and an empty project list.
-- [ ] 6.8 Update `src/panel.check.ts` for the new layout, adding `search` and `confirm` scenarios, with items from two projects so the tabs show, and shoot every scenario again.
+- [x] 6.8 Moved to #24. Update `src/panel.check.ts` for the new layout, adding `search` and `confirm` scenarios, with items from two projects so the tabs show, and shoot every scenario again.
   - Verify: `orca plugin check .` shows no issues, and the PNG of each scenario reads correctly.
 - [x] 6.9 Start the detail with `← All items` (design D10). The row's title stays text and Open stays a button (a title link was tried and reverted at the maintainer's request).
   - Verify: panel tests for Open and going back.
@@ -159,12 +159,12 @@
   - Verify: panel tests for the order of several states in one group, the counts, an unknown state last, and search keeping the order.
 - [x] 6.16 Make the row's priority and label tags toggle a filter (design D10, spec "Filter by a tag"): tag buttons below the pressable row, active ones filled, every active tag must match, persisted as `plane.tags`, cleared by Clear search.
   - Verify: panel tests for filtering by a label and by a priority, two tags together, pressing an active tag again, the tab counts, the remembered tags and Clear search.
-- [ ] 6.14 Restyle the List view after Orca's Agents panel (design D10): header, status line, segmented project switcher, count bar, rows with icon buttons and a meta line.
+- [x] 6.14 Moved to #24. Restyle the List view after Orca's Agents panel (design D10): header, status line, segmented project switcher, count bar, rows with icon buttons and a meta line.
   - Verify: panel tests updated for the new controls (row actions by their accessible names, the switcher selects and persists the tab); a live shot of the panel read with the maintainer.
 
 ## 7. Integration
 
-- [ ] 7.1 Run a live smoke test against the maintainer's Plane Cloud workspace.
+- [x] 7.1 Moved to #24. Run a live smoke test against the maintainer's Plane Cloud workspace.
   - Verify:
     - the keys in the panel equal Plane's "assigned to me, open" view while the panel says `complete`;
     - one real Start;
@@ -173,7 +173,7 @@
     Screenshots go in the PR.
 - [x] 7.2 Run the full checks.
   - Verify: `bin/check` and `openspec validate --all` exit 0 locally, and `ci-ok` is green on the PR.
-- [ ] 7.3 Get the cross-model review: a Codex session reviews the PR head from the diff, #7 and `git-flow.md`, runs `bin/check` and loads the plugin.
+- [x] 7.3 Get the cross-model review: a Codex session reviews the PR head from the diff, #7 and `git-flow.md`, runs `bin/check` and loads the plugin.
   - Verify: its GitHub review has no open must-fix findings.
 
 ## Workflow follow-up
