@@ -526,3 +526,149 @@ test('a worker that does not answer shows the error and Retry loads again', asyn
   assert.ok(view.find({ text: 'Connect to Plane' }))
   await view.unmount()
 })
+
+// --- Links: agent state and the focused workspace (link-items-to-workspaces) ---
+
+const badges = (view: Awaited<ReturnType<typeof mount>>) => view.findAll({ type: 'Badge' }).map((badge) => badge.text)
+
+test('agent state: needs input on the row; done on the row and in the detail; none when unknown or unlinked', async () => {
+  const view = await mount(panel, {
+    host: connectedHost({ 'links.get': { 'WEB-1': { workspaceId: 'w1', agent: null } } })
+  })
+  // Linked, no state reported yet: no agent badge.
+  assert.deepEqual(badges(view), ['Complete'])
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'needs-input' } })
+  assert.ok(view.find({ type: 'Badge', text: 'Needs input' }))
+  assert.equal(view.find({ type: 'Badge', text: 'Needs input' })?.props.tone, 'warning')
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'done' } })
+  assert.deepEqual(badges(view), ['Complete', 'Done'])
+  await view.press({ testId: 'WEB-1' })
+  assert.equal(view.find({ type: 'Badge', text: 'Done' })?.props.tone, 'success')
+  await view.press({ text: '← All items' })
+  // An agent in an unlinked workspace: the worker posts nothing, so no row changes.
+  assert.deepEqual(badges(view), ['Complete', 'Done'])
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'working' } })
+  assert.equal(view.find({ type: 'Badge', text: 'Working' })?.props.tone, 'neutral')
+  await view.unmount()
+})
+
+test('focus on a linked workspace opens its item; an unlinked one keeps the panel as it is', async () => {
+  const asked: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.get': (input: unknown) => {
+        asked.push(input)
+        return { ok: true, item: DETAIL }
+      }
+    })
+  })
+  await view.post('focus.changed', { key: null })
+  assert.ok(view.find({ testId: 'WEB-1' }))
+  await view.post('focus.changed', { key: 'WEB-1' })
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  // A listed item is fetched with its project.
+  assert.deepEqual(asked, [{ key: 'WEB-1', projectId: 'project-WEB' }])
+  await view.post('focus.changed', { key: null })
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  // Back in the list while the same workspace stays focused: the worker posts nothing, the list stays.
+  await view.press({ text: '← All items' })
+  assert.ok(view.find({ type: 'Collapsible', label: 'Todo' }))
+  await view.unmount()
+})
+
+test('focus on the workspace of an item that left the list opens it by its key alone', async () => {
+  const asked: unknown[] = []
+  const gone: ItemDetail = { ...DETAIL, key: 'WEB-7', title: 'Shipped', url: 'https://app.plane.so/truelogic/browse/WEB-7/' }
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.get': (input: unknown) => {
+        asked.push(input)
+        return { ok: true, item: gone }
+      }
+    })
+  })
+  await view.post('focus.changed', { key: 'WEB-7' })
+  assert.ok(view.find({ text: 'WEB-7 Shipped' }))
+  assert.deepEqual(asked, [{ key: 'WEB-7' }])
+  await view.unmount()
+})
+
+test('an open Start confirmation stays open when a linked workspace is focused', async () => {
+  const view = await mount(panel, { host: connectedHost() })
+  await view.press({ testId: 'start:WEB-2' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-2' }))
+  await view.post('focus.changed', { key: 'WEB-1' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-2' }))
+  assert.equal(view.find({ text: 'WEB-1 Fix login' }), null)
+  await view.unmount()
+})
+
+test('review 1: a links.changed that arrives while the panel loads is not overwritten by the older snapshot', async () => {
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost({
+      'connection.get': { connected: false },
+      'connection.connect': { ok: true, status: CONNECTED },
+      'links.get': { 'WEB-1': { workspaceId: 'w1', agent: null } },
+      'orca.projects': async () => {
+        await held
+        return { projects: [{ id: 'p1', name: 'repo', hostId: 'local' }] }
+      }
+    })
+  })
+  // Connecting loads the list, the Start states, the links and the pickers; the pickers are held.
+  const connecting = view.press({ text: 'Connect' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  // The post lands while the pickers are held; they answer just after it.
+  setTimeout(release, 50)
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'needs-input' } })
+  await connecting
+  await view.settled()
+  assert.ok(view.find({ type: 'Badge', text: 'Needs input' }))
+  await view.unmount()
+})
+
+test('review 2: a Start state the worker reports idle (its workspace was deleted) offers Start again', async () => {
+  const view = await mount(panel, {
+    host: connectedHost({}, { 'WEB-1': { kind: 'created', workspaceId: 'w1', name: 'n', projectId: 'p1' } })
+  })
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Open workspace')
+  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Start')
+  await view.unmount()
+})
+
+test('round 2: Start states and the list posted while the panel loads are not overwritten by the older snapshots', async () => {
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost(
+      {
+        'connection.get': { connected: false },
+        'connection.connect': { ok: true, status: CONNECTED },
+        'orca.projects': async () => {
+          await held
+          return { projects: [{ id: 'p1', name: 'repo', hostId: 'local' }] }
+        }
+      },
+      {
+        'WEB-1': { kind: 'created', workspaceId: 'w1', name: 'n', projectId: 'p1' },
+        'WEB-2': { kind: 'created', workspaceId: 'w2', name: 'n', projectId: 'p1' }
+      }
+    )
+  })
+  const connecting = view.press({ text: 'Connect' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  setTimeout(release, 50)
+  // WEB-1's workspace was removed while the pickers were held; a refresh also ended.
+  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })
+  await view.post('items.changed', list({ items: [item('WEB-1', 'started'), item('WEB-2', 'unstarted'), item('WEB-4', 'unstarted')] }))
+  await connecting
+  await view.settled()
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Start')
+  // The snapshot's other keys still apply.
+  assert.equal(view.find({ testId: 'start:WEB-2' })?.label, 'Open workspace')
+  assert.ok(view.find({ testId: 'WEB-4' }))
+  await view.unmount()
+})

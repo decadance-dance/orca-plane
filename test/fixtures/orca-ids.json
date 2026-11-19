@@ -1,0 +1,153 @@
+{
+  "about": "Live id probe (design L2 of link-items-to-workspaces), Orca 1.4.262, one Start-like workspace.create with an agent, then focus and removal. Paths shortened; launch command and titles dropped.",
+  "returnedId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+  "records": [
+    {
+      "source": "agent.launch.before",
+      "payload": {
+        "agent": "claude",
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceKind": "worktree",
+        "terminalId": "term_e53072e2-1e29-4644-8ae8-2c898282a317"
+      }
+    },
+    {
+      "source": "workspace.created",
+      "payload": {
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceListId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "kind": "worktree",
+        "path": "/work/orca-plane/id-probe-36",
+        "branch": "id-probe-36"
+      }
+    },
+    {
+      "source": "workspace.create.result",
+      "payload": {
+        "workspaceId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "terminalId": "term_e53072e2-1e29-4644-8ae8-2c898282a317"
+      }
+    },
+    {
+      "source": "workspace.list.rows",
+      "payload": {
+        "rows": [
+          {
+            "id": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+            "kind": "worktree",
+            "name": "id-probe-36",
+            "project": "orca-plane",
+            "projectId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1",
+            "path": "/work/orca-plane/id-probe-36",
+            "branch": "id-probe-36",
+            "hostId": "local"
+          }
+        ],
+        "truncated": false
+      }
+    },
+    {
+      "source": "agent.status.changed",
+      "payload": {
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceListId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "paneKey": "b30cca63-7421-4849-ac69-0b72f6d8b36a:e89ba44e-1857-4f4b-a74a-39fad933faee",
+        "terminalId": "term_e53072e2-1e29-4644-8ae8-2c898282a317",
+        "state": "done",
+        "receivedAt": 1795050667617,
+        "mainAgent": {
+          "state": "done",
+          "stateStartedAt": 1795050667617
+        },
+        "worktreeId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36"
+      }
+    },
+    {
+      "source": "agent.status.changed",
+      "payload": {
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceListId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "paneKey": "b30cca63-7421-4849-ac69-0b72f6d8b36a:e89ba44e-1857-4f4b-a74a-39fad933faee",
+        "terminalId": "term_e53072e2-1e29-4644-8ae8-2c898282a317",
+        "state": "done",
+        "receivedAt": 1795050667702,
+        "mainAgent": {
+          "state": "done",
+          "stateStartedAt": 1795050667702
+        },
+        "sessionId": "39ea6e70-5aab-4c11-8d20-d3b6ae531c69",
+        "worktreeId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36"
+      }
+    },
+    {
+      "source": "agent.status.changed",
+      "payload": {
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceListId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "paneKey": "b30cca63-7421-4849-ac69-0b72f6d8b36a:e89ba44e-1857-4f4b-a74a-39fad933faee",
+        "terminalId": "term_e53072e2-1e29-4644-8ae8-2c898282a317",
+        "state": "working",
+        "receivedAt": 1795050667929,
+        "mainAgent": {
+          "state": "working",
+          "stateStartedAt": 1795050667929
+        },
+        "sessionId": "39ea6e70-5aab-4c11-8d20-d3b6ae531c69",
+        "worktreeId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36"
+      }
+    },
+    {
+      "source": "agent.status.changed",
+      "payload": {
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceListId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "paneKey": "b30cca63-7421-4849-ac69-0b72f6d8b36a:e89ba44e-1857-4f4b-a74a-39fad933faee",
+        "terminalId": "term_e53072e2-1e29-4644-8ae8-2c898282a317",
+        "state": "done",
+        "receivedAt": 1795050669090,
+        "mainAgent": {
+          "state": "done",
+          "stateStartedAt": 1795050669090
+        },
+        "sessionId": "39ea6e70-5aab-4c11-8d20-d3b6ae531c69",
+        "worktreeId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36"
+      }
+    },
+    {
+      "source": "workspace.changed",
+      "payload": {
+        "context": {
+          "workspaceId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+          "branch": "id-probe-36",
+          "displayName": "id-probe-36",
+          "terminals": [
+            {
+              "id": "term_e53072e2-1e29-4644-8ae8-2c898282a317",
+              "title": "Single word reply"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "source": "workspace.changed",
+      "payload": {
+        "context": {
+          "workspaceId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+          "branch": "id-probe-36",
+          "displayName": "id-probe-36",
+          "terminals": []
+        }
+      }
+    },
+    {
+      "source": "workspace.removed",
+      "payload": {
+        "workspaceId": "601cb54b-a3cf-4abd-a3ba-a308e2e1e8e1::/work/orca-plane/id-probe-36",
+        "workspaceListId": "identity:wt2:local:c91056ad-598e-4396-a26b-e07de1336056",
+        "kind": "worktree",
+        "path": "/work/orca-plane/id-probe-36"
+      }
+    }
+  ]
+}

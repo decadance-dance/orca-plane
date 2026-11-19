@@ -619,3 +619,194 @@ test('orca.projects offers Git projects only, with id and hostId; workspace.open
   assert.deepEqual(h.callsOf('workspace.open'), [{ workspaceId: 'w1' }])
   await worker.deactivate()
 })
+
+// --- Links: agent state, status bar, focus (link-items-to-workspaces) ---
+
+const RECORD = { token: TOKEN, apiBase: 'https://api.plane.so', appBase: 'https://app.plane.so', hostKind: 'cloud', slug: 'truelogic', userId: USER, userName: 'Dima' }
+const KEY2 = page.data[1].identifier as string
+const ROW2 = { ...ROW, id: 'w2', name: 'other-name', path: '/w2' }
+const linked = (workspaceId: string) => ({ kind: 'created', workspaceId, name: workspaceId === 'w1' ? NAME : 'other-name', projectId: 'p1' })
+
+/** A worker already connected, with Start links stored for it; `rows()` is what workspace.list lists. */
+async function withLinks(
+  states: Record<string, unknown>,
+  rows: () => unknown[],
+  results: Record<string, unknown> = {},
+  storage: Record<string, unknown> = {}
+) {
+  const id = await connectionId(RECORD.apiBase, RECORD.slug, USER)
+  const h = mockHost({
+    results: {
+      'secrets.protection': { status: 'os-keyring' },
+      'statusBar.update': { ok: true },
+      'workspace.list': () => ({ workspaces: rows(), truncated: false }),
+      ...results
+    },
+    secrets: { connection: JSON.stringify(RECORD) },
+    storage: { [`c:${id}:starts`]: states, ...storage } as never
+  })
+  const worker = await mountWorker(main, { host: h })
+  await until(async () => Object.keys(await worker.request('links.get')).length === Object.keys(states).length, 'links')
+  await worker.request('items.list')
+  await until(async () => (await worker.request('items.list')).completeness === 'complete', 'items')
+  return { worker, h, id }
+}
+
+const agentEvent = (workspaceListId: string, state: 'working' | 'blocked' | 'waiting' | 'done', receivedAt = 1000) => ({
+  workspaceId: `p1::/${workspaceListId}`,
+  workspaceListId,
+  paneKey: 'pane',
+  terminalId: `t-${workspaceListId}`,
+  state,
+  receivedAt
+})
+
+const lastLinks = (worker: { posts: readonly { event: string; payload?: unknown }[] }) =>
+  worker.posts.filter((post) => post.event === 'links.changed').at(-1)?.payload as Record<string, { agent: string | null }> | undefined
+
+const startPosts = (worker: { posts: readonly { event: string; payload?: unknown }[] }) =>
+  worker.posts.filter((post) => post.event === 'start.changed').map((post) => post.payload as { key: string; state: { kind: string } })
+
+const lastBar = (h: MockHost) => h.callsOf('statusBar.update').at(-1) as { text?: string; tone?: string; tooltip?: string; visible?: boolean }
+const NORMAL = { id: 'count', visible: true, text: '2', tone: 'neutral', tooltip: 'Plane: open work items assigned to you' }
+
+test('an agent waiting in a linked workspace: needs-input at once, and the status bar counts the waiting agents', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1'), [KEY2]: linked('w2') }, () => [ROW, ROW2])
+  assert.deepEqual(lastBar(h), NORMAL)
+  assert.deepEqual(await worker.request('links.get'), {
+    'DIOGEN-449': { workspaceId: 'w1', agent: null },
+    [KEY2]: { workspaceId: 'w2', agent: null }
+  })
+  await worker.emit('agent.status.changed', agentEvent('w1', 'waiting'))
+  assert.equal(lastLinks(worker)?.['DIOGEN-449'].agent, 'needs-input')
+  assert.deepEqual(lastBar(h), { id: 'count', visible: true, text: '2 · 1 waiting', tone: 'warning', tooltip: '1 agent on Plane items waits for you' })
+  await worker.emit('agent.status.changed', agentEvent('w2', 'blocked'))
+  assert.deepEqual(lastBar(h), { id: 'count', visible: true, text: '2 · 2 waiting', tone: 'warning', tooltip: '2 agents on Plane items wait for you' })
+  await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
+  assert.equal(lastBar(h).text, '2 · 1 waiting')
+  // A list refresh while one agent waits keeps the suffix.
+  const updates = h.callsOf('statusBar.update').length
+  await worker.request('items.list', { force: true })
+  await until(() => h.callsOf('statusBar.update').length > updates, 'refresh')
+  assert.deepEqual(lastBar(h), { id: 'count', visible: true, text: '2 · 1 waiting', tone: 'warning', tooltip: '1 agent on Plane items waits for you' })
+  await worker.emit('agent.status.changed', agentEvent('w2', 'done'))
+  assert.deepEqual(lastBar(h), NORMAL)
+  assert.deepEqual(await worker.request('links.get'), {
+    'DIOGEN-449': { workspaceId: 'w1', agent: 'working' },
+    [KEY2]: { workspaceId: 'w2', agent: 'done' }
+  })
+  await worker.deactivate()
+})
+
+test('a waiting workspace removed with no further agent event: no badge, the count back in its normal tone', async () => {
+  plane()
+  let rows: unknown[] = [ROW, ROW2]
+  const { worker, h, id } = await withLinks({ 'DIOGEN-449': linked('w1'), [KEY2]: linked('w2') }, () => rows)
+  await worker.emit('agent.status.changed', agentEvent('w1', 'waiting'))
+  assert.equal(lastBar(h).tone, 'warning')
+  rows = [ROW2]
+  await worker.emit('workspace.removed', { workspaceId: 'p1::/w1', workspaceListId: 'w1', kind: 'worktree', path: '/w' })
+  assert.deepEqual(lastBar(h), NORMAL)
+  await until(() => !('DIOGEN-449' in (h.data().storage[`c:${id}:starts`] as object)), 'reconciled')
+  assert.deepEqual(lastLinks(worker), { [KEY2]: { workspaceId: 'w2', agent: null } })
+  // Review 2: an open panel hears that the Start state is gone, so it offers Start again.
+  assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
+  await worker.deactivate()
+})
+
+test("a link dropped by starts.get's reconcile: no badge, the count back in its normal tone", async () => {
+  plane()
+  let rows: unknown[] = [ROW]
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => rows)
+  await worker.emit('agent.status.changed', agentEvent('w1', 'waiting'))
+  assert.equal(lastBar(h).text, '2 · 1 waiting')
+  rows = []
+  assert.deepEqual(await worker.request('starts.get'), {})
+  assert.deepEqual(lastLinks(worker), {})
+  assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
+  assert.deepEqual(lastBar(h), NORMAL)
+  await worker.deactivate()
+})
+
+test('links.get is empty after a disconnect, and the status bar is hidden', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW])
+  await worker.emit('agent.status.changed', agentEvent('w1', 'waiting'))
+  await worker.request('connection.disconnect')
+  assert.deepEqual(await worker.request('links.get'), {})
+  assert.deepEqual(lastLinks(worker), {})
+  assert.equal(statusTexts(h).at(-1), 'hidden')
+  await worker.deactivate()
+})
+
+test("a reconnect while a rebuild is in flight finishes and shows only the new account's links", async () => {
+  let user = USER
+  plane((url) => (url.pathname.endsWith('/users/me/') ? { json: { id: user, display_name: 'Someone' } } : undefined) as never)
+  const other = await connectionId(RECORD.apiBase, RECORD.slug, 'other-user')
+  const hold = gate()
+  let holding = false
+  const rows = [ROW, { ...ROW2, id: 'wB' }]
+  const { worker } = await withLinks(
+    { 'DIOGEN-449': linked('w1') },
+    () => rows,
+    {
+      'workspace.list': async () => {
+        if (holding) await hold.opened
+        return { workspaces: rows, truncated: false }
+      }
+    },
+    // What an earlier session of the other account left.
+    { [`c:${other}:starts`]: { 'B-1': { kind: 'created', workspaceId: 'wB', name: 'other-name', projectId: 'p1' } } }
+  )
+  holding = true
+  // A Start read of the old account holds the Start lock while the account switches.
+  const read = worker.request('starts.get')
+  // The mock host queues storage writes behind a running host call, so the gate opens on a timer.
+  setTimeout(hold.open, 50)
+  user = 'other-user'
+  const switched = await worker.request('connection.connect', CLOUD)
+  assert.equal(switched.ok, true)
+  const from = worker.posts.length
+  await read
+  await until(async () => 'B-1' in (await worker.request('links.get')), 'new links')
+  assert.deepEqual(await worker.request('links.get'), { 'B-1': { workspaceId: 'wB', agent: null } })
+  const later = worker.posts.slice(from).filter((post) => post.event === 'links.changed')
+  assert.ok(later.every((post) => !('DIOGEN-449' in (post.payload as object))))
+  await worker.deactivate()
+})
+
+test('item.get without a projectId fetches the item by its key alone', async () => {
+  const fake = plane()
+  const worker = await connected()
+  const answer = await worker.request('item.get', { key: 'DIOGEN-449' })
+  assert.equal(answer.ok, true)
+  assert.equal(new URL(fake.calls.at(-1)!.url).pathname, '/api/v2/workspaces/truelogic/work-items/DIOGEN-449/')
+  await worker.deactivate()
+})
+
+test('focus: the context Orca sends on subscribe posts nothing; a linked workspace posts its key once', async () => {
+  plane()
+  const { worker } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW])
+  const focus = () => worker.posts.filter((post) => post.event === 'focus.changed').map((post) => post.payload)
+  const context = (workspaceId: string) => ({ context: { workspaceId, branch: 'main', displayName: 'x', terminals: [] } })
+  assert.deepEqual(focus(), [])
+  await worker.emit('workspace.changed', context('w1'))
+  await worker.emit('workspace.changed', context('w1'))
+  await worker.emit('workspace.changed', context('w9'))
+  assert.deepEqual(focus(), [{ key: 'DIOGEN-449' }, { key: null }])
+  await worker.deactivate()
+})
+
+test('review 3: an explicit removal drops the link even when the workspace list is truncated', async () => {
+  plane()
+  let truncated = false
+  const { worker } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW], {
+    'workspace.list': () => ({ workspaces: truncated ? [] : [ROW], truncated })
+  })
+  truncated = true
+  await worker.emit('workspace.removed', { workspaceId: 'p1::/w1', workspaceListId: 'w1', kind: 'worktree', path: '/w' })
+  await until(async () => Object.keys(await worker.request('links.get')).length === 0, 'link dropped')
+  assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
+  await worker.deactivate()
+})

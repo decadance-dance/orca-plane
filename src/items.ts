@@ -2,7 +2,7 @@
 // panel gets the cache at once and hears `items.changed` when a refresh ends.
 import type { OrcaWorkerApi } from 'orca/worker'
 import { type Connection, type Connections, keyOf } from './connection'
-import { getItem, listMyOpenItems } from './plane/api'
+import { getItem, getItemByKey, listMyOpenItems } from './plane/api'
 import { env, PlaneError } from './plane/http'
 import { type Item, type ItemDetail, toDetail, toItem } from './plane/map'
 import { browseUrl } from './plane/url'
@@ -14,11 +14,17 @@ const GROUP_ORDER = ['started', 'unstarted', 'backlog', 'unknown']
 
 type Cache = Omit<ItemsState, 'refreshing'> & { checkedAt: number }
 
+/** The manifest's tooltip of the count, sent back when no agent waits. */
+const COUNT_TOOLTIP = 'Plane: open work items assigned to you'
+
 const EMPTY: Cache = { items: [], completeness: null, fetchedAt: null, error: null, checkedAt: 0 }
 
 export class Items {
   private running: Promise<void> | null = null
   private timer: ReturnType<typeof setInterval> | null = null
+  /** The last list the count showed (null: hidden), and how many linked agents need input. */
+  private shown: Pick<Cache, 'items' | 'completeness'> | null = null
+  private waiting = 0
 
   constructor(
     private readonly orca: OrcaWorkerApi,
@@ -117,11 +123,14 @@ export class Items {
     })
   }
 
-  async detail(key: string, projectId: string): Promise<Result<{ item: ItemDetail }>> {
+  /** Without `projectId`, by the key alone: a linked item may have left the list (design L5). */
+  async detail(key: string, projectId?: string): Promise<Result<{ item: ItemDetail }>> {
     const conn = await this.conns.current()
     if (!conn) return { ok: false, error: 'Not connected to Plane.' }
     try {
-      const raw = await getItem(conn, conn.slug, projectId, key, this.conns.signal)
+      const raw = projectId
+        ? await getItem(conn, conn.slug, projectId, key, this.conns.signal)
+        : await getItemByKey(conn, conn.slug, key, this.conns.signal)
       const item = toDetail(raw, (itemKey) => browseUrl(conn.appBase, conn.slug, itemKey))
       return item ? { ok: true, item } : { ok: false, error: 'Plane sent an unreadable item.' }
     } catch (error) {
@@ -129,17 +138,38 @@ export class Items {
     }
   }
 
-  /** The count when complete, `?` otherwise, hidden when disconnected (null). */
+  /**
+   * The count when complete, `?` otherwise, hidden when disconnected (null); with linked agents
+   * that need input, their number after it in a warning tone (design L6).
+   */
   async showCount(cache: Pick<Cache, 'items' | 'completeness'> | null): Promise<void> {
+    this.shown = cache
+    const count = cache?.completeness === 'complete' ? String(cache.items.length) : '?'
+    const waiting = this.waiting
     const params =
       cache === null
         ? { id: 'count', visible: false }
-        : { id: 'count', visible: true, text: cache.completeness === 'complete' ? String(cache.items.length) : '?' }
+        : waiting > 0
+          ? {
+              id: 'count',
+              visible: true,
+              text: `${count} · ${waiting} waiting`,
+              tone: 'warning' as const,
+              tooltip: waiting === 1 ? '1 agent on Plane items waits for you' : `${waiting} agents on Plane items wait for you`
+            }
+          : { id: 'count', visible: true, text: count, tone: 'neutral' as const, tooltip: COUNT_TOOLTIP }
     try {
       await this.orca.host.call('statusBar.update', params)
     } catch {
       // limit: the status bar exists only in the desktop app; elsewhere the count is skipped.
     }
+  }
+
+  /** How many linked agents need input; shows it at once when it changed. */
+  async showWaiting(waiting: number): Promise<void> {
+    if (waiting === this.waiting) return
+    this.waiting = waiting
+    await this.showCount(this.shown)
   }
 
   /** (Re)arms the background refresh; none runs while disconnected. */
