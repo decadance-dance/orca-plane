@@ -787,3 +787,23 @@ test('review 1: a delayed history reply does not roll back a newer one', async (
   assert.equal(view.find({ type: 'Badge', text: 'not confirmed' }), null)
   await view.unmount()
 })
+
+test('review 2: a direct switch to another connection drops the shown history and loads the new one', async () => {
+  let answer = [attempt({ project: 'old-repo' })]
+  const asked: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'history.get': (input: unknown) => {
+        asked.push(input)
+        return answer
+      }
+    })
+  })
+  await view.press({ testId: 'WEB-1' })
+  assert.match(earlier(view)[0].text, /old-repo/)
+  answer = []
+  await view.post('connection.changed', { ...CONNECTED, slug: 'other' })
+  assert.equal(view.find({ type: 'Heading', text: 'Earlier starts' }), null)
+  assert.deepEqual(asked, [{ key: 'WEB-1' }, { key: 'WEB-1' }])
+  await view.unmount()
+})

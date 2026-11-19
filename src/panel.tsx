@@ -191,7 +191,11 @@ export function setup(ctx: PanelContext): void {
   ctx.subscriptions.push(
     plugin.on('connection.changed', (next) => {
       set(status, next)
+      // The shown history belongs to the old connection: drop it, and ask the new one if the detail stays open.
       historyAsk++
+      set(history, [])
+      const open = read(opened)
+      if (next.connected && open) void loadHistory(open.key)
       if (!next.connected) {
         set(items, null)
         set(starts, {})
