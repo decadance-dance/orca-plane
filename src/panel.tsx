@@ -848,6 +848,10 @@ function EarlierStarts() {
   )
 }
 
+/** A closed item offers no Start, but one with a workspace or a Start under way keeps its button. */
+const underWay = (state: StartState | undefined) =>
+  state !== undefined && (state.kind === 'pending' || state.kind === 'unknown' || linkedWorkspace(state) !== undefined)
+
 function DetailView({ current }: { current: Loaded }) {
   const item = current.item
   const state = read(starts)[current.key]
@@ -893,11 +897,11 @@ function DetailView({ current }: { current: Loaded }) {
           {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
           {asked?.key === item.key ? (
             <Confirmation current={asked} />
-          ) : (
+          ) : item.stateGroup !== 'unknown' || underWay(state) ? (
             <Row>
               <StartButton key={`start:${item.key}`} item={item} />
             </Row>
-          )}
+          ) : null}
           <EarlierStarts />
         </Stack>
       ) : null}

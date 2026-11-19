@@ -11,7 +11,7 @@ Requires `link-items-to-workspaces` merged into `develop`.
 
 ## 2. Start for looked-up items
 
-- [ ] 2.1 `Starts.start` rereads an unlisted key under the current generation and refuses closed items (K3); the detail shows Start only for an open state group. Verify: `src/starts.test.ts` covers start of an open unlisted item, closed between lookup and Start (refused, no create), an account switch during the read (dropped), and a listed item (no read); `src/panel.test.tsx` covers "Closed item".
+- [x] 2.1 `Starts.start` rereads an unlisted key under the current generation and refuses closed items (K3); the detail shows Start only for an open state group. Verify: `src/starts.test.ts` covers start of an open unlisted item, closed between lookup and Start (refused, no create), an account switch during the read (dropped), and a listed item (no read); `src/panel.test.tsx` covers "Closed item".
 
 ## 3. Commands
 

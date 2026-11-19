@@ -1047,3 +1047,34 @@ test('Open by key or URL: a URL of another workspace and an unknown key say so a
   assert.ok(view.find({ testId: 'WEB-1' }))
   await view.unmount()
 })
+
+test('Closed item: a completed item opened by key shows no Start; one linked to a workspace still opens it', async () => {
+  const done: ItemDetail = { ...DETAIL, key: 'DIOGEN-7', title: 'Shipped', stateName: 'Done', stateGroup: 'unknown' }
+  const view = await mount(panel, { host: connectedHost({ 'item.lookup': { ok: true, item: done } }) })
+  await view.type({ label: 'Open by key or URL' }, 'DIOGEN-7', { submit: true })
+  assert.ok(view.find({ text: 'DIOGEN-7 Shipped' }))
+  assert.equal(view.find({ testId: 'start:DIOGEN-7' }), null)
+  await view.post('start.changed', { key: 'DIOGEN-7', state: { kind: 'created', workspaceId: 'w7', name: 'DIOGEN-7-shipped', projectId: 'p1' }, hidden: false })
+  assert.equal(view.find({ testId: 'start:DIOGEN-7' })?.text, 'Open workspace')
+  await view.unmount()
+})
+
+test('an open item opened by key offers Start with the same confirmation', async () => {
+  const other: ItemDetail = { ...DETAIL, key: 'DIOGEN-12', title: 'Not mine', stateGroup: 'unstarted', stateName: 'Todo' }
+  const started: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.lookup': { ok: true, item: other },
+      'item.start': (input: unknown) => {
+        started.push(input)
+        return { accepted: true }
+      }
+    })
+  })
+  await view.type({ label: 'Open by key or URL' }, 'DIOGEN-12', { submit: true })
+  await view.press({ testId: 'start:DIOGEN-12' })
+  assert.ok(view.find({ type: 'Card', label: 'Start DIOGEN-12' }))
+  await view.press({ text: 'Confirm' })
+  assert.equal((started[0] as { key: string }).key, 'DIOGEN-12')
+  await view.unmount()
+})

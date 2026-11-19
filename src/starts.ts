@@ -6,7 +6,9 @@ import type { Items } from './items'
 import { linkedWorkspace } from './links'
 import type { Attempt, StartState } from './protocol'
 import { isWorkspaceName } from './start'
-import { env } from './plane/http'
+import { getItemByKey } from './plane/api'
+import { env, PlaneError } from './plane/http'
+import { type Item, toItem } from './plane/map'
 
 type States = Record<string, StartState>
 /** Earlier Starts per item key, oldest first (design H1 of start-history). */
@@ -243,10 +245,27 @@ export class Starts {
     })
   }
 
+  /** An item that is not in the list, read from Plane under the current connection; refused unless open. */
+  private async reread(key: string): Promise<Item | { reason: string }> {
+    const conn = await this.conns.current()
+    if (!conn) return { reason: 'Not connected to Plane.' }
+    try {
+      const item = toItem(await getItemByKey(conn, conn.slug, key, this.conns.signal))
+      if (!item) return { reason: 'Plane sent an unreadable item.' }
+      return item.stateGroup === 'unknown' ? { reason: `${item.key} is not open in Plane, so it cannot be started.` } : item
+    } catch (error) {
+      if (error instanceof PlaneError && error.kind === 'not_found') return { reason: `No item has the key ${key}.` }
+      return { reason: error instanceof PlaneError ? error.message : 'Could not read the item from Plane.' }
+    }
+  }
+
   async start(input: StartInput): Promise<{ accepted: true } | { accepted: false; reason: string }> {
     const generation = this.conns.generation
-    const item = (await this.items.state()).items.find((entry) => entry.key === input.key)
-    if (!item) return { accepted: false, reason: 'This item is not in your list; refresh and try again.' }
+    // A listed item starts from the list until the next refresh; any other is read again now (K3).
+    const listed = (await this.items.state()).items.find((entry) => entry.key === input.key)
+    const item = listed ?? (await this.reread(input.key))
+    if (generation !== this.conns.generation) return { accepted: false, reason: 'Not connected to Plane.' }
+    if ('reason' in item) return { accepted: false, reason: item.reason }
     if (!input.orcaProjectId) return { accepted: false, reason: 'Pick a project.' }
     // The panel's name is input: it must be one workspaceName gives for this key.
     if (!isWorkspaceName(item.key, input.name)) return { accepted: false, reason: 'The workspace name does not fit this item; reopen Start.' }

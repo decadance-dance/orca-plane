@@ -2,6 +2,7 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import { assert, hostError, test } from 'orca/testing'
 import page from '../test/fixtures/v2-list-page.json' with { type: 'json' }
+import v2item from '../test/fixtures/v2-item.json' with { type: 'json' }
 import { Connections, connectionId, keyOf } from './connection'
 import type { Items } from './items'
 import { fakeFetch } from './plane/fake-fetch'
@@ -420,4 +421,70 @@ test('hide keeps the link and its duplicate protection, survives a remount, and 
   assert.deepEqual(await again.get(), { states: {}, hidden: [] })
   assert.deepEqual(f.storage.get(keyOf(await oldId(), 'hidden')), [])
   assert.deepEqual(posts.at(-1), { event: 'start.changed', payload: { key: 'DIOGEN-449', state: { kind: 'idle' }, hidden: false } })
+})
+
+// --- keyboard-commands: Start of a looked-up item (design K3) ---
+
+const UNLISTED = { ...START, key: 'DIOGEN-12', name: 'DIOGEN-12-name' }
+const nothingListed = { state: async () => ({ items: [] }) } as unknown as Items
+const unlistedItem = (group: string) => ({ ...v2item, identifier: 'DIOGEN-12', name: 'name', state: { ...v2item.state, group } })
+
+/** Plane answers users/me and the list for a connect, and DIOGEN-12 through `item`. */
+function planeWith(item: () => unknown | Promise<unknown>) {
+  return fakeFetch(async (url) => {
+    if (url.pathname.endsWith('/users/me/')) return { json: { id: 'new-user', display_name: 'New' } }
+    if (url.pathname.endsWith('/work-items/DIOGEN-12/')) return { json: await item() }
+    return { json: { ...page, has_more: false, next_cursor: null } }
+  })
+}
+
+const createOnly = () => fake({ 'secrets.protection': () => ({ status: 'os-keyring' }), 'workspace.create': () => ({ workspaceId: 'w12' }), 'workspace.list': () => ({ workspaces: [], truncated: false }) })
+
+test('an open item that is not in the list is read again and started', async () => {
+  const plane = planeWith(() => unlistedItem('unstarted'))
+  const f = createOnly()
+  const starts = new Starts(f.orca, new Connections(f.orca), nothingListed)
+  assert.deepEqual(await starts.start(UNLISTED), { accepted: true })
+  assert.equal(new URL(plane.calls.at(-1)!.url).pathname, '/api/v2/workspaces/truelogic/work-items/DIOGEN-12/')
+  await until(() => f.counts['workspace.create'] === 1, 'create')
+})
+
+test('an unlisted item completed between lookup and Start is refused and creates nothing', async () => {
+  planeWith(() => unlistedItem('completed'))
+  const f = createOnly()
+  const starts = new Starts(f.orca, new Connections(f.orca), nothingListed)
+  assert.deepEqual(await starts.start(UNLISTED), { accepted: false, reason: 'DIOGEN-12 is not open in Plane, so it cannot be started.' })
+  await settle()
+  assert.equal(f.counts['workspace.create'], undefined)
+  assert.deepEqual(await starts.all(), {})
+})
+
+test('an account switch while the unlisted item is read drops the read: nothing is created', async () => {
+  const hold = gate()
+  let reading = false
+  planeWith(async () => {
+    reading = true
+    await hold.opened
+    return unlistedItem('started')
+  })
+  const f = createOnly()
+  const conns = new Connections(f.orca)
+  const starts = new Starts(f.orca, conns, nothingListed)
+  const start = starts.start(UNLISTED)
+  await until(() => reading, 'read')
+  const switched = await conns.connect({ hostKind: 'cloud', serverUrl: '', slug: 'other', token: 'new-token' })
+  assert.equal(switched.ok, true, JSON.stringify(switched))
+  hold.open()
+  assert.deepEqual(await start, { accepted: false, reason: 'Not connected to Plane.' })
+  await settle()
+  assert.equal(f.counts['workspace.create'], undefined)
+})
+
+test('a listed item starts from its list row: Plane is not read', async () => {
+  const plane = planeWith(() => unlistedItem('completed'))
+  const f = createOnly()
+  const starts = new Starts(f.orca, new Connections(f.orca), items)
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  assert.equal(plane.calls.length, 0)
+  await until(() => f.counts['workspace.create'] === 1, 'create')
 })
