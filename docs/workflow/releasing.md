@@ -14,7 +14,7 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
   ```
   git checkout main && git pull
   git tag -a 1.2.0 -m "Orca Plane 1.2.0"
-  git tag -a v1.2.0 -m "Orca Plane 1.2.0" 1.2.0^{}   # the catalog reads only vX.Y.Z tags
+  git tag -a v1.2.0 -m "Orca Plane 1.2.0" '1.2.0^{}'   # the catalog reads only vX.Y.Z tags
   git push origin 1.2.0 v1.2.0
   gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
   ```
@@ -57,7 +57,7 @@ git push -u origin release-1.2.0 && gh pr create --draft --base main --title "Re
 # ci-ok green: tick the checklist, then gh pr ready
 # maintainer:
 gh pr merge --merge
-git checkout main && git pull && git tag -a 1.2.0 -m "Orca Plane 1.2.0" && git tag -a v1.2.0 -m "Orca Plane 1.2.0" 1.2.0^{} && git push origin 1.2.0 v1.2.0
+git checkout main && git pull && git tag -a 1.2.0 -m "Orca Plane 1.2.0" && git tag -a v1.2.0 -m "Orca Plane 1.2.0" '1.2.0^{}' && git push origin 1.2.0 v1.2.0
 gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
 gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<r>"   # then merge it
 git push origin --delete release-1.2.0 && git branch -d release-1.2.0
