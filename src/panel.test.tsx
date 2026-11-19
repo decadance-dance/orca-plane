@@ -3,6 +3,7 @@ import { assert, mockHost, mount, test } from 'orca/testing'
 import type { Item, ItemDetail } from './plane/map'
 import { browseUrl, parseItemRef } from './plane/url'
 import * as panel from './panel'
+import { buildPrompt } from './start'
 import type { Attempt, ConnectInput, ItemsState, StartState } from './protocol'
 
 /** Callouts and list items read as their title plus their text, so match a part. */
@@ -415,6 +416,38 @@ test('Confirmation shows the branch, named like the workspace, and Start asks fo
   assert.ok(view.find({ type: 'Text', text: 'Branch WEB-1-fix-login' }))
   await view.press({ text: 'Confirm' })
   assert.equal(started[0]?.name, 'WEB-1-fix-login')
+  await view.unmount()
+})
+
+test('Template with all placeholders: the confirmation prompt is the template filled in, the block in place of {ticket}', async () => {
+  const promptTemplate = 'Read AGENTS.md first. Item {key} ({url}).\n{ticket}\nOpen a PR titled with {key}.'
+  const host = connectedHost({}, {}, { promptTemplate })
+  const view = await mount(panel, { host })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.equal(view.valueOf({ label: 'Prompt' }), buildPrompt(DETAIL, promptTemplate))
+  assert.match(String(view.valueOf({ label: 'Prompt' })), /^Read AGENTS\.md first\. Item WEB-1 \(https:[^)]+\)\.\n----- BEGIN PLANE TICKET/)
+  assert.ok(String(view.valueOf({ label: 'Prompt' })).endsWith('----- END PLANE TICKET -----\nOpen a PR titled with WEB-1.'))
+  await view.unmount()
+})
+
+test('Empty template: the confirmation prompt is the default prompt', async () => {
+  for (const settings of [{}, { promptTemplate: '' }]) {
+    const view = await mount(panel, { host: connectedHost({}, {}, settings) })
+    await view.press({ testId: 'start:WEB-1' })
+    assert.equal(view.valueOf({ label: 'Prompt' }), buildPrompt(DETAIL))
+    await view.unmount()
+  }
+})
+
+test('review 1: a changed template applies to the next confirmation without a reload (T4)', async () => {
+  const host = connectedHost({}, {}, { promptTemplate: 'First {key} {url}\n{ticket}' })
+  const view = await mount(panel, { host })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.equal(view.valueOf({ label: 'Prompt' }), buildPrompt(DETAIL, 'First {key} {url}\n{ticket}'))
+  await view.press({ text: 'Cancel' })
+  host.respond('settings.get', { settings: { promptTemplate: 'Second {key} {url}\n{ticket}' } })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.equal(view.valueOf({ label: 'Prompt' }), buildPrompt(DETAIL, 'Second {key} {url}\n{ticket}'))
   await view.unmount()
 })
 

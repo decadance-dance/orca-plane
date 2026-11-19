@@ -367,10 +367,14 @@ async function askStart(ref: ItemRef): Promise<void> {
   set(startError, null)
   const shown = read(detail)
   const ask = loadAsk
-  const loaded = shown?.key === ref.key && shown.item ? shown : await fetchDetail(ref)
+  // The template is read on every confirmation, so a changed setting applies without a reload (design T4).
+  const [loaded, template] = await Promise.all([
+    shown?.key === ref.key && shown.item ? shown : fetchDetail(ref),
+    settings.get('promptTemplate').catch(() => '')
+  ])
   if (ask !== loadAsk || read(confirming)?.key !== ref.key) return
   set(confirmation, loaded)
-  if (loaded.item) set(prompt, buildPrompt(loaded.item))
+  if (loaded.item) set(prompt, buildPrompt(loaded.item, typeof template === 'string' ? template : ''))
 }
 
 async function confirmStart(key: string, name: string): Promise<void> {
