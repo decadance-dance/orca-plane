@@ -21,6 +21,11 @@ export function workspaceName(key: string, title: string): string {
   return slug ? `${key}-${slug}` : key
 }
 
+/** Whether `name` is a name `workspaceName` gives for this key, whatever the title. */
+export function isWorkspaceName(key: string, name: unknown): name is string {
+  return typeof name === 'string' && (name === key || name.startsWith(`${key}-`)) && workspaceName(key, name.slice(key.length + 1)) === name
+}
+
 /** Lines that equal a fence line get a leading `\`, so only the real footer ends the block. */
 function escapeFence(text: string): string {
   return text

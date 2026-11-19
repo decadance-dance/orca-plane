@@ -9,8 +9,8 @@ import { Starts } from './starts'
 
 const USER = 'd9371857-5d13-4306-abe9-f3aefb05f40e'
 const RECORD = { token: 'old-token', apiBase: 'https://api.plane.so', appBase: 'https://app.plane.so', hostKind: 'cloud', slug: 'truelogic', userId: USER, userName: 'Dima' }
-const START = { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: null, prompt: '' }
 const NAME = 'DIOGEN-449-name'
+const START = { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: null, prompt: '', name: NAME }
 const OTHER_ROW = { id: 'w9', kind: 'worktree', name: 'OTHER-1-x', projectId: 'p1', path: '/o', branch: 'o', hostId: 'local' }
 
 function gate() {
@@ -118,6 +118,39 @@ test('a Start that completes after an account switch writes nothing into the new
   const newId = (await conns.current())!.id
   assert.equal(f.storage.get(keyOf(newId, 'starts')), undefined)
   assert.deepEqual(await starts.all(), {})
+})
+
+test('two creates of one name in flight: the first to settle keeps the branch for the other', async () => {
+  fakeFetch((url) => {
+    if (url.pathname.endsWith('/users/me/')) return { json: { id: 'new-user', display_name: 'New' } }
+    return { json: { ...page, has_more: false, next_cursor: null } }
+  })
+  const holds = [gate(), gate()]
+  let calls = 0
+  const f = fake({
+    'secrets.protection': () => ({ status: 'os-keyring' }),
+    'workspace.create': async () => {
+      const call = calls++
+      await holds[call].opened
+      return { workspaceId: `w${call}` }
+    },
+    'workspace.list': () => ({ workspaces: [], truncated: false })
+  })
+  const conns = new Connections(f.orca)
+  const starts = new Starts(f.orca, conns, items)
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  await until(() => calls === 1, 'first create')
+  // Another account has the same item key and title, started into the same Orca project.
+  const switched = await conns.connect({ hostKind: 'cloud', serverUrl: '', slug: 'other', token: 'new-token' })
+  assert.equal(switched.ok, true, JSON.stringify(switched))
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  await until(() => calls === 2, 'second create')
+  holds[0].open()
+  await settle()
+  assert.equal(starts.branchFor('p1', NAME), NAME)
+  holds[1].open()
+  await settle()
+  assert.equal(starts.branchFor('p1', NAME), undefined)
 })
 
 test('a truncated workspace list keeps a link or an unknown outcome it does not show', async () => {

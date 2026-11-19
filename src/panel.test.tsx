@@ -393,17 +393,27 @@ test('Start on a row asks for the project, an installed agent and the editable p
   assert.match(String(view.valueOf({ label: 'Prompt' })), /BEGIN PLANE TICKET/)
   await view.type({ label: 'Prompt' }, 'Do it', { replace: true })
   await view.press({ text: 'Confirm' })
-  assert.deepEqual(started, [{ key: 'WEB-1', orcaProjectId: 'p1', hostId: 'local', agent: null, prompt: 'Do it' }])
+  assert.deepEqual(started, [{ key: 'WEB-1', orcaProjectId: 'p1', hostId: 'local', agent: null, prompt: 'Do it', name: 'WEB-1-fix-login' }])
   assert.equal(view.find({ type: 'Card', label: 'Start WEB-1' }), null)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
 
-test('Confirmation shows the branch, named like the workspace', async () => {
-  const view = await mount(panel, { host: connectedHost() })
+test('Confirmation shows the branch, named like the workspace, and Start asks for exactly that name', async () => {
+  // The list row is titled `Title WEB-1`; the fresh detail says `Fix login`.
+  const started: { name?: string }[] = []
+  const host = connectedHost({
+    'item.start': (input: { name?: string }) => {
+      started.push(input)
+      return { accepted: true }
+    }
+  })
+  const view = await mount(panel, { host })
   await view.press({ testId: 'start:WEB-1' })
   assert.ok(view.find({ type: 'Text', text: 'Workspace WEB-1-fix-login' }))
   assert.ok(view.find({ type: 'Text', text: 'Branch WEB-1-fix-login' }))
+  await view.press({ text: 'Confirm' })
+  assert.equal(started[0]?.name, 'WEB-1-fix-login')
   await view.unmount()
 })
 

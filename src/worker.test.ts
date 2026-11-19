@@ -15,8 +15,8 @@ const USER = 'd9371857-5d13-4306-abe9-f3aefb05f40e'
 const TOKEN = 'plane_api_SENTINEL_0123456789'
 const CLOUD: ConnectInput = { hostKind: 'cloud', serverUrl: '', slug: 'truelogic', token: TOKEN }
 const listPage = { ...page, has_more: false, next_cursor: null }
-const START = { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: 'claude', prompt: 'Work on it' }
 const NAME = 'DIOGEN-449-name'
+const START = { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: 'claude', prompt: 'Work on it', name: NAME }
 const ROW = { id: 'w1', kind: 'worktree', name: NAME, projectId: 'p1', path: '/w', branch: 'b', hostId: 'local' }
 
 type Route = (url: URL, init: RequestInit) => FakeAnswer | Promise<FakeAnswer>
@@ -285,7 +285,7 @@ test('the token appears only in the secret record and the X-API-Key header to it
   results.push(await worker.request('item.get', { key: 'DIOGEN-449', projectId: page.data[0].project_id }))
   results.push(await worker.request('item.get', { key: 'NOPE-1', projectId: 'x' }))
   results.push(await worker.request('orca.projects'))
-  results.push(await worker.request('item.start', { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: 'claude', prompt: 'p' }))
+  results.push(await worker.request('item.start', { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: 'claude', prompt: 'p', name: NAME }))
   await until(async () => (await worker.request('starts.get'))['DIOGEN-449']?.kind === 'created')
   results.push(await worker.request('starts.get'))
   results.push(await worker.request('workspace.open', { workspaceId: 'w1' }))
@@ -493,16 +493,16 @@ test('terminal only: no agent and no prompt are sent', async () => {
   await worker.deactivate()
 })
 
-test('the create hook gives a Start its branch while it runs, and passes every other create unchanged', async () => {
+test('the create hook gives a Start the branch the confirmation showed while it runs, and passes every other create unchanged', async () => {
+  // The confirmation names the workspace from the fresh detail title; the cached list still says `<name>`.
   const name = 'DIOGEN-449-fix-login-timeout'
-  const titled = { ...listPage, data: listPage.data.map((row) => ({ ...row, name: 'Fix login timeout' })) }
   const others = [
     { kind: 'worktree' as const, projectId: 'p1', name: 'other-name' },
     { kind: 'worktree' as const, projectId: 'p2', name },
     { kind: 'folder' as const, projectId: 'p1', name }
   ]
   for (const fail of [false, true]) {
-    plane((url) => (url.pathname.endsWith('/work-items/') ? { json: titled } : undefined))
+    plane()
     const hold = gate()
     let rows: unknown[] = []
     const h = host({
@@ -519,7 +519,7 @@ test('the create hook gives a Start its branch while it runs, and passes every o
       worker.hooks.fire('workspace.create.before', event)
     // The mock answers a request or a hook only once no host call is running, so the create is
     // released on a timer; the hook decides while it is still held.
-    const started = worker.request('item.start', START)
+    const started = worker.request('item.start', { ...START, name })
     await until(() => h.callsOf('workspace.create').length === 1, 'create called')
     const during = Promise.all([fire({ kind: 'worktree', projectId: 'p1', name }), ...others.map(fire)])
     setTimeout(hold.open, 50)
@@ -537,6 +537,19 @@ test('the create hook gives a Start its branch while it runs, and passes every o
     })
     await worker.deactivate()
   }
+})
+
+test('a Start whose name does not fit its key is refused and creates nothing', async () => {
+  plane()
+  const h = host({ 'workspace.create': { workspaceId: 'w1' } })
+  const worker = await connected(h)
+  for (const name of ['DIOGEN-4490-x', 'OTHER-1-name', 'DIOGEN-449-Name', 'DIOGEN-449-', `DIOGEN-449-${'a'.repeat(41)}`, '']) {
+    const answer = await worker.request('item.start', { ...START, name })
+    assert.equal(answer.accepted, false, name)
+  }
+  assert.equal(h.callsOf('workspace.create').length, 0)
+  assert.equal(await startOf(worker), undefined)
+  await worker.deactivate()
 })
 
 test('a lost reply or a worker restart: pending becomes unknown, then reconciles by name', async () => {
