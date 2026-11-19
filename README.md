@@ -32,9 +32,9 @@ one waits for you. The plugin only **reads** Plane, and its token never reaches 
 affiliated with Plane.
 
 <p align="center">
-  <img alt="The Plane panel on the WEB project: one line per item under its state, each with its priority dot, key and title, and the agent badges of the items you started" src="docs/screenshots/plane-web-project.png" width="32%">
+  <img alt="The Plane panel on the WEB project: one line per item under its state, each with its priority dot, key and title, and on the items you started an icon for the agent's state" src="docs/screenshots/plane-web-project.png" width="32%">
   &nbsp;
-  <img alt="The Plane panel showing WEB-12 Fix the login redirect: a framed header with its key, priority, state, assignees, labels and update time, then Open workspace and Open in Plane, the agent badge, the framed description and the earlier Starts of the item" src="docs/screenshots/plane-detail-linked.png" width="32%">
+  <img alt="The Plane panel showing WEB-12 Fix the login redirect: a framed header with its key, priority, state, assignees, labels, update time and agent state, then Open workspace and the Plane button, the description and the earlier Starts of the item" src="docs/screenshots/plane-detail-linked.png" width="32%">
   &nbsp;
   <img alt="The Start confirmation for WEB-12: the Orca project, the agent, the workspace and branch name, readiness hints and the prompt the agent gets" src="docs/screenshots/plane-confirm.png" width="32%">
   <br>
@@ -64,17 +64,19 @@ affiliated with Plane.
 
 * **One line per item**: a picker switches between Plane projects and counts their items; items are
   grouped by state (started, then unstarted, then backlog), newest update first, each with its
-  priority dot, key and title. The Search icon opens a search by key, title or label; the Filter icon
-  opens the priority and label tags, and pressing one filters by it.
-* **Honest about gaps**: the list says whether it is complete, partial (the item cap was reached or
-  a page failed) or stale (the last refresh failed), and the status bar shows `?` instead of a
+  priority dot, key and title; on an item you started, the workspace icon shows the agent's state.
+  The Search icon opens a search by key, title or label; the Filter icon opens the priority and
+  label tags, and pressing one filters by it; `⋯` holds Open by key or URL and Disconnect.
+* **Honest about gaps**: a complete list shows when it was updated; a partial one (the item cap was
+  reached or a page failed) or a stale one (the last refresh failed) says so, with the reason, and the status bar shows `?` instead of a
   wrong count.
 * **Fast and gentle on Plane**: the panel shows the last known list at once and refreshes it in the
   background (every 10 minutes by default). On a rate limit it retries once, only for a wait of 30
   seconds or less.
 * **Item detail**: a framed header with the key, priority, title, state, assignees, labels and last
-  update, then Start (or Open workspace) and Open in Plane, then the description (a long one folds). **Open by key or URL** finds any item of the workspace, also one
-  assigned to someone else or closed.
+  update and the agent's state, then Start work (or Open workspace) and the Plane button, which opens
+  the item in Plane, then the description (a long one folds). **Open by key or URL**, behind `⋯`,
+  finds any item of the workspace, also one assigned to someone else or closed.
 
 ### 🤖 Start an agent on an item
 > *One confirmation turns a ticket into a workspace, a branch and a running agent.*
@@ -94,7 +96,7 @@ affiliated with Plane.
 > *The panel and the status bar tell you which agent needs you, and take you there.*
 
 * **Agent state on the item**: Agent working, Agent needs input or Agent done, from the agent in the
-  item's workspace.
+  item's workspace: the row's workspace icon (agent, bell, check) and the detail's Agent field.
 * **Status bar**: your open items and the agents that wait (`12 · 2 waiting`); a click toggles the
   sidebar.
 * **Follow the workspace**: switching to a workspace started from an item shows that item, even after
