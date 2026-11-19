@@ -20,7 +20,7 @@ Out of scope: what the agent did in the workspace (its transcript or PR); histor
 
 ## Impact
 
-- `src/starts.ts`: appends to the log on every Start outcome and when an unknown outcome is reconciled.
+- `src/starts.ts`: writes an attempt before the host call, and sets its outcome from the create, worker recovery and reconciliation.
 - `src/protocol.ts`, `src/worker.ts`: `history.get` request.
 - `src/panel.tsx`: the "Earlier starts" section in the detail.
 - Tests: `src/starts.test.ts`, `src/worker.test.ts`, `src/panel.test.tsx`.

@@ -22,6 +22,10 @@ The Start history SHALL survive worker restarts and the removal of workspaces. I
 - **WHEN** Orca restarts the plugin's worker
 - **THEN** the item's earlier Starts are still listed
 
+#### Scenario: Worker stops during a Start
+- **WHEN** the worker stops after a Start was accepted and before Orca answered, and Orca did create the workspace
+- **THEN** after the restart the item's history lists that Start, and once the plugin finds the workspace its outcome is "created"
+
 #### Scenario: Disconnect
 - **WHEN** the user disconnects and connects again
 - **THEN** no earlier Starts are listed

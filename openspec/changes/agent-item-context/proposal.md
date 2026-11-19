@@ -22,8 +22,9 @@ Out of scope: the plugin's own MCP server or agent skill (#20 stays open for any
 ## Impact
 
 - Depends on `link-items-to-workspaces` (the `Links` class and its terminal → workspace map).
-- `orca-plugin.json`: hooks `agent.prompt.before` and `agent.launch.before`; event `workspace.created`.
-- `src/links.ts`: early links from `workspace.created`, and the connection's app origin and slug for URLs.
+- `orca-plugin.json`: hooks `agent.prompt.before` and `agent.launch.before`.
+- `src/links.ts`: a terminal map seeded from `terminal.list` and Orca's events, the link from `workspace.create`'s answer, and the connection's app origin and slug for URLs.
+- `src/starts.ts`: hands the new workspace and terminal ids to `Links` as soon as the create returns.
 - `src/worker.ts`: the two hook handlers.
 - `src/start.ts`: the ticket block fields; a one-line item pointer helper.
 - `src/plane/map.ts`, `src/plane/api.ts`, `src/items.ts`: the parent item in `ItemDetail`.

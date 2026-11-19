@@ -1,12 +1,13 @@
 # Tasks
 
-## 1. Forget
+## 1. Worker
 
-- [ ] 1.1 `Starts.forget(key)` per design C2, plus `start.forget` in `src/protocol.ts` and `src/worker.ts`. Verify: `src/starts.test.ts` covers forgetting created and failed links, refusing pending and unknown, and that a worker remount keeps it forgotten.
+- [ ] 1.1 `failed` states keep an optional `name` (`src/protocol.ts`, `Starts.create`), per design C3. Verify: `src/starts.test.ts` covers an agent failure after the workspace exists (the name is kept) and an old record without a name (still valid).
+- [ ] 1.2 The hidden set, `Starts.hide(key)`, cleanup in `reconcile`, and `starts.get` returning `{ states, hidden }`; `start.hide` in `src/protocol.ts` and `src/worker.ts` (C2). Verify: `src/starts.test.ts` covers hide, hide surviving a worker remount, Start still refused for a hidden key with an existing workspace, and the hidden mark removed when the workspace is gone.
 
 ## 2. Section
 
-- [ ] 2.1 The section in `ListView` (`src/panel.tsx`) per C1 and C3. Verify: `src/panel.test.tsx` covers the three "Show workspaces of items no longer open" scenarios and the two "Forget a link" scenarios; `bin/check` exits 0.
+- [ ] 2.1 The section in `ListView` (`src/panel.tsx`) per C1 and C4; adapt the panel's `starts.get` reader to the new shape. Verify: `src/panel.test.tsx` covers the five "Show workspaces of items no longer open" scenarios and the three "Hide a leftover workspace" scenarios; `bin/check` exits 0.
 - [ ] 2.2 README: one line on the section. Verify: a live check in Orca (start an item, close it in Plane, refresh) shows the section; screenshot in the PR.
 
 ## Workflow follow-up

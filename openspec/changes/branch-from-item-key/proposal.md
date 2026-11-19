@@ -20,8 +20,8 @@ Out of scope: a configurable branch pattern, such as `feat/<KEY-N>-…` (#42); c
 
 ## Impact
 
-- `src/starts.ts`: `create` passes the branch to Orca (or registers it for the hook, see design B1).
-- `src/worker.ts`, `orca-plugin.json`: possibly a `workspace.create.before` hook (design B1).
+- `src/starts.ts`: an in-memory map of pending Start creates for the hook (design B1).
+- `src/worker.ts`, `orca-plugin.json`: a `workspace.create.before` hook (host `workspace.create` takes no branch).
 - `src/start.ts`: `buildPrompt` gets the PR-title line.
 - `src/panel.tsx`: the confirmation shows the branch.
 - Tests: `src/starts.test.ts`, `src/start.test.ts`, `src/worker.test.ts`, `src/panel.test.tsx`.

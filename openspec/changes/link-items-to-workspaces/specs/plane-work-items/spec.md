@@ -20,7 +20,7 @@ For an item linked to an existing workspace, the list row and the item detail SH
 - **THEN** its row shows no agent state
 
 ### Requirement: Follow the focused workspace
-When the focused Orca workspace changes to one that is linked to an item, the panel SHALL show that item's detail. An open Start confirmation SHALL stay open. Focusing an unlinked workspace, or an event that leaves the same workspace focused, SHALL leave the panel as it is.
+When the focused Orca workspace changes to one that is linked to an item, the panel SHALL show that item's detail, also when the item is no longer in my list. An open Start confirmation SHALL stay open. Focusing an unlinked workspace, an event that leaves the same workspace focused, and the focus Orca reports when the plugin starts SHALL leave the panel as it is. The workspace SHALL be matched by its id, never by its branch or name.
 
 #### Scenario: Switch to a linked workspace
 - **WHEN** the user focuses the workspace that was started from `DIOGEN-449`
@@ -28,6 +28,14 @@ When the focused Orca workspace changes to one that is linked to an item, the pa
 
 #### Scenario: Switch to an unlinked workspace
 - **WHEN** the user focuses a workspace that no item is linked to
+- **THEN** the panel keeps showing what it showed
+
+#### Scenario: Linked item that left the list
+- **WHEN** `DIOGEN-449` was moved to Done in Plane and the user focuses its linked workspace
+- **THEN** the panel shows the detail of `DIOGEN-449`
+
+#### Scenario: Same branch in another repository
+- **WHEN** the workspace linked to `DIOGEN-449` is on branch `main`, and the user focuses another repository's unlinked workspace that is also on `main`
 - **THEN** the panel keeps showing what it showed
 
 #### Scenario: Back in the list

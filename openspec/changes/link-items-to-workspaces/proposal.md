@@ -25,7 +25,8 @@ Out of scope: desktop notifications when an agent changes state (#18, which buil
 - `orca-plugin.json`: capability `agent:read`; `contributes.events` for `agent.status.changed` and `workspace.changed`.
 - `src/links.ts` (new): the in-memory agent state per linked workspace and the lookup from the focused workspace to its item.
 - `src/starts.ts`: exposes the current links (item key → workspace id); how they are stored does not change.
-- `src/items.ts`: `showCount` also takes the number of agents that need input.
-- `src/worker.ts`, `src/protocol.ts`: a `links.get` request and the panel events `links.changed` and `focus.changed`.
+- `src/items.ts`: `showCount` also takes the number of agents that need input; `detail` can fetch by key alone.
+- `src/plane/api.ts`: `getItemByKey` (Plane v2 get a work item by identifier).
+- `src/worker.ts`, `src/protocol.ts`: a `links.get` request, `item.get` with an optional `projectId`, and the panel events `links.changed` and `focus.changed`.
 - `src/panel.tsx`: agent badges on rows and in the detail; following the focused workspace.
 - Tests: `src/links.test.ts` (new), `src/worker.test.ts`, `src/panel.test.tsx`.
