@@ -109,6 +109,8 @@ const opened = atom<ItemRef | null>('plane.open', null, { persist: 'plugin' })
 const detail = atom<Loaded | null>(null)
 /** The open item's earlier Starts, oldest first. */
 const history = atom<Attempt[]>([])
+/** Counts history requests: only the latest one's reply is shown; closing or a connection change drops all. */
+let historyAsk = 0
 /** The detail shows the whole description; each opened item starts collapsed. */
 const descriptionOpen = atom(false)
 /** The Start waiting for confirmation; persisted like the open item. */
@@ -129,11 +131,13 @@ function closeItem(): void {
   set(opened, null)
   set(detail, null)
   set(history, [])
+  historyAsk++
 }
 
 async function loadHistory(key: string): Promise<void> {
+  const ask = ++historyAsk
   const attempts = await plugin.request('history.get', { key }).catch(() => [] as Attempt[])
-  if (read(opened)?.key === key) set(history, attempts)
+  if (ask === historyAsk && read(opened)?.key === key) set(history, attempts)
 }
 
 /** The detail's back button: a Start confirmation opened there closes with it. */
@@ -187,6 +191,7 @@ export function setup(ctx: PanelContext): void {
   ctx.subscriptions.push(
     plugin.on('connection.changed', (next) => {
       set(status, next)
+      historyAsk++
       if (!next.connected) {
         set(items, null)
         set(starts, {})

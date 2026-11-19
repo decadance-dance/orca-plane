@@ -23,4 +23,5 @@ Out of scope: what the agent did in the workspace (its transcript or PR); histor
 - `src/starts.ts`: writes an attempt before the host call, and sets its outcome from the create, worker recovery and reconciliation.
 - `src/protocol.ts`, `src/worker.ts`: `history.get` request.
 - `src/panel.tsx`: the "Earlier starts" section in the detail.
+- `README.md`: one line on the history.
 - Tests: `src/starts.test.ts`, `src/worker.test.ts`, `src/panel.test.tsx`.

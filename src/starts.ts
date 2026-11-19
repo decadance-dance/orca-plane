@@ -218,7 +218,8 @@ export class Starts {
         return { reason: 'This item already has a workspace: open it instead.' }
       }
       const at = env.now()
-      const id = String(at)
+      // Not the time: a clock can repeat a reading, and the id must name one attempt only.
+      const id = crypto.randomUUID()
       append(history, input.key, { id, at, agent: input.agent, project, projectId: input.orcaProjectId, workspace: name, outcome: 'pending' })
       states[input.key] = { kind: 'pending', name, projectId: input.orcaProjectId, startedAt: at }
       return { reason: null, id }

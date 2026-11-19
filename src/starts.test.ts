@@ -5,6 +5,7 @@ import page from '../test/fixtures/v2-list-page.json' with { type: 'json' }
 import { Connections, connectionId, keyOf } from './connection'
 import type { Items } from './items'
 import { fakeFetch } from './plane/fake-fetch'
+import { env } from './plane/http'
 import type { Attempt } from './protocol'
 import { append, settle as settleAttempt, Starts } from './starts'
 
@@ -214,7 +215,7 @@ test('history: two Starts of different items at once are both kept, with agent, 
     { ...first[0], id: '', at: 0 },
     { id: '', at: 0, agent: 'claude', project: 'repo', projectId: 'p1', workspace: NAME, outcome: 'created' }
   )
-  assert.equal(first[0].id, String(first[0].at))
+  assert.notEqual(first[0].id, (await starts.history('DIOGEN-450'))[0].id)
   const second = await starts.history('DIOGEN-450')
   assert.deepEqual([second.length, second[0].agent, second[0].workspace, second[0].outcome], [1, null, 'DIOGEN-450-other', 'created'])
 })
@@ -268,4 +269,34 @@ test('history: a truncated list keeps an unknown attempt it does not show', asyn
   const starts = new Starts(f.orca, new Connections(f.orca), items)
   await starts.all()
   assert.equal((await starts.history('DIOGEN-449'))[0].outcome, 'unknown')
+})
+
+test('review 1: a repeated clock reading does not let one Start overwrite the outcome of another', async () => {
+  const now = env.now
+  env.now = () => 5
+  try {
+    let refuse = false
+    let rows = [ROW]
+    const f = fake({
+      'workspace.create': () => {
+        if (refuse) throw hostError('invalid_params', 'No such project')
+        return { workspaceId: 'w1' }
+      },
+      'workspace.list': () => ({ workspaces: rows, truncated: false })
+    })
+    const starts = new Starts(f.orca, new Connections(f.orca), items)
+    assert.deepEqual(await starts.start(START), { accepted: true })
+    await settle()
+    // The workspace is removed; the next Start, at the same millisecond, is refused.
+    rows = []
+    await starts.dropWorkspace(['w1'])
+    refuse = true
+    assert.deepEqual(await starts.start(START), { accepted: true })
+    await settle()
+    const attempts = await starts.history('DIOGEN-449')
+    assert.deepEqual(attempts.map((entry) => entry.outcome), ['created', 'failed'])
+    assert.notEqual(attempts[0].id, attempts[1].id)
+  } finally {
+    env.now = now
+  }
 })

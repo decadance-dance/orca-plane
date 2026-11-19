@@ -764,3 +764,26 @@ test('an item that was never started shows no list of earlier Starts', async () 
   assert.equal(view.find({ type: 'List', label: 'Earlier starts' }), null)
   await view.unmount()
 })
+
+test('review 1: a delayed history reply does not roll back a newer one', async () => {
+  let calls = 0
+  const view = await mount(panel, {
+    host: connectedHost({
+      'history.get': async () => {
+        // The reply to opening the item comes late, after the one asked on start.changed.
+        if (++calls === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 30))
+          return [attempt({ outcome: 'pending' })]
+        }
+        return [attempt({ outcome: 'created' })]
+      }
+    })
+  })
+  const pressed = view.press({ testId: 'WEB-1' })
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  await Promise.all([pressed, view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })])
+  assert.equal(calls, 2)
+  assert.ok(view.find({ type: 'Badge', text: 'created' }))
+  assert.equal(view.find({ type: 'Badge', text: 'not confirmed' }), null)
+  await view.unmount()
+})

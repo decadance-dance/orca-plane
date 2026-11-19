@@ -33,7 +33,7 @@ export type StartState =
   | { kind: 'failed'; error: string; workspaceId?: string }
   | { kind: 'unknown'; name: string; projectId: string }
 
-/** One Start of an item as the history keeps it (design H1 of start-history); `id` is its `startedAt`. */
+/** One Start of an item as the history keeps it (design H1 of start-history); `id` is unique, `at` is its `startedAt`. */
 export type Attempt = {
   id: string
   at: number
