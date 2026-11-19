@@ -9,7 +9,7 @@
 ## 2. PR title line
 
 - [x] 2.1 `buildPrompt` in `src/start.ts` adds the PR-title line before the fence (B3). Verify: `src/start.test.ts` checks that the line is present, sits before `FENCE_HEADER`, and names the key.
-- [ ] 2.2 README: Start names the branch after the item, so Plane's Git integration links it. Verify: `bin/check` exits 0; a live Start shows the branch in Orca.
+- [x] 2.2 README: Start names the branch after the item, so Plane's Git integration links it. Verify: `bin/check` exits 0; a live Start shows the branch in Orca.
 
 ## Workflow follow-up
 
