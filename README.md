@@ -4,7 +4,7 @@ An [Orca](https://orca.dev) plugin that brings your [Plane](https://plane.so) wo
 
 - **My open items:** the work items assigned to you that are in backlog, unstarted or started, across the workspace. The list says whether it is complete, partial or stale.
 - **Item detail:** state, priority, assignees, labels and the description, with a link to open the item in Plane.
-- **Open by key or URL:** the field above the list opens any item of the workspace by its key (`DIOGEN-12`, any case) or a pasted Plane URL of the connected workspace, also one assigned to someone else or closed. An open item found this way can be started; Start reads it from Plane again first.
+- **Open by key or URL:** the field above the list opens any item of the workspace by its key (`DIOGEN-12`, any case) or a pasted Plane URL of the connected workspace, also one assigned to someone else or closed. An open item found this way can be started; when it is not in your list, Start reads it from Plane again first.
 - **Start:** creates an Orca workspace named `<KEY-N>-<title>` in a project you pick and starts an agent there. The agent gets the item as context (title, state, priority, labels, the parent item's title and the description); the ticket text is marked as data, not instructions.
 - **Branch named after the item:** Start asks Orca for the Git branch `<KEY-N>-<title>`, the name the confirmation shows, and asks the agent to put the key in the title of any pull request it opens, so Plane's Git integration links the branch and the pull request to the item. If a worktree of the same name is made by hand at the same moment, Orca gives the later one `-2`; an existing branch of that name is reused when no worktree uses it.
 - **Later agents know the item:** in a workspace started from an item, a prompt Orca submits to an agent through its prompt hook (an orchestration dispatch, `orca terminal send`) gets one first line `Plane work item <KEY-N>: <URL>` unless it already names the key, and an agent launched there gets `PLANE_ITEM_KEY` and `PLANE_ITEM_URL` in its environment. Only the key and the URL are passed, never ticket text or the token. Limits: the prompt given to `orca agent launch --prompt` does not pass Orca's prompt hook (Orca 1.4.262), so it gets no line, though the agent still gets the variables; a prompt to a terminal Orca has not reported to the plugin yet passes unchanged; and the first agent of a Start gets no variables when Orca launches it before its `workspace.create` call has returned (the Start prompt names the item anyway).
@@ -33,7 +33,7 @@ The token is stored in Orca's encrypted plugin secrets, which are protected by t
 | Plane: open the workspace of the item shown in the panel | none |
 | Plane: refresh my work items | none |
 
-`Mod` is Cmd on macOS and Ctrl elsewhere. You can rebind them in Orca.
+`Mod` is Cmd on macOS and Ctrl elsewhere. You can rebind them in Orca. A command with nothing to open (no agent waits, the panel shows no item, the item has no workspace) says so in a notification.
 
 ## Let agents use Plane
 

@@ -115,3 +115,7 @@ test('parseItemRef: garbage and other pages of the workspace are refused', () =>
     assert.deepEqual(parseItemRef(text, CLOUD_CONN), { reason: NOT_A_REF }, text)
   }
 })
+
+test('review 1: a malformed percent escape is refused, not thrown', () => {
+  assert.deepEqual(parseItemRef('https://app.plane.so/acme/browse/%ZZ/', CLOUD_CONN), { reason: NOT_A_REF })
+})

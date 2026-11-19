@@ -147,7 +147,13 @@ export function parseItemRef(text: string, conn: { appBase: string; slug: string
   }
   const base = new URL(`${conn.appBase}/${encodeURIComponent(conn.slug)}/`)
   if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return { reason: NOT_THIS_WORKSPACE }
-  const rest = url.pathname.slice(base.pathname.length).split('/').filter(Boolean).map(decodeURIComponent)
+  let rest: string[]
+  try {
+    rest = url.pathname.slice(base.pathname.length).split('/').filter(Boolean).map(decodeURIComponent)
+  } catch {
+    // A malformed percent escape such as `%ZZ`.
+    return { reason: NOT_A_REF }
+  }
   if (rest[0] === 'browse' && rest.length === 2 && KEY_PATTERN.test(rest[1])) return { key: rest[1].toUpperCase() }
   if (rest[0] === 'projects' && rest[2] === 'issues' && rest.length === 4 && UUID_PATTERN.test(rest[1]) && UUID_PATTERN.test(rest[3])) {
     return { projectId: rest[1], id: rest[3] }

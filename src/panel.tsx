@@ -132,6 +132,8 @@ const openError = atom<string | null>(null)
 /** The "Open by key or URL" field and its last refusal (keyboard-commands K1). */
 const lookupText = atom('')
 const lookupError = atom<string | null>(null)
+/** Counts lookups and navigations: a lookup reply after a later lookup, Open or Back is dropped. */
+let lookupAsk = 0
 
 /** Only the ref's own fields: an atom holds JSON, which has no undefined. */
 const refOf = ({ key, projectId }: ItemRef): ItemRef => (projectId ? { key, projectId } : { key })
@@ -142,6 +144,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const tellShown = (key: string | null) => void plugin.request('panel.shown', { key }).catch(() => undefined)
 
 function closeItem(): void {
+  lookupAsk++
   if (read(opened)) tellShown(null)
   set(opened, null)
   set(detail, null)
@@ -317,6 +320,7 @@ async function fetchDetail(ref: ItemRef): Promise<Loaded> {
 
 /** `found`: the item a lookup already read, shown without a second request. */
 async function openItem(ref: ItemRef, found?: ItemDetail): Promise<void> {
+  lookupAsk++
   set(opened, refOf(ref))
   set(detail, { ...refOf(ref), item: found ?? null, error: null })
   set(openError, null)
@@ -337,10 +341,11 @@ async function lookup(): Promise<void> {
   if (!text) return
   set(lookupError, null)
   const ask = loadAsk
+  const mine = ++lookupAsk
   const answer = await plugin
     .request('item.lookup', { text }, SLOW)
     .catch((error: unknown) => ({ ok: false as const, error: message(error) }))
-  if (ask !== loadAsk) return
+  if (ask !== loadAsk || mine !== lookupAsk) return
   if (!answer.ok) return set(lookupError, answer.error)
   set(lookupText, '')
   await openItem({ key: answer.item.key, projectId: answer.item.projectId }, answer.item)

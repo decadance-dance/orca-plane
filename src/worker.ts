@@ -168,6 +168,7 @@ export default function activate(orca: OrcaWorkerApi): void {
 
 /** An item by a typed key or a pasted URL, listed or not (keyboard-commands K1, K2); nothing is cached (K3). */
 async function lookup(conns: Connections, text: string): Promise<Result<{ item: ItemDetail }>> {
+  const generation = conns.generation
   const conn = await conns.current()
   if (!conn) return { ok: false, error: 'Not connected to Plane.' }
   const ref = parseItemRef(text, conn)
@@ -177,6 +178,8 @@ async function lookup(conns: Connections, text: string): Promise<Result<{ item: 
       'key' in ref
         ? await getItemByKey(conn, conn.slug, ref.key, conns.signal)
         : await getItem(conn, conn.slug, ref.projectId, ref.id, conns.signal)
+    // A disconnect or account switch during the read: the item belongs to the former connection.
+    if (generation !== conns.generation) return { ok: false, error: 'Not connected to Plane.' }
     const item = toDetail(raw, (key) => browseUrl(conn.appBase, conn.slug, key))
     return item ? { ok: true, item } : { ok: false, error: 'Plane sent an unreadable item.' }
   } catch (error) {

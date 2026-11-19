@@ -919,6 +919,24 @@ test('item.lookup: a key finds an unlisted item by key alone; a URL of another w
   await worker.deactivate()
 })
 
+test('review 1: a lookup whose reply arrives after a disconnect returns no item of the former connection', async () => {
+  const hold = gate()
+  let reading = false
+  plane((async (url: URL) => {
+    if (!url.pathname.endsWith('/work-items/DIOGEN-12/')) return undefined
+    reading = true
+    await hold.opened
+    return { json: { ...item, identifier: 'DIOGEN-12' } }
+  }) as never)
+  const worker = await connected()
+  const answer = worker.request('item.lookup', { text: 'DIOGEN-12' })
+  await until(() => reading, 'read')
+  await worker.request('connection.disconnect')
+  hold.open()
+  assert.deepEqual(await answer, { ok: false, error: 'Not connected to Plane.' })
+  await worker.deactivate()
+})
+
 test('item.lookup: a project-issue URL reads the item by its UUID in its project', async () => {
   const project = '1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b'
   const id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'

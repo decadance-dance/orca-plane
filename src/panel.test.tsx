@@ -1094,3 +1094,41 @@ test('the panel tells the worker which item its detail shows, and when it shows 
   assert.deepEqual(shown, [{ key: 'WEB-1' }, { key: null }])
   await view.unmount()
 })
+
+test('review 1: a lookup reply that comes after the user opened another item does not replace it', async () => {
+  const shown: unknown[] = []
+  const log: string[] = []
+  const late: ItemDetail = { ...DETAIL, key: 'WEB-8', title: 'Late' }
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.lookup': async () => {
+        log.push('lookup asked')
+        await held
+        log.push('lookup answers')
+        return { ok: true, item: late }
+      },
+      'item.get': () => {
+        log.push('item.get')
+        return { ok: true, item: DETAIL }
+      },
+      'panel.shown': (input: unknown) => {
+        shown.push(input)
+        return { ok: true }
+      }
+    })
+  })
+  // The user submits WEB-8, then opens WEB-1 from its row before the lookup answers.
+  const typed = view.type({ label: 'Open by key or URL' }, 'WEB-8', { submit: true })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  const pressed = view.press({ testId: 'WEB-1' })
+  setTimeout(release, 200)
+  await Promise.all([typed, pressed])
+  await view.settled()
+  assert.deepEqual(log, ['lookup asked', 'item.get', 'lookup answers'])
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  assert.deepEqual(view.persisted.plugin['plane.open'], { key: 'WEB-1', projectId: 'project-WEB' })
+  assert.deepEqual(shown, [{ key: 'WEB-1' }])
+  await view.unmount()
+})
