@@ -27,6 +27,13 @@ export type ItemDetail = Item & {
   parent?: { key: string | null; title: string } | null
 }
 
+/**
+ * Line breaks besides CR and LF, as a regex character class body: Unicode's mandatory breaks (VT, FF, NEL, U+2028,
+ * U+2029) and the separators Python's str.splitlines() also breaks at (U+001C-U+001E). Shared with the Start fence (#56).
+ */
+export const OTHER_BREAKS = '\\v\\f\\x1c-\\x1e\\x85\\u2028\\u2029'
+const MULTI_LINE = new RegExp(`[\\r\\n${OTHER_BREAKS}]`)
+
 const GROUPS = new Set<string>(['backlog', 'unstarted', 'started'])
 const PRIORITIES = new Set<string>(['urgent', 'high', 'medium', 'low', 'none'])
 
@@ -38,12 +45,13 @@ const names = (value: unknown, field: string): string[] =>
     ? value.map((entry) => str((entry as Row | null)?.[field])).filter(Boolean)
     : []
 
-/** null for a row without the fields an item needs. */
+/** null for a row without the fields an item needs, or with a key that spans lines. */
 export function toItem(raw: unknown): Item | null {
   const row = (raw ?? {}) as Row
   const id = str(row.id)
   const key = str(row.identifier)
-  if (!id || !key) return null
+  // A key with a line break could end the prompt's ticket block early (#56); Plane never sends one.
+  if (!id || !key || MULTI_LINE.test(key)) return null
   const state = row.state && typeof row.state === 'object' ? (row.state as Row) : null
   const group = str(state?.group)
   const priority = str(row.priority)
