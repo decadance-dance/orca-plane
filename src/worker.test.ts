@@ -901,3 +901,31 @@ test('review 3: an explicit removal drops the link even when the workspace list 
   assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
   await worker.deactivate()
 })
+
+// --- keyboard-commands ---
+
+test('item.lookup: a key finds an unlisted item by key alone; a URL of another workspace sends nothing', async () => {
+  const fake = plane((url) => (url.pathname.endsWith('/work-items/DIOGEN-12/') ? { json: { ...item, identifier: 'DIOGEN-12' } } : undefined) as never)
+  const worker = await connected()
+  const found = await worker.request('item.lookup', { text: 'diogen-12' })
+  assert.equal(found.ok && found.item.key, 'DIOGEN-12')
+  assert.equal(new URL(fake.calls.at(-1)!.url).pathname, '/api/v2/workspaces/truelogic/work-items/DIOGEN-12/')
+  const missing = await worker.request('item.lookup', { text: 'https://app.plane.so/truelogic/browse/NOPE-1/' })
+  assert.deepEqual(missing, { ok: false, error: 'No item has the key NOPE-1.' })
+  const calls = fake.calls.length
+  const refused = await worker.request('item.lookup', { text: 'https://app.plane.so/other/browse/DIOGEN-12/' })
+  assert.deepEqual(refused, { ok: false, error: 'This URL is not from the connected Plane workspace.' })
+  assert.equal(fake.calls.length, calls)
+  await worker.deactivate()
+})
+
+test('item.lookup: a project-issue URL reads the item by its UUID in its project', async () => {
+  const project = '1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b'
+  const id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
+  const fake = plane((url) => (url.pathname.endsWith(`/projects/${project}/work-items/${id}/`) ? { json: item } : undefined) as never)
+  const worker = await connected()
+  const found = await worker.request('item.lookup', { text: `https://app.plane.so/truelogic/projects/${project}/issues/${id}` })
+  assert.equal(found.ok && found.item.key, 'DIOGEN-449')
+  assert.equal(new URL(fake.calls.at(-1)!.url).pathname, `/api/v2/workspaces/truelogic/projects/${project}/work-items/${id}/`)
+  await worker.deactivate()
+})

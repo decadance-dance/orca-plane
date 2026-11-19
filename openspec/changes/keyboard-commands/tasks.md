@@ -4,10 +4,10 @@ Requires `link-items-to-workspaces` merged into `develop`.
 
 ## 1. Lookup by key or URL
 
-- [ ] 1.1 `parseItemRef` in `src/plane/url.ts` per design K1. Verify: `src/plane/url.test.ts` covers a lower-case key, a Cloud browse URL, a self-hosted URL under a path prefix (a round trip from `browseUrl`), the same slug under another prefix, another slug, another origin, a project-issue URL and garbage.
-- [ ] 1.2 Add the project-scoped get by UUID to `src/plane/api.ts` (K2). Verify: `src/plane/api.test.ts` covers its request path and a 404.
-- [ ] 1.3 `item.lookup` in `src/protocol.ts` and `src/worker.ts`: parse, then `getItemByKey` or the UUID get. Verify: `src/worker.test.ts` covers found, not found and a refused URL (no fetch call).
-- [ ] 1.4 The lookup field above the tabs in `src/panel.tsx`; Enter opens the detail; messages go in a Callout. Verify: `src/panel.test.tsx` covers the five "Open an item by key or URL" scenarios.
+- [x] 1.1 `parseItemRef` in `src/plane/url.ts` per design K1. Verify: `src/plane/url.test.ts` covers a lower-case key, a Cloud browse URL, a self-hosted URL under a path prefix (a round trip from `browseUrl`), the same slug under another prefix, another slug, another origin, a project-issue URL and garbage.
+- [x] 1.2 Add the project-scoped get by UUID to `src/plane/api.ts` (K2). Verify: `src/plane/api.test.ts` covers its request path and a 404.
+- [x] 1.3 `item.lookup` in `src/protocol.ts` and `src/worker.ts`: parse, then `getItemByKey` or the UUID get. Verify: `src/worker.test.ts` covers found, not found and a refused URL (no fetch call).
+- [x] 1.4 The lookup field above the tabs in `src/panel.tsx`; Enter opens the detail; messages go in a Callout. Verify: `src/panel.test.tsx` covers the five "Open an item by key or URL" scenarios.
 
 ## 2. Start for looked-up items
 

@@ -129,6 +129,9 @@ const agent = atom('plane.agent', '', { persist: 'plugin' })
 const prompt = atom('')
 const startError = atom<string | null>(null)
 const openError = atom<string | null>(null)
+/** The "Open by key or URL" field and its last refusal (keyboard-commands K1). */
+const lookupText = atom('')
+const lookupError = atom<string | null>(null)
 
 /** Only the ref's own fields: an atom holds JSON, which has no undefined. */
 const refOf = ({ key, projectId }: ItemRef): ItemRef => (projectId ? { key, projectId } : { key })
@@ -217,6 +220,7 @@ export function setup(ctx: PanelContext): void {
       set(starts, {})
       set(hidden, [])
       set(links, {})
+      set(lookupError, null)
       // The open detail and confirmation reload (loadConnected); until then they show as loading.
       const open = read(opened)
       set(detail, open ? { ...refOf(open), item: null, error: null } : null)
@@ -290,6 +294,7 @@ async function disconnect(): Promise<void> {
   set(starts, {})
   set(hidden, [])
   set(links, {})
+  set(lookupError, null)
   closeItem()
   cancelStart()
 }
@@ -306,17 +311,34 @@ async function fetchDetail(ref: ItemRef): Promise<Loaded> {
   return answer.ok ? { ...at, item: answer.item, error: null } : { ...at, item: null, error: answer.error }
 }
 
-async function openItem(ref: ItemRef): Promise<void> {
+/** `found`: the item a lookup already read, shown without a second request. */
+async function openItem(ref: ItemRef, found?: ItemDetail): Promise<void> {
   set(opened, refOf(ref))
-  set(detail, { ...refOf(ref), item: null, error: null })
+  set(detail, { ...refOf(ref), item: found ?? null, error: null })
   set(openError, null)
   set(descriptionOpen, false)
   set(history, [])
   void loadHistory(ref.key)
+  if (found) return
   const ask = loadAsk
   const loaded = await fetchDetail(ref)
   // A reply from before a connection change belongs to the former account.
   if (ask === loadAsk && read(detail)?.key === ref.key) set(detail, loaded)
+}
+
+/** Opens any item of the workspace by key or URL, listed or not; the worker refuses other servers and workspaces. */
+async function lookup(): Promise<void> {
+  const text = read(lookupText).trim()
+  if (!text) return
+  set(lookupError, null)
+  const ask = loadAsk
+  const answer = await plugin
+    .request('item.lookup', { text }, SLOW)
+    .catch((error: unknown) => ({ ok: false as const, error: message(error) }))
+  if (ask !== loadAsk) return
+  if (!answer.ok) return set(lookupError, answer.error)
+  set(lookupText, '')
+  await openItem({ key: answer.item.key, projectId: answer.item.projectId }, answer.item)
 }
 
 /** The focused Orca workspace belongs to `key` (design L4): show it, unless a Start waits for confirmation. */
@@ -618,6 +640,15 @@ function ListView({ state }: { state: ItemsState | null }) {
         value={read(search)}
         onChange={(value) => set(search, value)}
       />
+      <Input
+        label="Open by key or URL"
+        labelHidden
+        placeholder="Open by key or URL, e.g. DIOGEN-12"
+        value={read(lookupText)}
+        onChange={(value) => set(lookupText, value)}
+        onSubmit={() => void lookup()}
+      />
+      {read(lookupError) ? <Callout tone="warning">{read(lookupError)}</Callout> : null}
       <Row justify="between">
         <Badge tone={badge.tone}>{badge.label}</Badge>
         {state.fetchedAt ? (

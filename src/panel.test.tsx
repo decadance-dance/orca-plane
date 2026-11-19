@@ -1,6 +1,7 @@
 // The panel over a mock host whose `requests` stand in for src/worker.ts.
 import { assert, mockHost, mount, test } from 'orca/testing'
 import type { Item, ItemDetail } from './plane/map'
+import { browseUrl, parseItemRef } from './plane/url'
 import * as panel from './panel'
 import type { Attempt, ConnectInput, ItemsState, StartState } from './protocol'
 
@@ -997,6 +998,52 @@ test('review 2: a reload that fails after an account switch shows the error with
   fail = false
   await view.press({ text: 'Retry' })
   assert.equal(view.find(part('worker gone')), null)
+  assert.ok(view.find({ testId: 'WEB-1' }))
+  await view.unmount()
+})
+
+// --- keyboard-commands ---
+
+/** The worker's item.lookup over one connection: parses as it does; Plane knows DIOGEN-12 only. */
+function lookupHost(conn: { appBase: string; slug: string }, asked: string[] = []) {
+  const other: ItemDetail = { ...DETAIL, key: 'DIOGEN-12', title: 'Not mine', projectId: 'project-DIOGEN', assignees: ['Someone'], url: browseUrl(conn.appBase, conn.slug, 'DIOGEN-12') }
+  return connectedHost({
+    'item.lookup': ({ text }: { text: string }) => {
+      const ref = parseItemRef(text, conn)
+      if ('reason' in ref) return { ok: false, error: ref.reason }
+      asked.push(text)
+      return 'key' in ref && ref.key === 'DIOGEN-12' ? { ok: true, item: other } : { ok: false, error: `No item has the key ${'key' in ref ? ref.key : ''}.` }
+    }
+  })
+}
+
+test('Open by key or URL: a key of an item assigned to someone else opens its detail', async () => {
+  const view = await mount(panel, { host: lookupHost({ appBase: 'https://app.plane.so', slug: 'acme' }) })
+  await view.type({ label: 'Open by key or URL' }, 'diogen-12', { submit: true })
+  assert.ok(view.find({ text: 'DIOGEN-12 Not mine' }))
+  assert.deepEqual(view.persisted.plugin['plane.open'], { key: 'DIOGEN-12', projectId: 'project-DIOGEN' })
+  await view.press({ text: '← All items' })
+  assert.equal(view.valueOf({ label: 'Open by key or URL' }), '')
+  await view.unmount()
+})
+
+test('Open by key or URL: a pasted Cloud URL, and a self-hosted one under a path, open the detail', async () => {
+  for (const conn of [{ appBase: 'https://app.plane.so', slug: 'acme' }, { appBase: 'https://plane.example.org/tools/plane', slug: 'acme' }]) {
+    const view = await mount(panel, { host: lookupHost(conn) })
+    await view.type({ label: 'Open by key or URL' }, browseUrl(conn.appBase, conn.slug, 'DIOGEN-12'), { submit: true })
+    assert.ok(view.find({ text: 'DIOGEN-12 Not mine' }), conn.appBase)
+    await view.unmount()
+  }
+})
+
+test('Open by key or URL: a URL of another workspace and an unknown key say so and keep the list', async () => {
+  const asked: string[] = []
+  const view = await mount(panel, { host: lookupHost({ appBase: 'https://app.plane.so', slug: 'acme' }, asked) })
+  await view.type({ label: 'Open by key or URL' }, 'https://app.plane.so/other/browse/DIOGEN-12/', { submit: true })
+  assert.ok(view.find(part('not from the connected Plane workspace')))
+  assert.deepEqual(asked, [])
+  await view.type({ label: 'Open by key or URL' }, 'NOPE-1', { submit: true, replace: true })
+  assert.ok(view.find(part('No item has the key NOPE-1.')))
   assert.ok(view.find({ testId: 'WEB-1' }))
   await view.unmount()
 })

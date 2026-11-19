@@ -123,3 +123,34 @@ export function normalizeSlug(value: unknown): string | null {
 export function browseUrl(appBase: string, slug: string, key: string): string {
   return `${appBase}/${encodeURIComponent(slug)}/browse/${encodeURIComponent(key)}/`
 }
+
+export type ItemRef = { key: string } | { projectId: string; id: string } | { reason: string }
+
+const KEY_PATTERN = /^[a-z0-9]+-\d+$/i
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const NOT_THIS_WORKSPACE = 'This URL is not from the connected Plane workspace.'
+export const NOT_A_REF = 'Enter an item key such as DIOGEN-12, or paste a Plane URL of an item.'
+
+/**
+ * A typed key or a pasted item URL of the connected workspace (design K1 of keyboard-commands); local
+ * only, so a refused text sends no request. A URL must start with the app base, its path prefix included.
+ */
+export function parseItemRef(text: string, conn: { appBase: string; slug: string }): ItemRef {
+  const trimmed = text.trim()
+  if (KEY_PATTERN.test(trimmed)) return { key: trimmed.toUpperCase() }
+  if (!/^https?:\/\//i.test(trimmed)) return { reason: NOT_A_REF }
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return { reason: NOT_A_REF }
+  }
+  const base = new URL(`${conn.appBase}/${encodeURIComponent(conn.slug)}/`)
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return { reason: NOT_THIS_WORKSPACE }
+  const rest = url.pathname.slice(base.pathname.length).split('/').filter(Boolean).map(decodeURIComponent)
+  if (rest[0] === 'browse' && rest.length === 2 && KEY_PATTERN.test(rest[1])) return { key: rest[1].toUpperCase() }
+  if (rest[0] === 'projects' && rest[2] === 'issues' && rest.length === 4 && UUID_PATTERN.test(rest[1]) && UUID_PATTERN.test(rest[3])) {
+    return { projectId: rest[1], id: rest[3] }
+  }
+  return { reason: NOT_A_REF }
+}

@@ -5,6 +5,11 @@ import { agentFinder } from './agents'
 import { Connections } from './connection'
 import { Items } from './items'
 import { idsOf, Links } from './links'
+import { getItem, getItemByKey } from './plane/api'
+import { PlaneError } from './plane/http'
+import { type ItemDetail, toDetail } from './plane/map'
+import { browseUrl, parseItemRef } from './plane/url'
+import type { Result } from './protocol'
 import { Starts } from './starts'
 
 // Timers to stop on deactivate; a set, since tests mount the worker more than once per module.
@@ -63,6 +68,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('connection.disconnect', () => conns.disconnect())
   orca.panels.handle('items.list', (input) => items.list(input?.force === true))
   orca.panels.handle('item.get', ({ key, projectId }) => items.detail(key, projectId))
+  orca.panels.handle('item.lookup', ({ text }) => lookup(conns, text))
   orca.panels.handle('starts.get', () => starts.get())
   orca.panels.handle('start.hide', async ({ key }) => {
     await starts.hide(key)
@@ -92,6 +98,27 @@ export default function activate(orca: OrcaWorkerApi): void {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Could not open the workspace.' }
     }
   })
+}
+
+/** An item by a typed key or a pasted URL, listed or not (keyboard-commands K1, K2); nothing is cached (K3). */
+async function lookup(conns: Connections, text: string): Promise<Result<{ item: ItemDetail }>> {
+  const conn = await conns.current()
+  if (!conn) return { ok: false, error: 'Not connected to Plane.' }
+  const ref = parseItemRef(text, conn)
+  if ('reason' in ref) return { ok: false, error: ref.reason }
+  try {
+    const raw =
+      'key' in ref
+        ? await getItemByKey(conn, conn.slug, ref.key, conns.signal)
+        : await getItem(conn, conn.slug, ref.projectId, ref.id, conns.signal)
+    const item = toDetail(raw, (key) => browseUrl(conn.appBase, conn.slug, key))
+    return item ? { ok: true, item } : { ok: false, error: 'Plane sent an unreadable item.' }
+  } catch (error) {
+    if (error instanceof PlaneError && error.kind === 'not_found') {
+      return { ok: false, error: 'key' in ref ? `No item has the key ${ref.key}.` : 'No item was found at that URL.' }
+    }
+    return { ok: false, error: error instanceof PlaneError ? error.message : 'Could not load the item.' }
+  }
 }
 
 export function deactivate(): void {

@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { browseUrl, normalizeServer, normalizeSlug } from './url'
+import { browseUrl, NOT_A_REF, NOT_THIS_WORKSPACE, normalizeServer, normalizeSlug, parseItemRef } from './url'
 
 const selfHosted = (serverUrl: string) => normalizeServer({ hostKind: 'self-hosted', serverUrl })
 
@@ -70,4 +70,48 @@ test('slugs and the browse URL', () => {
     browseUrl('https://app.plane.so', 'truelogic', 'DIOGEN-449'),
     'https://app.plane.so/truelogic/browse/DIOGEN-449/'
   )
+})
+
+const CLOUD_CONN = { appBase: 'https://app.plane.so', slug: 'acme' }
+const PREFIXED = { appBase: 'https://plane.example.org/tools/plane', slug: 'acme' }
+const PROJECT = '1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b'
+const ISSUE = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
+
+test('parseItemRef: a key in any case, upper-cased', () => {
+  assert.deepEqual(parseItemRef(' diogen-12 ', CLOUD_CONN), { key: 'DIOGEN-12' })
+})
+
+test('parseItemRef: a Cloud browse URL, with or without its trailing slash', () => {
+  assert.deepEqual(parseItemRef('https://app.plane.so/acme/browse/DIOGEN-12/', CLOUD_CONN), { key: 'DIOGEN-12' })
+  assert.deepEqual(parseItemRef('https://app.plane.so/acme/browse/diogen-12?x=1#y', CLOUD_CONN), { key: 'DIOGEN-12' })
+})
+
+test('parseItemRef: a self-hosted URL under a path prefix round-trips from browseUrl', () => {
+  assert.deepEqual(parseItemRef(browseUrl(PREFIXED.appBase, 'acme', 'DIOGEN-12'), PREFIXED), { key: 'DIOGEN-12' })
+})
+
+test('parseItemRef: the same slug under another prefix, another slug or another origin is refused', () => {
+  for (const [text, conn] of [
+    ['https://plane.example.org/acme/browse/DIOGEN-12/', PREFIXED],
+    ['https://plane.example.org/other/plane/acme/browse/DIOGEN-12/', PREFIXED],
+    ['https://app.plane.so/other/browse/DIOGEN-12/', CLOUD_CONN],
+    ['https://app.plane.so/acmex/browse/DIOGEN-12/', CLOUD_CONN],
+    ['https://evil.example.com/acme/browse/DIOGEN-12/', CLOUD_CONN],
+    ['http://app.plane.so/acme/browse/DIOGEN-12/', CLOUD_CONN]
+  ] as const) {
+    assert.deepEqual(parseItemRef(text, conn), { reason: NOT_THIS_WORKSPACE }, text)
+  }
+})
+
+test('parseItemRef: a project-issue URL gives the project and item ids', () => {
+  assert.deepEqual(parseItemRef(`https://app.plane.so/acme/projects/${PROJECT}/issues/${ISSUE}/`, CLOUD_CONN), {
+    projectId: PROJECT,
+    id: ISSUE
+  })
+})
+
+test('parseItemRef: garbage and other pages of the workspace are refused', () => {
+  for (const text of ['', 'hello', 'DIOGEN', 'DIOGEN-', '12', 'ftp://app.plane.so/acme/browse/D-1/', 'https://app.plane.so/acme/projects/', `https://app.plane.so/acme/projects/${PROJECT}/issues/`, 'https://app.plane.so/acme/browse/DIOGEN-12/extra/']) {
+    assert.deepEqual(parseItemRef(text, CLOUD_CONN), { reason: NOT_A_REF }, text)
+  }
 })

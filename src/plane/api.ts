@@ -78,6 +78,7 @@ export async function listMyOpenItems(
   return { rows, completeness: 'partial', error: `More than ${rows.length} items: only the newest are shown.` }
 }
 
+/** A work item in its project, by its key or by its UUID (a pasted project-issue URL, design K2 of keyboard-commands). */
 export async function getItem(
   conn: Conn,
   slug: string,
