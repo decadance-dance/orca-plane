@@ -29,11 +29,15 @@ export function isWorkspaceName(key: string, name: unknown): name is string {
 /** Whether a line, without its leading `\`s, equals a fence line. */
 const isFence = (line: string) => line.replace(/^\\+/, '') === FENCE_HEADER || line.replace(/^\\+/, '') === FENCE_FOOTER
 
-/** Lines that equal a fence line get a leading `\`, so only the real footer ends the block. */
+/**
+ * Lines that equal a fence line get a leading `\`, so only the real footer ends the block. U+2028 and U+2029
+ * end a line too, for a reader and a JavaScript multiline match; they are kept, CR and CRLF become LF.
+ */
+// limit: NEL (U+0085), VT and FF are not line ends here, as in a JavaScript multiline match; add them if a reader needs it.
 function escapeFence(text: string): string {
   return text
     .split(/\r\n|\r|\n/)
-    .map((line) => (isFence(line) ? `\\${line}` : line))
+    .map((line) => line.split(/([\u2028\u2029])/).map((part) => (isFence(part) ? `\\${part}` : part)).join(''))
     .join('\n')
 }
 
@@ -50,7 +54,8 @@ export function fence(title: string, description: string, state: string, more: M
   if (body.length > room) {
     body = body.slice(0, room - TRUNCATED.length - 1)
     // The cut can leave a longer ticket line equal to a fence line: one character less, and it is not.
-    if (isFence(body.slice(body.lastIndexOf('\n') + 1))) body = body.slice(0, -1)
+    const lastLine = Math.max(body.lastIndexOf('\n'), body.lastIndexOf('\u2028'), body.lastIndexOf('\u2029')) + 1
+    if (isFence(body.slice(lastLine))) body = body.slice(0, -1)
     body = `${body}\n${TRUNCATED}`
   }
   return `${FENCE_HEADER}\n${body}\n${FENCE_FOOTER}`

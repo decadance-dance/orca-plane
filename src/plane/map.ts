@@ -38,12 +38,13 @@ const names = (value: unknown, field: string): string[] =>
     ? value.map((entry) => str((entry as Row | null)?.[field])).filter(Boolean)
     : []
 
-/** null for a row without the fields an item needs. */
+/** null for a row without the fields an item needs, or with a key that spans lines. */
 export function toItem(raw: unknown): Item | null {
   const row = (raw ?? {}) as Row
   const id = str(row.id)
   const key = str(row.identifier)
-  if (!id || !key) return null
+  // A key with a line break could end the prompt's ticket block early (#56); Plane never sends one.
+  if (!id || !key || /[\r\n\u2028\u2029]/.test(key)) return null
   const state = row.state && typeof row.state === 'object' ? (row.state as Row) : null
   const group = str(state?.group)
   const priority = str(row.priority)
