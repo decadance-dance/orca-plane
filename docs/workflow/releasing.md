@@ -10,12 +10,12 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 - Mark the shipped issues: every issue closed as completed since the last release, and the release issue itself, get the milestone `<ver>` (`gh issue edit <n> --milestone 1.2.0`; create it once with `gh api repos/decadance-dance/orca-plane/milestones -f title=1.2.0`). Issues closed as not planned are never marked: they did not ship. Their titles and the PRs that closed them are the notes' input.
 - Draft the release notes: write the whole body into a local file, `RELEASE-<ver>.md`, by the template in [release-notes.md](release-notes.md). The maintainer edits it. Never commit it: keep it outside the repo.
 - Open a draft PR into `main` (`gh pr create --draft --base main --title "Release 1.2.0" --label chore --body "Refs #<release issue>"`). When `ci-ok` is green, tick the last item and mark it ready (`gh pr ready`).
-- After that PR merges, the maintainer tags `main`, pushes the tag and publishes the GitHub Release:
+- After that PR merges, the maintainer tags `main`, pushes the tag and publishes the GitHub Release. Its title is the bare version (`1.2.0`, not `Orca Plane 1.2.0`):
   ```
   git checkout main && git pull
   git tag -a 1.2.0 -m "Orca Plane 1.2.0"
   git push origin 1.2.0
-  gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
+  gh release create 1.2.0 --verify-tag --title "1.2.0" --notes-file RELEASE-1.2.0.md
   ```
 - Once the plugin is listed in the Orca community catalog, run `orca plugin release-entry .` on the tagged `main` and add the printed entry to the catalog by its own PR.
 - Then open a PR from the same branch into `develop` (`gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<release issue>"`). If it conflicts, branch `merge/1.2.0` off `develop`, merge `release-1.2.0` into it, resolve, and PR `merge/1.2.0` into `develop` with the same title.
@@ -57,7 +57,7 @@ git push -u origin release-1.2.0 && gh pr create --draft --base main --title "Re
 # maintainer:
 gh pr merge --merge
 git checkout main && git pull && git tag -a 1.2.0 -m "Orca Plane 1.2.0" && git push origin 1.2.0
-gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
+gh release create 1.2.0 --verify-tag --title "1.2.0" --notes-file RELEASE-1.2.0.md
 gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<r>"   # then merge it
 git push origin --delete release-1.2.0 && git branch -d release-1.2.0
 
