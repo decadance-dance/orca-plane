@@ -9,7 +9,7 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 - Give the release its own issue (`Release 1.2.0`). Its checklist holds only what is done before the PR into `main` merges: version bumped in `orca-plugin.json`; shipped issues marked; notes ready; `ci-ok` green on the draft PR. The steps after the merge (tag, GitHub Release, PR into `develop`, deleting the branch) go in the issue as notes.
 - Mark the shipped issues: every issue closed as completed since the last release, and the release issue itself, get the milestone `<ver>` (`gh issue edit <n> --milestone 1.2.0`; create it once with `gh api repos/decadance-dance/orca-plane/milestones -f title=1.2.0`). Issues closed as not planned are never marked: they did not ship. Their titles and the PRs that closed them are the notes' input.
 - Draft the release notes: write the whole body into a local file, `RELEASE-<ver>.md`, by the template in [release-notes.md](release-notes.md). The maintainer edits it. Never commit it: keep it outside the repo.
-- Open a draft PR into `main` (`gh pr create --draft --base main --title "Release 1.2.0" --body "Refs #<release issue>"`). When `ci-ok` is green, tick the last item and mark it ready (`gh pr ready`).
+- Open a draft PR into `main` (`gh pr create --draft --base main --title "Release 1.2.0" --label chore --body "Refs #<release issue>"`). When `ci-ok` is green, tick the last item and mark it ready (`gh pr ready`).
 - After that PR merges, the maintainer tags `main`, pushes the tag and publishes the GitHub Release:
   ```
   git checkout main && git pull
@@ -18,7 +18,7 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
   gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
   ```
 - Once the plugin is listed in the Orca community catalog, run `orca plugin release-entry .` on the tagged `main` and add the printed entry to the catalog by its own PR.
-- Then open a PR from the same branch into `develop` (`gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --body "Closes #<release issue>"`). If it conflicts, branch `merge/1.2.0` off `develop`, merge `release-1.2.0` into it, resolve, and PR `merge/1.2.0` into `develop` with the same title.
+- Then open a PR from the same branch into `develop` (`gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<release issue>"`). If it conflicts, branch `merge/1.2.0` off `develop`, merge `release-1.2.0` into it, resolve, and PR `merge/1.2.0` into `develop` with the same title.
 - Delete the release branch after both PRs have merged.
 
 ### Don't
@@ -31,7 +31,7 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 ### Do
 - Use it only when something broke for users and the next release cannot wait. It is the only branch that comes off `main`: `git checkout -b hotfix-1.2.1 main`.
 - Give it its own issue by the release issue template above (checklist before the merge, post-merge steps as notes) and mark only the hotfix issue with milestone `1.2.1`: the closed issues waiting on `develop` ship with the next release.
-- Finish it like a release: a PR into `main`, the tag and the GitHub Release on `main`, then a PR from the same branch into `develop`.
+- Finish it like a release (both PRs labeled `chore`): a PR into `main`, the tag and the GitHub Release on `main`, then a PR from the same branch into `develop`.
 
 ### Don't
 - Don't use a hotfix for planned work or features.
@@ -52,13 +52,13 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 git checkout -b release-1.2.0 develop
 # release issue #<r>; milestone 1.2.0 on it and on every issue completed since the last release
 # version bump in orca-plugin.json; RELEASE-1.2.0.md drafted and edited (never committed)
-git push -u origin release-1.2.0 && gh pr create --draft --base main --title "Release 1.2.0" --body "Refs #<r>"
+git push -u origin release-1.2.0 && gh pr create --draft --base main --title "Release 1.2.0" --label chore --body "Refs #<r>"
 # ci-ok green: tick the checklist, then gh pr ready
 # maintainer:
 gh pr merge --merge
 git checkout main && git pull && git tag -a 1.2.0 -m "Orca Plane 1.2.0" && git push origin 1.2.0
 gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
-gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --body "Closes #<r>"   # then merge it
+gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<r>"   # then merge it
 git push origin --delete release-1.2.0 && git branch -d release-1.2.0
 
 # urgently fix a release

@@ -36,7 +36,7 @@ Source: Vincent Driessen, "A successful Git branching model", https://nvie.com/p
 - Finish with a PR into `develop`. Pass the title, body and labels explicitly, not `--fill`; the labels are the issue's ([AGENTS.md](../../AGENTS.md), Labels).
   ```
   git push -u origin feature/<n>-<slug>
-  gh pr create --base develop --title "<summary>" --label <the issue's labels> --body "Closes #<n>. <what and why; how verified>"
+  gh pr create --base develop --title "<summary>" --label enhancement,area:start,ax --body "Closes #<n>. <what and why; how verified>"
   ```
   Wait for `ci-ok` to go green (`gh pr checks <pr> --watch`): it runs `bin/check` with the Orca CLI from the `orca-server` Linux release (`.github/workflows/ci.yml`). The maintainer merges with `gh pr merge <pr> -R decadance-dance/orca-plane --merge --delete-branch`. With `-R`, gh deletes only the remote branch and leaves the local checkout alone; without it, gh tries to switch the task's worktree to `develop` to delete the local branch, and git refuses when another checkout already has `develop`. Then, from the primary checkout, run `git pull` and delete the issue's local branch and its worktree, if it had one.
 
