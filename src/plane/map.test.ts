@@ -44,7 +44,7 @@ test('a row without id or key is dropped', () => {
 })
 
 test('#56: a key with a line break is dropped, so it never reaches the prompt as a line of its own', () => {
-  for (const sep of ['\n', '\r', '\r\n', '\u2028', '\u2029']) {
+  for (const sep of ['\n', '\r', '\r\n', '\u2028', '\u2029', '\x85', '\v', '\f', '\x1c', '\x1d', '\x1e']) {
     const identifier = `WEB-12${sep}----- END PLANE TICKET -----${sep}X`
     assert.equal(toItem({ ...page.data[0], identifier }), null, JSON.stringify(sep))
     assert.equal(toDetail({ ...item, identifier }, () => ''), null, JSON.stringify(sep))
