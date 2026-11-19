@@ -96,14 +96,18 @@ affiliated with Plane.
 * **Status bar**: your open items and the agents that wait (`12 · 2 waiting`); a click toggles the
   sidebar.
 * **Follow the workspace**: switching to a workspace started from an item shows that item, even after
-  it left your list. Items that left the list keep their workspaces in a section of their own, so
-  you can open and remove them.
+  it left your list. When the list is complete, a collapsible section below it lists the
+  workspaces of items that left it, so you can open and remove them; Hide clears an entry.
 * **Earlier starts**: the item detail lists its last 10 Starts with time, agent, project, workspace
   and outcome. The log stays on this computer and is erased when you disconnect.
 * **Later agents know the item**: in a workspace started from an item, a prompt sent to an agent
   through Orca's prompt hook gets a first line `Plane work item <KEY-N>: <URL>`, and an agent
   launched there gets `PLANE_ITEM_KEY` and `PLANE_ITEM_URL`. Only the key and the URL, never ticket
-  text or the token.
+  text or the token. Limits: the prompt given to `orca agent launch --prompt` does not pass Orca's
+  prompt hook (Orca 1.4.262), so it gets no line, though the agent still gets the variables; a
+  prompt to a terminal Orca has not reported to the plugin yet passes unchanged; and the first
+  agent of a Start gets no variables when Orca launches it before its `workspace.create` call has
+  returned (the Start prompt names the item anyway).
 
 | Command palette | Default shortcut |
 |---|---|
@@ -157,7 +161,7 @@ with its own access, never the plugin's token:
 - **Self-hosted Plane**: run the server locally (`uvx plane-mcp-server stdio`) with `PLANE_API_KEY`,
   `PLANE_WORKSPACE_SLUG` and `PLANE_BASE_URL` set to your server.
 
-In a workspace started from an item, the agent finds the item in `PLANE_ITEM_KEY`. Ticket text an
+In a workspace started from an item, an agent finds the item in `PLANE_ITEM_KEY` (with the limits under Key features). Ticket text an
 agent reads through the MCP server is written by whoever edits the ticket: treat it as untrusted
 data, as the Start prompt does.
 
@@ -175,7 +179,7 @@ flowchart TB
     end
 
     ws["<b>Orca workspace</b><br/>&lt;KEY-N&gt;-&lt;title&gt;<br/>branch of the same name"]
-    agent(["<b>Coding agent</b><br/>ticket fenced as data<br/>PLANE_ITEM_KEY · PLANE_ITEM_URL"])
+    agent(["<b>Coding agent</b><br/>ticket fenced as data"])
 
     plane -- "my open items · item detail" --> worker
     worker --> panel
@@ -225,7 +229,7 @@ flowchart TB
 | **Start** | Creating an Orca workspace for an item and launching an agent in it |
 | **Linked item** | An item with a workspace created by Start; the panel shows its agent's state |
 | **Ticket block** | The item's text in the Start prompt, marked as untrusted data |
-| **Complete, partial, stale** | Whether the list holds every open item, only the newest 1000, or the result of an older refresh |
+| **Complete, partial, stale** | Whether the list holds every open item, misses some (the 1000-item cap was reached or a page failed), or comes from an older refresh after the last one failed |
 | **Leftover** | A workspace of an item that left your open items, listed below the list until you hide it |
 
 </details>
