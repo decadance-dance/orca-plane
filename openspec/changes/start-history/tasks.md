@@ -9,7 +9,7 @@
 ## 2. Detail
 
 - [x] 2.1 The "Earlier starts" section in the detail (`src/panel.tsx`): newest first, with `RelativeTime`, agent label, project, workspace and an outcome badge (`pending` and `unknown` → "not confirmed"); hidden when there are no attempts. Verify: `src/panel.test.tsx` covers the three "Item detail shows earlier Starts" scenarios; `bin/check` exits 0.
-- [ ] 2.2 README: one line on the history. Verify: a live check in Orca (start, remove the workspace, reopen the item) shows the entry; screenshot in the PR.
+- [x] 2.2 README: one line on the history. Verify: a live check in Orca (start, remove the workspace, reopen the item) shows the entry; screenshot in the PR.
 
 ## Workflow follow-up
 
