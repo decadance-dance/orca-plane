@@ -25,4 +25,6 @@ Out of scope: removing the workspace from the plugin (the plugin API has no work
 - `src/starts.ts`: a per-connection set of hidden keys; `hide(key)`; the set is cleaned when its link is dropped.
 - `src/worker.ts`: `start.hide` request; `starts.get` also returns the hidden keys.
 - `src/panel.tsx`: the section in `ListView`.
+- `src/panel.check.ts`: the render fixture follows the new `starts.get` shape, and a scenario shows the section.
+- `README.md`: one line on the section.
 - Tests: `src/starts.test.ts`, `src/worker.test.ts`, `src/panel.test.tsx`.

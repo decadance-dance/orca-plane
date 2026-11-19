@@ -177,7 +177,11 @@ async function loadPickers(): Promise<void> {
   if (!has(read(agent))) set(agent, has(fallback) ? String(fallback) : offered[0].value)
 }
 
+/** Counts loads and connection changes: a load overtaken by either belongs to a former connection. */
+let loadAsk = 0
+
 async function loadConnected(): Promise<void> {
+  const ask = ++loadAsk
   heard = { starts: {}, hidden: {} }
   const [list, known, linked] = await Promise.all([
     plugin.request('items.list', undefined),
@@ -185,6 +189,7 @@ async function loadConnected(): Promise<void> {
     plugin.request('links.get').catch(() => ({})),
     loadPickers()
   ])
+  if (ask !== loadAsk) return
   const newer = heard ?? { starts: {}, hidden: {} }
   heard = null
   set(items, newer.items ?? list)
@@ -202,16 +207,19 @@ export function setup(ctx: PanelContext): void {
   ctx.subscriptions.push(
     plugin.on('connection.changed', (next) => {
       set(status, next)
-      // The shown history belongs to the old connection: drop it, and ask the new one if the detail stays open.
+      // What is shown belongs to the old connection: drop it, and load the new one's (the open detail
+      // and its history included).
+      loadAsk++
+      heard = null
       historyAsk++
       set(history, [])
-      const open = read(opened)
-      if (next.connected && open) void loadHistory(open.key)
-      if (!next.connected) {
-        set(items, null)
-        set(starts, {})
-        set(hidden, [])
-        set(links, {})
+      set(items, null)
+      set(starts, {})
+      set(hidden, [])
+      set(links, {})
+      if (next.connected) {
+        void loadConnected()
+      } else {
         closeItem()
         cancelStart()
       }
@@ -354,8 +362,8 @@ async function openWorkspace(workspaceId: string): Promise<void> {
 async function hideLeftover(key: string): Promise<void> {
   set(openError, null)
   try {
+    // The worker's start.changed shows the hide: set here, a late reply could hide a newer link.
     await plugin.request('start.hide', { key })
-    update(hidden, (keys) => [...new Set([...keys, key])])
   } catch (error) {
     set(openError, message(error))
   }

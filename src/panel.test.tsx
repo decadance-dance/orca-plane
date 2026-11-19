@@ -897,6 +897,8 @@ test('Hide removes the entry and keeps the link; the hiding holds for a new pane
   await view.toggle({ type: 'Collapsible', label: LEFTOVER })
   await view.press({ testId: 'leftover-hide:OLD-1' })
   assert.deepEqual(asked, [{ key: 'OLD-1' }])
+  // What the worker posts on a hide.
+  await view.post('start.changed', { key: 'OLD-1', state: created('w1', 'OLD-1-x'), hidden: true })
   assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null)
   assert.equal(host.callsOf('workspace.remove').length, 0)
   await view.unmount()
@@ -920,6 +922,40 @@ test('a hidden item listed again offers Open workspace; once its workspace is re
   // A later link starts visible.
   await view.post('start.changed', { key: 'WEB-1', state: created('w9', 'WEB-1-x'), hidden: false })
   await view.post('items.changed', list({ items: [item('WEB-2', 'unstarted')] }))
+  assert.ok(view.find({ type: 'Collapsible', label: LEFTOVER }))
+  await view.unmount()
+})
+
+test('review 1: a direct switch to another account drops the old leftovers and loads the new ones', async () => {
+  let answer = { states: { 'OLD-1': created('w1', 'OLD-1-x') }, hidden: [] as string[] }
+  const view = await mount(panel, { host: connectedHost({ 'starts.get': () => answer }) })
+  assert.ok(view.find({ type: 'Collapsible', label: LEFTOVER }))
+  answer = { states: {}, hidden: [] }
+  await view.post('connection.changed', { ...CONNECTED, slug: 'other' })
+  await view.post('items.changed', list())
+  assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null)
+  await view.unmount()
+})
+
+test('review 1: a late Hide reply does not hide the workspace that replaced the hidden one', async () => {
+  const host = connectedHost({
+    'starts.get': { states: { 'OLD-1': created('w1', 'OLD-1-x') }, hidden: [] },
+    'start.hide': async () => {
+      // The reply comes after the worker's posts: the hide, the removal of w1 and a new link to w2.
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      return { ok: true }
+    }
+  })
+  const view = await mount(panel, { host })
+  await view.toggle({ type: 'Collapsible', label: LEFTOVER })
+  const pressed = view.press({ testId: 'leftover-hide:OLD-1' })
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  await Promise.all([
+    pressed,
+    view.post('start.changed', { key: 'OLD-1', state: created('w1', 'OLD-1-x'), hidden: true }),
+    view.post('start.changed', { key: 'OLD-1', state: { kind: 'idle' }, hidden: false }),
+    view.post('start.changed', { key: 'OLD-1', state: created('w2', 'OLD-1-x'), hidden: false })
+  ])
   assert.ok(view.find({ type: 'Collapsible', label: LEFTOVER }))
   await view.unmount()
 })
