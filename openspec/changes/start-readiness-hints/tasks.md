@@ -2,7 +2,7 @@
 
 ## 1. Readiness rules
 
-- [x] 1.1 Check that Plane's checklist HTML (`<ul data-type="taskList">` with `<li data-checked>`) converts to `- [ ]` or `- [x]` in `htmlToMarkdown`; add a fixture to `src/plane/markdown.test.ts` and fix the converter if it does not. Verify: the fixture passes.
+- [x] 1.1 Check that Plane's checklist HTML (`<ul data-type="taskList">` with `<li data-checked>`) converts to `- [ ]` or `- [x]` in `htmlToMarkdown`; the task-list case in `src/plane/markdown.test.ts` is that fixture (add it if missing, and fix the converter if it fails). Verify: the fixture passes.
 - [x] 1.2 Add `src/readiness.ts` with `readiness(description)` per design R1. Verify: `src/readiness.test.ts` covers empty (only one hint), short, no checklist, no reference, a path, inline code, a link, and a ready ticket (no hints).
 
 ## 2. Confirmation

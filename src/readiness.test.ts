@@ -1,4 +1,5 @@
 import { assert, test } from 'orca/testing'
+import { htmlToMarkdown } from './plane/markdown'
 import { readiness } from './readiness'
 
 const ids = (description: string) => readiness(description).map((hint) => hint.id)
@@ -40,4 +41,25 @@ test('a reference: a path, inline code, a code block or a link', () => {
 
 test('a ready ticket gets no hints', () => {
   assert.deepEqual(ids(`${LONG}The code is in \`src/auth/login.ts\`.\n\n${CHECKLIST}`), [])
+})
+
+// Review round 1 on PR #45: each case runs Plane HTML through the converter first.
+const CHECKLIST_HTML = '<ul data-type="taskList"><li data-checked="false"><p>The form draws first</p></li></ul>'
+const LONG_HTML = `<p>${LONG}</p>`
+const fromHtml = (html: string) => ids(htmlToMarkdown(html))
+
+test('a checklist line inside a fenced code example is not a checklist item', () => {
+  assert.ok(fromHtml(`${LONG_HTML}<pre><code>- [ ] Example syntax</code></pre>`).includes('no-checklist'))
+  assert.ok(fromHtml(`${LONG_HTML}<blockquote><pre><code>- [x] quoted example</code></pre></blockquote>`).includes('no-checklist'))
+})
+
+test('an uppercase scheme and a code block inside a quote are references', () => {
+  assert.deepEqual(fromHtml(`${LONG_HTML}${CHECKLIST_HTML}<p><a href="HTTPS://example.com/trace">Trace</a></p>`), [])
+  assert.deepEqual(fromHtml(`${LONG_HTML}${CHECKLIST_HTML}<blockquote><pre><code>await check()</code></pre></blockquote>`), [])
+})
+
+test('the length counts code text literally and drops a link target behind an escaped label', () => {
+  assert.ok(!fromHtml(`<p>${'a'.repeat(190)} <code>user_name</code></p>`).includes('short'), '200 visible characters')
+  assert.ok(fromHtml(`<p>${'a'.repeat(189)} <code>user_name</code></p>`).includes('short'), '199 visible characters')
+  assert.ok(fromHtml(`<p><a href="https://example.com/${'x'.repeat(200)}">Trace [1]</a></p>`).includes('short'))
 })
