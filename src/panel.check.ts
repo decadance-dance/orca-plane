@@ -39,6 +39,8 @@ const LONG_KEYS = [
   row('PLATFORM-54', 'Warm the cache after each deploy', 'unstarted', 'Todo', 'urgent', []),
   row('PLATFORM-55', 'Measure the cold start of the worker', 'unstarted', 'Todo', 'low', [])
 ]
+// Plane allows a non-ASCII identifier of up to 12 characters; a full-width glyph takes a full em (review on #80).
+const WIDE_KEYS = ['1', '3', '54', '55'].map((n, i) => ({ ...LONG_KEYS[i], key: `工具工具工具工具工具工具-${n}`, id: `wide-${n}`, projectId: 'project-wide' }))
 const DETAIL: ItemDetail = {
   ...ITEMS[0],
   assignees: ['Ada'],
@@ -109,6 +111,7 @@ export default defineCheck({
   'web-project': { ...connected(state({}), LINKED, AGENTS), ...persisted({ 'plane.tab': 'project-WEB' }) },
   // Long keys (#79): every key stays on one line and the titles line up, at 320 and 480 px.
   'long-keys': connected(state({ items: LONG_KEYS })),
+  'wide-keys': connected(state({ items: WIDE_KEYS })),
   // An active tag keeps the filter strip open, filled and checked; an item must carry every active tag.
   tags: { ...connected(state({})), ...persisted({ 'plane.tags': ['label:auth'] }) },
   // DOC-7 left the list; its workspace shows in the section of items no longer open.

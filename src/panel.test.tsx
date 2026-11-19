@@ -1347,6 +1347,15 @@ test('the dot and key column of a project is one width, wide enough for its long
   await view.unmount()
 })
 
+test('a full-width (CJK) identifier gets a full em a character, so its number is not cut (review on #80)', async () => {
+  const items = [item('工具工具工具工具工具工具-54', 'started'), item('工具工具工具工具工具工具-55', 'started')]
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  const column = view.findAll({ type: 'Box' }).find((box) => box.props.shrink === false && typeof box.props.width === 'number')
+  // The dot 10.13 px, the gap 8 px, 12 glyphs of 12 px and `-55` in Geist (5.03 + 7.51 + 7.51); W's 11.4 px fell short.
+  assert.ok((column?.props.width as number) >= 10.13 + 8 + 12 * 12 + 5.03 + 7.51 + 7.51)
+  await view.unmount()
+})
+
 // --- Orca's limits: 5000 nodes a panel, 500 options a Select ---
 
 test('a list at the fetch cap draws 150 rows and says so, also with the filter strip open', async () => {

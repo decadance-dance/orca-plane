@@ -650,8 +650,8 @@ function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
   )
 }
 
-// Advance widths in px of Geist, Orca's default app font, at `xs` (12 px), rounded up; any other character counts
-// as W. A Plane key is an upper-case identifier, a dash and a number.
+// Advance widths in px of Geist, Orca's default app font, at `xs` (12 px), rounded up. Any other character counts
+// as 12 px, a full em: Plane allows non-ASCII identifiers, and a full-width (CJK) glyph is wider than W.
 // limit: Orca has no monospace Text and no way to measure text, so with another app font set in Orca a key may be
 // cut short by an ellipsis; widen these if that font is common.
 const GLYPH: Record<string, number> = {
@@ -661,7 +661,7 @@ const GLYPH: Record<string, number> = {
 }
 // The dot (10.2 px), the `sm` gap (8 px), the longest key, and 2 px for rounding.
 const keyWidthOf = (items: Item[]) =>
-  Math.ceil(20.2 + Math.max(0, ...items.map((item) => [...item.key].reduce((sum, c) => sum + (GLYPH[c] ?? GLYPH.W), 0))))
+  Math.ceil(20.2 + Math.max(0, ...items.map((item) => [...item.key].reduce((sum, c) => sum + (GLYPH[c] ?? 12), 0))))
 
 // limit: Orca refuses a panel of more than 5000 nodes, and the fetch cap is 1000 items. 150 rows (about 14 nodes
 // each) leave room for roughly 250 workspaces of items no longer open or 500 filter tags; past that it goes blank.
