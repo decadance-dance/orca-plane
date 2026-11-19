@@ -68,6 +68,7 @@ export type StartInput = {
 export class Starts {
   private lock: Promise<unknown> = Promise.resolve()
   private listeners: ((states: States) => void)[] = []
+  private createdListeners: ((key: string, workspaceId: string, terminalId?: string) => void)[] = []
   // Start creates in flight, counted by project and workspace name, which is also the branch (design B1).
   private readonly creating = new Map<string, number>()
 
@@ -126,6 +127,11 @@ export class Starts {
     })
     this.lock = run.catch(() => undefined)
     return run
+  }
+
+  /** Hears a Start's create the moment it returns, before the outcome is stored, and only under its own connection (agent-item-context A4). */
+  onCreated(listener: (key: string, workspaceId: string, terminalId?: string) => void): void {
+    this.createdListeners.push(listener)
   }
 
   /** The branch for a create that is this plugin's Start in flight; read by the create hook. */
@@ -294,6 +300,9 @@ export class Starts {
           if (left > 0) this.creating.set(slot, left)
           else this.creating.delete(slot)
         })
+      if (generation === this.conns.generation) {
+        for (const listener of this.createdListeners) listener(input.key, created.workspaceId, created.terminalId)
+      }
       outcome = { kind: 'created', workspaceId: created.workspaceId, name, projectId: input.orcaProjectId }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Start failed.'

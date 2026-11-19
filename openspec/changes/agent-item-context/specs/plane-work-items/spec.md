@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Later agent prompts name the linked item
-When Orca is about to send a prompt to an agent in a terminal that the plugin knows belongs to a workspace linked to an item, and the prompt does not contain the item key, the plugin SHALL add one leading line that names the item key and its Plane URL. The line SHALL hold no text taken from the ticket. Prompts to other terminals SHALL pass unchanged.
+When Orca submits a prompt to an agent through its `agent.prompt.before` hook (an orchestration dispatch, `orca terminal send` to an agent) in a terminal that the plugin knows belongs to a workspace linked to an item, and the prompt does not contain the item key, the plugin SHALL add one leading line that names the item key and its Plane URL. The line SHALL hold no text taken from the ticket. Prompts to other terminals SHALL pass unchanged.
 
 #### Scenario: Orchestration prompt in a linked workspace
 - **WHEN** Orca dispatches a prompt without the text `DIOGEN-449` to an agent in a terminal of the workspace linked to `DIOGEN-449`, and that terminal existed when the link became known or was reported to the plugin since
@@ -18,6 +18,10 @@ When Orca is about to send a prompt to an agent in a terminal that the plugin kn
 #### Scenario: Terminal the plugin has not seen
 - **WHEN** Orca sends a prompt to a terminal that Orca has never reported to the plugin
 - **THEN** it passes unchanged
+
+#### Scenario: Prompt that does not pass the hook
+- **WHEN** a prompt reaches the agent without `agent.prompt.before`, such as the one given to `orca agent launch --prompt` in Orca 1.4.262
+- **THEN** it has no item line, and the agent still gets the item in its environment
 
 ### Requirement: Agents get the item in their environment
 An agent launched in a workspace that is linked to an item when the launch starts SHALL get the environment variables `PLANE_ITEM_KEY` (the key) and `PLANE_ITEM_URL` (its Plane URL). The plugin SHALL NOT put the token or any other secret into an agent's environment. Agents in unlinked workspaces SHALL get no Plane variables. The first agent of a Start gets them only when Orca launches it after `workspace.create` has returned; its prompt names the item either way.
