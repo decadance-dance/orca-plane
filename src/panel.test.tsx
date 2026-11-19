@@ -1205,6 +1205,11 @@ test('Open by key or URL: a URL of another workspace and an unknown key say so a
   await typeLookup(view, 'NOPE-1', { submit: true, replace: true })
   assert.ok(view.find(part('No item has the key NOPE-1.')))
   assert.ok(view.find({ testId: 'WEB-1' }))
+  // Clearing the field drops the refusal, so the ⋯ part can be hidden again.
+  await view.type({ label: 'Open by key or URL' }, '', { replace: true })
+  assert.equal(view.find(part('No item has the key NOPE-1.')), null)
+  await view.press({ label: 'Hide actions' })
+  assert.equal(view.find({ label: 'Open by key or URL' }), null)
   await view.unmount()
 })
 

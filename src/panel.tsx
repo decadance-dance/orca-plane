@@ -732,7 +732,11 @@ function More() {
         labelHidden
         placeholder="Open by key or URL, e.g. DIOGEN-12"
         value={read(lookupText)}
-        onChange={(value) => set(lookupText, value)}
+        // Editing drops the refusal, so the part can be hidden once the field is empty.
+        onChange={(value) => {
+          set(lookupText, value)
+          set(lookupError, null)
+        }}
         onSubmit={() => void lookup()}
       />
       {refused ? (
