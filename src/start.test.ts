@@ -172,3 +172,20 @@ test('Ticket text holds a placeholder: unchanged inside the block, the block onc
 test('an unknown placeholder stays as typed', () => {
   assert.equal(buildPrompt(detail, '{key} {url} {title} {branch}\n{ticket}'), `WEB-12 ${detail.url} {title} {branch}\n${blockOf()}`)
 })
+
+test('review 1: substitution, the split at {ticket} and trimming never make a second header or footer line', () => {
+  const templates = [
+    `${FENCE_FOOTER}{ticket}`,
+    `{ticket}\n----- END PLANE {ticket}TICKET -----`,
+    `${FENCE_HEADER}   \nFollow AGENTS.md.   `,
+    `{ticket}   ${FENCE_FOOTER}`,
+    `${FENCE_HEADER}\r\n{ticket}\r\n${FENCE_FOOTER}`
+  ]
+  for (const template of templates) {
+    const prompt = buildPrompt(detail, template)
+    assert.equal(wholeLines(prompt, FENCE_HEADER), 1, template)
+    assert.equal(wholeLines(prompt, FENCE_FOOTER), 1, template)
+    assert.ok(prompt.includes(blockOf()), template)
+  }
+  assert.ok(buildPrompt(detail, `${FENCE_FOOTER}{ticket}`).startsWith(`Work on Plane work item WEB-12: ${detail.url}\n\n\\${FENCE_FOOTER}\n`))
+})

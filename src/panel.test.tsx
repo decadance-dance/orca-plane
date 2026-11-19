@@ -439,6 +439,18 @@ test('Empty template: the confirmation prompt is the default prompt', async () =
   }
 })
 
+test('review 1: a changed template applies to the next confirmation without a reload (T4)', async () => {
+  const host = connectedHost({}, {}, { promptTemplate: 'First {key} {url}\n{ticket}' })
+  const view = await mount(panel, { host })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.equal(view.valueOf({ label: 'Prompt' }), buildPrompt(DETAIL, 'First {key} {url}\n{ticket}'))
+  await view.press({ text: 'Cancel' })
+  host.respond('settings.get', { settings: { promptTemplate: 'Second {key} {url}\n{ticket}' } })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.equal(view.valueOf({ label: 'Prompt' }), buildPrompt(DETAIL, 'Second {key} {url}\n{ticket}'))
+  await view.unmount()
+})
+
 test('Cancel creates nothing; a refused start shows its reason in the confirmation', async () => {
   let starts = 0
   const host = connectedHost({

@@ -58,25 +58,22 @@ export function fence(title: string, description: string, state: string, more: M
 
 /**
  * The Start prompt. An empty template gives the built-in one; otherwise the template's `{key}`, `{url}`
- * and first `{ticket}` are replaced in one pass (design T1), and the block, key and URL are always in (T3).
+ * and first `{ticket}` are replaced in one pass and the result is escaped (design T1); the block, key and URL
+ * are always in (T3).
  */
 export function buildPrompt(item: ItemDetail, template = ''): string {
   const block = fence(item.title, item.description, item.stateName ?? 'unknown', item)
   if (!template.trim()) return defaultPrompt(item, block)
-  // Template lines that pose as fence lines are escaped like ticket text; values are never scanned again.
-  const text = escapeFence(template)
+  const text = template.replace(/\r\n?/g, '\n')
+  // One pass: values are never scanned again, so `{ticket}` in a value stays literal.
   const fill = (part: string) =>
     part.replace(/\{(key|url|ticket)\}/g, (_, name: string) => (name === 'key' ? item.key : name === 'url' ? item.url : ''))
   const at = text.indexOf('{ticket}')
-  const parts =
-    at < 0
-      ? [fill(text).trimEnd(), '', block]
-      : [
-          // The block stands on its own lines, without blank lines left around it.
-          fill(text.slice(0, at)).trimEnd(),
-          block,
-          fill(text.slice(at + '{ticket}'.length)).replace(/^[ \t]*\n?/, '').replace(/^(?:[ \t]*\n)+/, '')
-        ].filter(Boolean)
+  // The block stands on its own lines, without blank lines left around it.
+  const before = fill(at < 0 ? text : text.slice(0, at)).trimEnd()
+  const after = at < 0 ? '' : fill(text.slice(at + '{ticket}'.length)).replace(/^[ \t]*\n?/, '').replace(/^(?:[ \t]*\n)+/, '')
+  // Escaped last, like ticket text: no substitution, split or trim can turn a template line into a fence line.
+  const parts = at < 0 ? [escapeFence(before), '', block] : [escapeFence(before), block, escapeFence(after)].filter(Boolean)
   if (!text.includes('{key}') || !text.includes('{url}')) parts.unshift(`Work on Plane work item ${item.key}: ${item.url}`, '')
   return parts.join('\n')
 }
