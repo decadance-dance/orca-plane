@@ -949,6 +949,8 @@ test('plane.nextWaiting with nobody waiting says so and opens nothing', async ()
   await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
   assert.equal(await worker.command('plane.nextWaiting'), 'No agent on a Plane item waits for you.')
   assert.deepEqual(h.callsOf('workspace.open'), [])
+  // Orca drops a command's return value from a shortcut or the palette: the message also goes out as a notification.
+  assert.deepEqual(h.callsOf('notifications.show'), [{ title: 'Plane', body: 'No agent on a Plane item waits for you.' }])
   await worker.deactivate()
 })
 
@@ -964,6 +966,12 @@ test('plane.openShown opens the workspace of the shown item; says so with no sho
   await worker.request('panel.shown', { key: null })
   assert.equal(await worker.command('plane.openShown'), 'The panel shows no item.')
   assert.equal(h.callsOf('workspace.open').length, 1)
+  // A command that opened a workspace says nothing.
+  assert.deepEqual(h.callsOf('notifications.show').map((call) => (call as { body: string }).body), [
+    'The panel shows no item.',
+    `${KEY2} has no workspace.`,
+    'The panel shows no item.'
+  ])
   await worker.deactivate()
 })
 

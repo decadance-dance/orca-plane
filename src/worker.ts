@@ -100,27 +100,41 @@ export default function activate(orca: OrcaWorkerApi): void {
   }
   orca.panels.handle('workspace.open', ({ workspaceId }) => openWorkspace(workspaceId))
 
-  // Palette commands (design K4 of keyboard-commands); a string result is what Orca shows.
+  // Palette commands (design K4 of keyboard-commands): each returns what it has to say, or nothing.
   const run = async (workspaceId: string) => {
     const opened = await openWorkspace(workspaceId)
     return opened.ok ? undefined : opened.error
   }
+  const command = (id: string, handler: () => string | undefined | Promise<string | undefined>) =>
+    orca.commands.register(id, async () => {
+      const said = await handler()
+      // limit: Orca 1.4.262 drops a command's return value when a shortcut or the palette runs it,
+      // so the message also goes out as a notification; the returned string stays for callers that show it.
+      if (said) {
+        try {
+          await orca.host.call('notifications.show', { title: 'Plane', body: said })
+        } catch {
+          // A refused notification still leaves the returned message.
+        }
+      }
+      return said
+    })
   // In memory only: the last panel to open or close a detail wins.
   let shown: string | null = null
   orca.panels.handle('panel.shown', ({ key }) => {
     shown = key
     return { ok: true as const }
   })
-  orca.commands.register('plane.nextWaiting', () => {
+  command('plane.nextWaiting', () => {
     const first = links.waiting()[0]
     return first ? run(first.workspaceId) : 'No agent on a Plane item waits for you.'
   })
-  orca.commands.register('plane.openShown', () => {
+  command('plane.openShown', () => {
     if (!shown) return 'The panel shows no item.'
     const link = links.byKey()[shown]
     return link ? run(link.workspaceId) : `${shown} has no workspace.`
   })
-  orca.commands.register('plane.refresh', async () => {
+  command('plane.refresh', async () => {
     if (!(await conns.current())) return 'Not connected to Plane.'
     void items.refresh()
     return undefined
