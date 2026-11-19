@@ -31,7 +31,7 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 ### Do
 - Use it only when something broke for users and the next release cannot wait. It is the only branch that comes off `main`: `git checkout -b hotfix-1.2.1 main`.
 - Give it its own issue by the release issue template above (checklist before the merge, post-merge steps as notes) and mark only the hotfix issue with milestone `1.2.1`: the closed issues waiting on `develop` ship with the next release.
-- Finish it like a release (both PRs labeled `chore`): a PR into `main`, the tag and the GitHub Release on `main`, then a PR from the same branch into `develop`.
+- Finish it like a release, but both PRs carry the hotfix issue's labels (such as `bug,area:connection`) instead of `chore`: a PR into `main`, the tag and the GitHub Release on `main`, then a PR from the same branch into `develop`.
 
 ### Don't
 - Don't use a hotfix for planned work or features.
