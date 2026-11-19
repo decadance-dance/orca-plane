@@ -63,3 +63,14 @@ test('the length counts code text literally and drops a link target behind an es
   assert.ok(fromHtml(`<p>${'a'.repeat(189)} <code>user_name</code></p>`).includes('short'), '199 visible characters')
   assert.ok(fromHtml(`<p><a href="https://example.com/${'x'.repeat(200)}">Trace [1]</a></p>`).includes('short'))
 })
+
+// Review round 2 on PR #45.
+test('a shorter tilde line inside a four-tilde fence does not close it', () => {
+  const block = '<pre><code>has ``` inside\n~~~\n- [ ] Example syntax</code></pre>'
+  assert.deepEqual(fromHtml(`${LONG_HTML}<pre><code>has \`\`\` inside\n~~~\nExample syntax</code></pre>${CHECKLIST_HTML}`), [])
+  assert.ok(fromHtml(`${LONG_HTML}${block}`).includes('no-checklist'))
+})
+
+test('inline code at the start of a line is not read as a heading', () => {
+  assert.ok(!fromHtml(`<p><code># ${'a'.repeat(198)}</code></p>`).includes('short'))
+})

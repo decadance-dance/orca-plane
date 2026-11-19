@@ -16,7 +16,7 @@ const MIN_TEXT = 200
 const unescape = (markdown: string) => markdown.replace(/\\([^A-Za-z0-9\s])/g, '$1')
 
 /** An opening or closing code fence, also inside a quote (`> ```ts`). */
-const FENCE = /^\s*(?:>\s?)*\s*(`{3,}|~{3,})/
+const FENCE = /^\s*(?:>\s?)*\s*(`{3,}|~{3,})(.*)$/
 
 /** The lines outside fenced code blocks: an example in a code block is not a checklist item. */
 function prose(markdown: string): string {
@@ -24,8 +24,9 @@ function prose(markdown: string): string {
   return markdown
     .split('\n')
     .filter((line) => {
-      const fence = FENCE.exec(line)?.[1]
-      if (fence && (!open || fence[0] === open[0])) {
+      const [, fence, rest] = FENCE.exec(line) ?? []
+      // A fence closes only on the same character, at least as many, with nothing after them.
+      if (fence && (!open || (fence[0] === open[0] && fence.length >= open.length && !rest.trim()))) {
         open = open ? '' : fence
         return false
       }
@@ -38,9 +39,9 @@ function prose(markdown: string): string {
 // limit: a rough strip of what htmlToMarkdown emits, not a Markdown parser; nested markers keep their inner ones.
 function plainText(markdown: string): string {
   const text = markdown
-    .replace(new RegExp(`${FENCE.source}.*$`, 'gm'), '')
-    // Code is text: keep its length, but not characters the next steps would read as markup.
-    .replace(/(?<!\\)(`+)(.+?)\1/g, (_, __, code: string) => code.replace(/^ (.*) $/, '$1').replace(/[\\[\]*_~`]/g, 'x'))
+    .replace(new RegExp(FENCE.source, 'gm'), '')
+    // Code is text: keep its length, but nothing the next steps could read as markup.
+    .replace(/(?<!\\)(`+)(.+?)\1/g, (_, __, code: string) => code.replace(/^ (.*) $/, '$1').replace(/\S/g, 'x'))
     .replace(/!?\[((?:\\.|[^\]\\])*)\]\([^)]*\)/g, '$1')
     .replace(/^\s*(#{1,6}|>|[-*+](\s+\[[ xX]\])?|\d+[.)])(\s+|$)/gm, '')
     .replace(/(?<!\\)[*_~`]+/g, '')
