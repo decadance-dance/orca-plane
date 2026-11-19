@@ -433,9 +433,8 @@ function Confirmation({ current }: { current: Loaded }) {
         <Pickers />
         {current.item ? (
           <Stack gap="sm">
-            <Text size="sm">
-              {`Workspace ${workspaceName(current.item.key, current.item.title)}`}
-            </Text>
+            <Text size="sm">{`Workspace ${workspaceName(current.item.key, current.item.title)}`}</Text>
+            <Text size="sm">{`Branch ${workspaceName(current.item.key, current.item.title)}`}</Text>
             <ReadinessHints description={current.item.description} />
             <Textarea label="Prompt" rows={8} value={read(prompt)} onChange={(value) => set(prompt, value)} />
           </Stack>

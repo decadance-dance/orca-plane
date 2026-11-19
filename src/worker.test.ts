@@ -493,6 +493,52 @@ test('terminal only: no agent and no prompt are sent', async () => {
   await worker.deactivate()
 })
 
+test('the create hook gives a Start its branch while it runs, and passes every other create unchanged', async () => {
+  const name = 'DIOGEN-449-fix-login-timeout'
+  const titled = { ...listPage, data: listPage.data.map((row) => ({ ...row, name: 'Fix login timeout' })) }
+  const others = [
+    { kind: 'worktree' as const, projectId: 'p1', name: 'other-name' },
+    { kind: 'worktree' as const, projectId: 'p2', name },
+    { kind: 'folder' as const, projectId: 'p1', name }
+  ]
+  for (const fail of [false, true]) {
+    plane((url) => (url.pathname.endsWith('/work-items/') ? { json: titled } : undefined))
+    const hold = gate()
+    let rows: unknown[] = []
+    const h = host({
+      'workspace.create': async () => {
+        await hold.opened
+        if (fail) throw hostError('invalid_params', 'bad project')
+        rows = [{ ...ROW, name }]
+        return { workspaceId: 'w1' }
+      },
+      'workspace.list': () => ({ workspaces: rows, truncated: false })
+    })
+    const worker = await connected(h)
+    const fire = (event: { kind: 'worktree' | 'folder'; projectId: string; name: string }) =>
+      worker.hooks.fire('workspace.create.before', event)
+    // The mock answers a request or a hook only once no host call is running, so the create is
+    // released on a timer; the hook decides while it is still held.
+    const started = worker.request('item.start', START)
+    await until(() => h.callsOf('workspace.create').length === 1, 'create called')
+    const during = Promise.all([fire({ kind: 'worktree', projectId: 'p1', name }), ...others.map(fire)])
+    setTimeout(hold.open, 50)
+    assert.deepEqual(await during, [
+      { kind: 'continue', event: { kind: 'worktree', projectId: 'p1', name, branch: name } },
+      ...others.map((event) => ({ kind: 'continue', event }))
+    ])
+    assert.equal((await started).accepted, true)
+    assert.equal((h.callsOf('workspace.create')[0] as { name: string }).name, name)
+    await until(async () => (await startOf(worker))?.kind === (fail ? 'failed' : 'created'), 'settled')
+    // The entry is gone once the create settles, after success and after failure.
+    assert.deepEqual(await fire({ kind: 'worktree', projectId: 'p1', name }), {
+      kind: 'continue',
+      event: { kind: 'worktree', projectId: 'p1', name }
+    })
+    await worker.deactivate()
+  }
+})
+
 test('a lost reply or a worker restart: pending becomes unknown, then reconciles by name', async () => {
   for (const found of [true, false]) {
     plane()

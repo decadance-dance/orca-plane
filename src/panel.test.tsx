@@ -399,6 +399,14 @@ test('Start on a row asks for the project, an installed agent and the editable p
   await view.unmount()
 })
 
+test('Confirmation shows the branch, named like the workspace', async () => {
+  const view = await mount(panel, { host: connectedHost() })
+  await view.press({ testId: 'start:WEB-1' })
+  assert.ok(view.find({ type: 'Text', text: 'Workspace WEB-1-fix-login' }))
+  assert.ok(view.find({ type: 'Text', text: 'Branch WEB-1-fix-login' }))
+  await view.unmount()
+})
+
 test('Cancel creates nothing; a refused start shows its reason in the confirmation', async () => {
   let starts = 0
   const host = connectedHost({

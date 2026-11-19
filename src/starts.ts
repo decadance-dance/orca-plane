@@ -35,6 +35,8 @@ export type StartInput = {
 export class Starts {
   private lock: Promise<unknown> = Promise.resolve()
   private listeners: ((states: States) => void)[] = []
+  // Branch of each Start create in flight, by project and workspace name (design B1).
+  private readonly creating = new Map<string, string>()
 
   constructor(
     private readonly orca: OrcaWorkerApi,
@@ -73,6 +75,11 @@ export class Starts {
     })
     this.lock = run.catch(() => undefined)
     return run
+  }
+
+  /** The branch for a create that is this plugin's Start in flight; read by the create hook. */
+  branchFor(projectId: string, name: string): string | undefined {
+    return this.creating.get(`${projectId}\n${name}`)
   }
 
   private changed(key: string, state: StartState): void {
@@ -171,13 +178,18 @@ export class Starts {
 
   private async create(input: StartInput, name: string, generation: number): Promise<void> {
     let outcome: StartState
+    const slot = `${input.orcaProjectId}\n${name}`
+    // The branch is the workspace name; host workspace.create takes no branch, so the hook sets it.
+    this.creating.set(slot, name)
     try {
-      const created = await this.orca.host.call('workspace.create', {
-        projectId: input.orcaProjectId,
-        ...(input.hostId ? { hostId: input.hostId } : {}),
-        name,
-        ...(input.agent ? { agent: input.agent, prompt: input.prompt } : {})
-      })
+      const created = await this.orca.host
+        .call('workspace.create', {
+          projectId: input.orcaProjectId,
+          ...(input.hostId ? { hostId: input.hostId } : {}),
+          name,
+          ...(input.agent ? { agent: input.agent, prompt: input.prompt } : {})
+        })
+        .finally(() => this.creating.delete(slot))
       outcome = { kind: 'created', workspaceId: created.workspaceId, name, projectId: input.orcaProjectId }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Start failed.'

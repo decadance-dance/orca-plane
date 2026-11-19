@@ -52,6 +52,12 @@ export default function activate(orca: OrcaWorkerApi): void {
     })
   )
 
+  // A Start's own create gets the item's branch; every other create passes unchanged (design B1).
+  orca.hooks.on('workspace.create.before', (event, next) => {
+    const branch = event.kind === 'worktree' ? starts.branchFor(event.projectId, event.name) : undefined
+    return next(branch ? { ...event, branch } : event)
+  })
+
   orca.panels.handle('connection.get', () => conns.status())
   orca.panels.handle('connection.connect', (input) => conns.connect(input))
   orca.panels.handle('connection.disconnect', () => conns.disconnect())
