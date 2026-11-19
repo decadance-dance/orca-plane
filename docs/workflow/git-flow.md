@@ -31,12 +31,12 @@ Source: Vincent Driessen, "A successful Git branching model", https://nvie.com/p
 - Running several agent sessions at once? Give each issue its own git worktree, so sessions don't share a checkout, and leave the primary checkout to reading.
 - Commit as often as useful inside the branch; small, unfinished commits are fine.
 - Commit only the files of this issue: name paths in `git add` and `git commit -- <paths>`.
-- A draft PR may go up early: `gh pr create --draft --base develop`.
+- A draft PR may go up early: `gh pr create --draft --base develop --label <the issue's labels>`.
 - Before a ready PR: run `bin/check`, get the cross-model review ([below](#cross-model-review)), and check that the PR description says what changed, why, and how it was verified. A PR that only touches an issue it does not finish says `Refs #<n>`, not `Closes #<n>`.
-- Finish with a PR into `develop`. Pass the title and body explicitly, not `--fill`.
+- Finish with a PR into `develop`. Pass the title, body and labels explicitly, not `--fill`; the labels are the issue's ([AGENTS.md](../../AGENTS.md), Labels).
   ```
   git push -u origin feature/<n>-<slug>
-  gh pr create --base develop --title "<summary>" --body "Closes #<n>. <what and why; how verified>"
+  gh pr create --base develop --title "<summary>" --label enhancement,area:start,ax --body "Closes #<n>. <what and why; how verified>"
   ```
   Wait for `ci-ok` to go green (`gh pr checks <pr> --watch`): it runs `bin/check` with the Orca CLI from the `orca-server` Linux release (`.github/workflows/ci.yml`). The maintainer merges with `gh pr merge <pr> -R decadance-dance/orca-plane --merge --delete-branch`. With `-R`, gh deletes only the remote branch and leaves the local checkout alone; without it, gh tries to switch the task's worktree to `develop` to delete the local branch, and git refuses when another checkout already has `develop`. Then, from the primary checkout, run `git pull` and delete the issue's local branch and its worktree, if it had one.
 
@@ -87,7 +87,7 @@ Cutting a release or shipping a hotfix: read [releasing.md](releasing.md) first.
 git checkout -b feature/<n>-<slug> develop
 
 # finish it: cross-model review done; then ci-ok green
-git push -u origin feature/<n>-<slug> && gh pr create --base develop --title "<summary>" --body "Closes #<n>. ..."
+git push -u origin feature/<n>-<slug> && gh pr create --base develop --title "<summary>" --label <the issue's labels> --body "Closes #<n>. ..."
 # maintainer, from the primary checkout:
 gh pr merge <pr> -R decadance-dance/orca-plane --merge --delete-branch
 git pull && git branch -d feature/<n>-<slug>

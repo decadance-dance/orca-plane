@@ -27,3 +27,11 @@ Behavior lives in OpenSpec: `openspec/specs/<capability>/spec.md` is the source 
 
 ## Issues
 Tasks, briefs and open follow-ups live in GitHub Issues of this repo. Deferred work becomes a new issue. A new issue states the outcome and the evidence, not the implementation: what is wrong or missing, for whom, and how to see it. A fix you have in mind goes in as "one option", not as the issue. Name the context the next session needs, in one `Context:` line in the description: the capability spec, the Orca doc or the issue it came from. A PR that finishes an issue says `Closes #<n>` in its description; one that only touches it says `Refs #<n>`.
+
+### Labels
+Every new issue and every PR gets labels when it is created (`gh issue create --label ...`, `gh pr create --label ...`); one you find without them, label before you work on it. A PR copies the labels of the issue it closes.
+- Type, exactly one: `enhancement` (new or changed behavior), `bug` (something does not work as specified), `documentation`, `dependencies`, `chore` (CI, checks, OpenSpec housekeeping, releases). The release notes use it ([release-notes.md](docs/workflow/release-notes.md)).
+- Area, when one of these fits: `area:panel` (list, item detail, filters), `area:start` (Start and the Orca workspaces linked to Plane items), `area:connection` (tokens, OAuth, servers, API versions).
+- Who gains, when one side clearly does: `ux` (the person using the plugin), `ax` (the coding agent working on a Plane item).
+- Status, set and removed as it changes: `blocked` (waits on an outside fix; a comment shows the blocker), `needs-decision` (waits on the maintainer, such as a conflict found in the `Fit:` note).
+- Need another label? Propose it to the maintainer instead of creating it.

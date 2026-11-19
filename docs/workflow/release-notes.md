@@ -35,7 +35,7 @@ Orca Plane <ver>
 - Collect the input: PRs merged since the last tag (`gh pr list --base develop --state merged --search "merged:>=<last tag date>" --json number,title,author,labels`) and the issues with milestone `<ver>` (`gh issue list --milestone <ver> --state closed`) ([releasing.md](releasing.md), Release branch).
 - Use the issues for "The short version" and the area sentences; the PR list stays the source for the per-PR lines.
 - Write "The short version" as 3-6 bullets, each starting with a bold benefit. Say what a user gets, not which files changed.
-- Start every PR line with the PR's labels in bold: `enhancement`, `bug`, `documentation`, `dependencies` (`* **bug** <PR title> ...`). A PR without one of these labels gets no prefix.
+- Start every PR line with the PR's labels in bold: `enhancement`, `bug`, `documentation`, `dependencies`, `chore` (`* **bug** <PR title> ...`). A PR without one of these labels gets no prefix.
 - Put every merged PR in exactly one area: for example Panel, Plane API, Settings, Docs & workflow, Tests & maintenance. Drop an area that has no PRs; add one when a release needs it.
 - Write "Compatibility & upgrade notes" only when there is something to do or know; otherwise drop the section.
 
