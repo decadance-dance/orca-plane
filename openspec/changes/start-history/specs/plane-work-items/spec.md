@@ -16,7 +16,7 @@ The item detail SHALL list the item's earlier Starts, newest first, each with it
 - **THEN** the detail shows no list of earlier Starts
 
 ### Requirement: Start history is kept per connection
-The Start history SHALL survive worker restarts and the removal of workspaces. It SHALL be deleted when the user disconnects, like the connection's other data, and SHALL be capped at 10 entries per item and 500 items, dropping the oldest.
+The Start history SHALL survive worker restarts and the removal of workspaces. It SHALL be deleted when the user disconnects, like the connection's other data, and SHALL be capped at 10 entries per item and 50 items, dropping the oldest, and SHALL stay within Orca's storage limit for one value by dropping the oldest items.
 
 #### Scenario: Worker restart
 - **WHEN** Orca restarts the plugin's worker

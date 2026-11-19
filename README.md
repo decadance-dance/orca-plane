@@ -8,6 +8,7 @@ An [Orca](https://orca.dev) plugin that brings your [Plane](https://plane.so) wo
 - **Branch named after the item:** Start asks Orca for the Git branch `<KEY-N>-<title>`, the name the confirmation shows, and asks the agent to put the key in the title of any pull request it opens, so Plane's Git integration links the branch and the pull request to the item. If a worktree of the same name is made by hand at the same moment, Orca gives the later one `-2`; an existing branch of that name is reused when no worktree uses it.
 - **Agent state:** an item you started shows what the agent in its workspace is doing: Working, Needs input or Done.
 - **Follow the workspace:** switching to a workspace started from an item shows that item in the panel, even after it left your list.
+- **Earlier starts:** the item detail lists the last 10 Starts of the item, newest first, with time, agent, project, workspace name and outcome, also after the workspace is removed. The log stays on this computer and is erased when you disconnect.
 - **Readiness hints:** the Start confirmation warns when the description is empty or short, has no checklist, or has no code reference or link. The hints are local advice and never block Start.
 - **Status bar:** the count of your open items, and how many agents on them wait for you (`12 · 2 waiting`).
 

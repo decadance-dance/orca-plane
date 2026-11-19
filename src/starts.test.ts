@@ -5,7 +5,9 @@ import page from '../test/fixtures/v2-list-page.json' with { type: 'json' }
 import { Connections, connectionId, keyOf } from './connection'
 import type { Items } from './items'
 import { fakeFetch } from './plane/fake-fetch'
-import { Starts } from './starts'
+import { env } from './plane/http'
+import type { Attempt } from './protocol'
+import { append, settle as settleAttempt, Starts } from './starts'
 
 const USER = 'd9371857-5d13-4306-abe9-f3aefb05f40e'
 const RECORD = { token: 'old-token', apiBase: 'https://api.plane.so', appBase: 'https://app.plane.so', hostKind: 'cloud', slug: 'truelogic', userId: USER, userName: 'Dima' }
@@ -39,7 +41,11 @@ function fake(calls: Record<string, (params: unknown) => unknown>, seed: { stora
     },
     storage: {
       get: async (key: string) => storage.get(key),
-      set: async (key: string, value: unknown) => void storage.set(key, value),
+      set: async (key: string, value: unknown) => {
+        // As Orca: a value over 256 KiB is refused.
+        if (new TextEncoder().encode(JSON.stringify(value)).length > 262_144) throw hostError('too_large', 'value exceeds 262144 bytes')
+        storage.set(key, value)
+      },
       delete: async (key: string) => void storage.delete(key),
       keys: async () => [...storage.keys()]
     },
@@ -117,6 +123,7 @@ test('a Start that completes after an account switch writes nothing into the new
   await settle()
   const newId = (await conns.current())!.id
   assert.equal(f.storage.get(keyOf(newId, 'starts')), undefined)
+  assert.equal(f.storage.get(keyOf(newId, 'history')), undefined)
   assert.deepEqual(await starts.all(), {})
 })
 
@@ -182,4 +189,185 @@ test('a failed create missing from a truncated list is unknown, not failed witho
   assert.deepEqual(await starts.start(START), { accepted: true })
   await settle()
   assert.deepEqual((await starts.all())['DIOGEN-449'], { kind: 'unknown', name: NAME, projectId: 'p1' })
+})
+
+// --- start-history: the log (tasks 1.1 and 1.2) ---
+
+const ROW = { id: 'w1', kind: 'worktree', name: NAME, projectId: 'p1', path: '/w', branch: 'b', hostId: 'local' }
+const attempt = (over: Partial<Attempt> = {}): Attempt => ({
+  id: '1',
+  at: 1,
+  agent: 'claude',
+  project: 'repo',
+  projectId: 'p1',
+  workspace: NAME,
+  outcome: 'pending',
+  ...over
+})
+
+test('history: an append, an update by id done twice, the 10-per-item and the 50-item caps', () => {
+  const history: Record<string, Attempt[]> = {}
+  append(history, 'A-1', attempt())
+  assert.deepEqual(Object.entries(history), [['A-1', [attempt()]]])
+  settleAttempt(history, 'A-1', '1', 'created')
+  const once = JSON.stringify(history)
+  settleAttempt(history, 'A-1', '1', 'created')
+  settleAttempt(history, 'A-1', 'gone', 'failed')
+  assert.equal(JSON.stringify(history), once)
+  assert.equal(history['A-1'][0].outcome, 'created')
+
+  for (let at = 2; at <= 12; at++) append(history, 'A-1', attempt({ id: String(at), at }))
+  assert.deepEqual(history['A-1'].map((entry) => entry.at), [3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+
+  // 50 more items, all newer than A-1 (newest 12) but B-0: the item whose newest attempt is oldest goes.
+  for (let i = 0; i < 50; i++) append(history, `B-${i}`, attempt({ id: String(i), at: i === 0 ? 0 : 100 + i }))
+  assert.equal(Object.keys(history).length, 50)
+  assert.equal(history['B-0'], undefined)
+  assert.ok(history['A-1'] && history['B-1'] && history['B-49'])
+  append(history, 'B-50', attempt({ at: 1000 }))
+  assert.equal(Object.keys(history).length, 50)
+  assert.equal(history['A-1'], undefined)
+})
+
+const twoItems = {
+  state: async () => ({ items: [{ key: 'DIOGEN-449', title: 'name' }, { key: 'DIOGEN-450', title: 'other' }] })
+} as unknown as Items
+
+test('history: two Starts of different items at once are both kept, with agent, project name and workspace', async () => {
+  const f = fake({
+    'project.list': () => ({ projects: [{ id: 'p1', name: 'repo', kind: 'git', hostId: 'local' }] }),
+    'workspace.create': () => ({ workspaceId: 'w1' }),
+    'workspace.list': () => ({ workspaces: [], truncated: false })
+  })
+  const starts = new Starts(f.orca, new Connections(f.orca), twoItems)
+  const answers = await Promise.all([
+    starts.start({ ...START, agent: 'claude' }),
+    starts.start({ ...START, key: 'DIOGEN-450', name: 'DIOGEN-450-other' })
+  ])
+  assert.deepEqual(answers, [{ accepted: true }, { accepted: true }])
+  await settle()
+  const first = await starts.history('DIOGEN-449')
+  assert.equal(first.length, 1)
+  assert.deepEqual(
+    { ...first[0], id: '', at: 0 },
+    { id: '', at: 0, agent: 'claude', project: 'repo', projectId: 'p1', workspace: NAME, outcome: 'created' }
+  )
+  assert.notEqual(first[0].id, (await starts.history('DIOGEN-450'))[0].id)
+  const second = await starts.history('DIOGEN-450')
+  assert.deepEqual([second.length, second[0].agent, second[0].workspace, second[0].outcome], [1, null, 'DIOGEN-450-other', 'created'])
+})
+
+test('history: a refused create is failed; the project falls back to its id when Orca cannot list projects', async () => {
+  const f = fake({
+    'workspace.list': () => ({ workspaces: [], truncated: false }),
+    'workspace.create': () => {
+      throw hostError('invalid_params', 'No such project')
+    }
+  })
+  const starts = new Starts(f.orca, new Connections(f.orca), items)
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  await settle()
+  const [entry] = await starts.history('DIOGEN-449')
+  assert.deepEqual([entry.outcome, entry.project], ['failed', 'p1'])
+})
+
+test('history: a worker stop after the pending write resolves by name on reconcile; an attempt without a state too', async () => {
+  const cases = [
+    { name: 'found', rows: [ROW], state: true, outcome: 'created' },
+    { name: 'missing from a complete list', rows: [OTHER_ROW], state: true, outcome: 'failed' },
+    { name: 'state never written', rows: [ROW], state: false, outcome: 'created' },
+    { name: 'state never written, missing', rows: [OTHER_ROW], state: false, outcome: 'failed' }
+  ]
+  for (const c of cases) {
+    const id = await oldId()
+    const f = fake(
+      { 'workspace.list': () => ({ workspaces: c.rows, truncated: false }) },
+      {
+        storage: {
+          [keyOf(id, 'history')]: { 'DIOGEN-449': [attempt({ id: '7', at: 7 })] },
+          ...(c.state ? { [keyOf(id, 'starts')]: { 'DIOGEN-449': { kind: 'pending', name: NAME, projectId: 'p1', startedAt: 7 } } } : {})
+        }
+      }
+    )
+    // The restarted worker.
+    const starts = new Starts(f.orca, new Connections(f.orca), items)
+    await starts.recover()
+    assert.equal((await starts.history('DIOGEN-449'))[0].outcome, 'unknown', c.name)
+    await starts.all()
+    assert.equal((await starts.history('DIOGEN-449'))[0].outcome, c.outcome, c.name)
+  }
+})
+
+test('history: a truncated list keeps an unknown attempt it does not show', async () => {
+  const f = fake(
+    { 'workspace.list': () => ({ workspaces: [OTHER_ROW], truncated: true }) },
+    { storage: { [keyOf(await oldId(), 'history')]: { 'DIOGEN-449': [attempt({ outcome: 'unknown' })] } } }
+  )
+  const starts = new Starts(f.orca, new Connections(f.orca), items)
+  await starts.all()
+  assert.equal((await starts.history('DIOGEN-449'))[0].outcome, 'unknown')
+})
+
+test('review 1: a repeated clock reading does not let one Start overwrite the outcome of another', async () => {
+  const now = env.now
+  env.now = () => 5
+  try {
+    let refuse = false
+    let rows = [ROW]
+    const f = fake({
+      'workspace.create': () => {
+        if (refuse) throw hostError('invalid_params', 'No such project')
+        return { workspaceId: 'w1' }
+      },
+      'workspace.list': () => ({ workspaces: rows, truncated: false })
+    })
+    const starts = new Starts(f.orca, new Connections(f.orca), items)
+    assert.deepEqual(await starts.start(START), { accepted: true })
+    await settle()
+    // The workspace is removed; the next Start, at the same millisecond, is refused.
+    rows = []
+    await starts.dropWorkspace(['w1'])
+    refuse = true
+    assert.deepEqual(await starts.start(START), { accepted: true })
+    await settle()
+    const attempts = await starts.history('DIOGEN-449')
+    assert.deepEqual(attempts.map((entry) => entry.outcome), ['created', 'failed'])
+    assert.notEqual(attempts[0].id, attempts[1].id)
+  } finally {
+    env.now = now
+  }
+})
+
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length
+
+test('review 1: a Start is still recorded when the history was close to the 256 KiB storage limit', async () => {
+  // As the reviewer seeded it: items with five attempts each, just under the limit.
+  const seed: Record<string, Attempt[]> = {}
+  for (let i = 0; bytes(seed) < 262_144 - 2_000; i++) {
+    seed[`OLD-${i}`] = [1, 2, 3, 4, 5].map((n) => attempt({ id: `${i}-${n}`, at: n, workspace: `OLD-${i}-a-workspace-name-of-some-length` }))
+  }
+  // One more item, padded to 50 bytes under the limit: the next attempt cannot fit beside it.
+  seed.LAST = [attempt({ id: 'last', at: 1, workspace: '' })]
+  seed.LAST[0].workspace = 'w'.repeat(262_144 - 50 - bytes(seed))
+  assert.equal(bytes(seed), 262_144 - 50)
+  const f = fake(
+    { 'workspace.create': () => ({ workspaceId: 'w1' }), 'workspace.list': () => ({ workspaces: [], truncated: false }) },
+    { storage: { [keyOf(await oldId(), 'history')]: seed } }
+  )
+  const starts = new Starts(f.orca, new Connections(f.orca), items)
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  await settle()
+  assert.deepEqual((await starts.history('DIOGEN-449')).map((entry) => entry.outcome), ['created'])
+})
+
+test('history: the byte guard drops the oldest items while the value is over 200 KiB, never the newest', () => {
+  const history: Record<string, Attempt[]> = {}
+  const project = 'p'.repeat(1_000)
+  for (let i = 0; i < 50; i++) {
+    for (let n = 0; n < 10; n++) append(history, `A-${i}`, attempt({ id: `${i}-${n}`, at: i * 100 + n, project }))
+  }
+  assert.ok(bytes(history) <= 200 * 1024)
+  assert.ok(Object.keys(history).length < 50)
+  assert.ok(history['A-49'])
+  assert.equal(history['A-0'], undefined)
 })

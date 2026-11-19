@@ -64,6 +64,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('items.list', (input) => items.list(input?.force === true))
   orca.panels.handle('item.get', ({ key, projectId }) => items.detail(key, projectId))
   orca.panels.handle('starts.get', () => starts.all())
+  orca.panels.handle('history.get', ({ key }) => starts.history(key))
   orca.panels.handle('links.get', () => links.byKey())
   orca.panels.handle('item.start', (input) => starts.start(input))
 
