@@ -45,6 +45,7 @@ import {
   type OrcaProject,
   type StartState
 } from './protocol'
+import { readiness } from './readiness'
 import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
@@ -404,6 +405,23 @@ function StartButton({ item, compact = false }: { item: ItemRef; compact?: boole
   )
 }
 
+/** Advice above the prompt (design R2 of start-readiness-hints); it never disables Confirm. */
+function ReadinessHints({ description }: { description: string }) {
+  const hints = readiness(description)
+  if (hints.length === 0) return null
+  return (
+    <Callout tone="warning" title="This ticket may be hard for an agent">
+      <Stack gap="xs">
+        {hints.map((hint) => (
+          <Text key={hint.id} size="sm">
+            {hint.message}
+          </Text>
+        ))}
+      </Stack>
+    </Callout>
+  )
+}
+
 function Confirmation({ current }: { current: Loaded }) {
   const project = (read(projects) ?? []).find((entry) => entry.id === read(projectId))
   const error = read(startError)
@@ -418,6 +436,7 @@ function Confirmation({ current }: { current: Loaded }) {
             <Text size="sm">
               {`Workspace ${workspaceName(current.item.key, current.item.title)}`}
             </Text>
+            <ReadinessHints description={current.item.description} />
             <Textarea label="Prompt" rows={8} value={read(prompt)} onChange={(value) => set(prompt, value)} />
           </Stack>
         ) : null}

@@ -23,3 +23,5 @@ Out of scope: rewriting or improving the ticket (that would be writing to Plane,
 - `src/readiness.ts` (new): a pure function from an item's description to a list of hints.
 - `src/panel.tsx`: `Confirmation` shows the hints.
 - Tests: `src/readiness.test.ts` (new), `src/panel.test.tsx`.
+- `README.md`: one line on readiness hints.
+- `openspec/changes/start-readiness-hints/tasks.md`: task tracking.
