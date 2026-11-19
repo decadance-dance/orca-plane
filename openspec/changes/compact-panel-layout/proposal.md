@@ -9,10 +9,11 @@ The list spends two to four lines on each item (title, a meta line, a row of tag
 - The search field opens from the Search icon and stays shown while it holds text.
 - The tags leave the rows. The Filter icon opens a strip of the priorities and labels present in the loaded list, as pressable tags with today's rules; it stays shown while a tag is active. An active tag is filled and checked, so it reads as active in both themes (#64).
 - State groups are small upper-case headers (state name, count) with a separator between groups, in today's order, and no longer collapse.
+- A project draws at most 250 rows, then says how many there are: Orca refuses a panel of more than 5000 nodes.
 - A row is one line: the priority as a dot in its tone, the key in an aligned column, the truncated title, and the Start / Open workspace icon. No badges: the icon shows the agent's state (agent, bell, check) and a failed Start (a danger warning), and is named for it.
 - The agent state is named as the agent's: "Agent working", "Agent needs input", "Agent done" on the row's icon, an "Agent" field in the detail, so it no longer reads as the item's state (#62).
 - No completeness badge: a complete list shows "updated …" at the bottom; a partial, stale or failed list names its state once, as one line `<State> · <reason>` in its tone (#63).
-- The detail drops the list header and opens with "← All items", then a muted, framed header (key, an outlined priority pill, title, State, Assignees, Labels, Updated relative to now, Agent), then an action row (Start work or Open workspace filling the row, and a "Plane" button named "Open in Plane"), then a failed Start and the Start confirmation, then the description, unframed, and the earlier Starts.
+- The detail drops the list header and opens with "← All items", then a muted, framed header (key, an outlined priority pill, title, State, Assignees, Labels, Updated relative to now, Agent), then an action row (Start work or Open workspace filling the row, and a "Plane" button with the tooltip "Open in Plane"), then a failed Start and the Start confirmation, then the description, unframed, and the earlier Starts.
 
 Out of scope: any change to how the list is fetched, sorted or filtered.
 

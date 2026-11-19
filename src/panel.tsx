@@ -601,52 +601,56 @@ function Confirmation({ current }: { current: Loaded }) {
  *  sits beside it, since a pressable ListItem cannot hold other controls. `keyWidth` aligns the titles. */
 function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
   const asked = read(confirmation)
-  return (
-    <Stack gap="xs">
-      {/* The title shrinks and truncates; the rest keeps its size, so the row never overflows. */}
-      <Box direction="row" align="center" gap="xs" width="100%" minWidth={0}>
-        <Box grow shrink minWidth={0}>
-          <List label={item.key}>
-            <ListItem key={item.key} onPress={() => openItem(item)}>
-              <Box direction="row" align="center" gap="sm" width="100%" minWidth={0}>
-                <Box shrink={false}>
-                  {item.priority === 'none' ? (
-                    <Text key={`priority:${item.key}`} size="xs" muted>
-                      ○
-                    </Text>
-                  ) : (
-                    <Text key={`priority:${item.key}`} size="xs" tone={PRIORITY_TONE[item.priority]}>
-                      ●
-                    </Text>
-                  )}
-                </Box>
-                <Box shrink={false} width={keyWidth}>
-                  <Text size="xs" muted>
-                    {item.key}
-                  </Text>
-                </Box>
-                <Box grow shrink minWidth={0}>
-                  <Text size="sm" weight="medium" truncate>
-                    {item.title}
-                  </Text>
-                </Box>
+  const asking = asked?.key === item.key
+  // Orca refuses a panel of more than 5000 nodes: a row spends as few as it can (no wrapper around the dot or
+  // the icon, no Stack unless a confirmation follows), and Groups draws at most MAX_ROWS of them.
+  const line = (
+    // The title shrinks and truncates; the rest keeps its size, so the row never overflows.
+    <Box direction="row" align="center" gap="xs" width="100%" minWidth={0}>
+      <Box grow shrink minWidth={0}>
+        <List label={item.key}>
+          <ListItem key={item.key} onPress={() => openItem(item)}>
+            <Box direction="row" align="center" gap="sm" width="100%" minWidth={0}>
+              {item.priority === 'none' ? (
+                <Text key={`priority:${item.key}`} size="xs" muted>
+                  ○
+                </Text>
+              ) : (
+                <Text key={`priority:${item.key}`} size="xs" tone={PRIORITY_TONE[item.priority]}>
+                  ●
+                </Text>
+              )}
+              <Box shrink={false} width={keyWidth}>
+                <Text size="xs" muted>
+                  {item.key}
+                </Text>
               </Box>
-            </ListItem>
-          </List>
-        </Box>
-        {asked?.key === item.key ? null : (
-          <Box shrink={false}>
-            <StartButton key={`start:${item.key}`} item={item} compact />
-          </Box>
-        )}
+              <Box grow shrink minWidth={0}>
+                <Text size="sm" weight="medium" truncate>
+                  {item.title}
+                </Text>
+              </Box>
+            </Box>
+          </ListItem>
+        </List>
       </Box>
-      {asked?.key === item.key ? <Confirmation current={asked} /> : null}
+      {asking ? null : <StartButton key={`start:${item.key}`} item={item} compact />}
+    </Box>
+  )
+  return asking ? (
+    <Stack gap="xs">
+      {line}
+      <Confirmation current={asked} />
     </Stack>
+  ) : (
+    line
   )
 }
 
 // limit: Orca has no monospace Text, so the key column is sized from the longest key at about 7 px a character
 // of `xs` text; a very wide key just pushes its title along.
+/** Rows drawn per project: Orca refuses a panel of more than 5000 nodes, and the fetch cap is 1000 items. */
+const MAX_ROWS = 250
 const keyWidthOf = (items: Item[]) => Math.max(0, ...items.map((item) => item.key.length)) * 7 + 4
 
 function ListView({ state }: { state: ItemsState | null }) {
@@ -660,7 +664,9 @@ function ListView({ state }: { state: ItemsState | null }) {
   // The newest item names it, so the name is one fixed choice.
   const names = new Map<string, string>()
   for (const item of state.items) if (!names.has(item.projectId)) names.set(item.projectId, prefix(item.key))
-  const tabs = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  // limit: Orca's Select drops every option past 500, so only the first 500 projects by name are offered;
+  // items in more than 500 projects at once are not expected.
+  const tabs = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1])).slice(0, 500)
   const selected = tabs.some(([id]) => id === read(tab)) ? (read(tab) ?? undefined) : tabs[0]?.[0]
   const inTab = shown.filter((item) => item.projectId === selected)
   const failedOpen = read(openError)
@@ -679,7 +685,6 @@ function ListView({ state }: { state: ItemsState | null }) {
         />
       ) : null}
       {read(filterShown) || active.length > 0 ? <FilterStrip listed={state.items} /> : null}
-      {read(moreShown) || moreHeld() ? <More /> : null}
       {/* A complete list shows only its update time, at the bottom; any other state is named once, with its
           reason, as text: a Callout without a title still draws Orca's own "Warning" (design P8). */}
       {incomplete ? (
@@ -868,13 +873,20 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
     )
   }
   const keyWidth = keyWidthOf(entries)
+  let room = MAX_ROWS
   const groups = stateOrder(all)
     .map((name) => ({ name, rows: entries.filter((item) => (item.stateName ?? UNKNOWN_STATE) === name) }))
     .filter((group) => group.rows.length > 0)
+    .map((group) => {
+      const drawn = group.rows.slice(0, room)
+      room -= drawn.length
+      return { ...group, drawn }
+    })
+    .filter((group) => group.drawn.length > 0)
   // A plain header per state, a separator between states; groups do not collapse (design P5).
   return (
     <Stack gap="sm">
-      {groups.map(({ name, rows }, index) => (
+      {groups.map(({ name, rows, drawn }, index) => (
         <Stack key={name} gap="xs">
           {index > 0 ? <Separator /> : null}
           <Box key={`group:${name}`} direction="row" justify="between" align="center" gap="xs" paddingX="sm" minWidth={0}>
@@ -884,11 +896,16 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
               {String(rows.length)}
             </Text>
           </Box>
-          {rows.map((item) => (
+          {drawn.map((item) => (
             <ItemRow key={item.key} item={item} keyWidth={keyWidth} />
           ))}
         </Stack>
       ))}
+      {entries.length > MAX_ROWS ? (
+        <Text key="rows-capped" size="xs" muted>
+          {`Showing ${MAX_ROWS} of ${entries.length}. Search or filter to see the rest.`}
+        </Text>
+      ) : null}
     </Stack>
   )
 }
@@ -1115,6 +1132,8 @@ export default function Panel() {
           <Toggle shown={moreShown} held={moreHeld()} icon="more" name="actions" />
         </Box>
       </Box>
+      {/* Above the list, so Disconnect is reachable while the first list loads. */}
+      {read(moreShown) || moreHeld() ? <More /> : null}
       <ListView state={read(items)} />
     </Stack>
   )

@@ -18,6 +18,10 @@ The plugin SHALL list the work items of the connected workspace that are assigne
 - **WHEN** open items assigned to me exist in several projects
 - **THEN** each project can be picked in the project switcher, and every item is listed under its project, in its state's group, on one line with its priority, key and title
 
+#### Scenario: More items than the panel draws
+- **WHEN** the selected project has more than 250 items that pass the search and the tags
+- **THEN** the first 250, in the list's order, are drawn, followed by a line saying how many there are and that search or a tag narrows them
+
 #### Scenario: Closed or unassigned items
 - **WHEN** an item is completed, cancelled, or not assigned to me
 - **THEN** it is not listed
@@ -68,7 +72,7 @@ The panel SHALL offer a filter control that shows the priorities and labels pres
 - **THEN** the tags are shown, with that tag filled
 
 ### Requirement: Item detail
-Opening an item SHALL show, first, a header with its key, priority, title, state, assignees, labels and last update (relative to now); right below it, its actions: Start (or Open workspace) as the main action, and a control named "Open in Plane" that opens the item in Plane's web app; then its description. The description SHALL keep its formatting: paragraphs, headings, lists, links, code and quotes. Each list row SHALL open its item when pressed, and the detail SHALL offer a way back to the list.
+Opening an item SHALL show, first, a header with its key, priority, title, state, assignees, labels and last update (relative to now); right below it, its actions: Start (or Open workspace) as the main action, and a control that opens the item in Plane's web app, labelled "Plane" with the tooltip "Open in Plane"; then its description. The description SHALL keep its formatting: paragraphs, headings, lists, links, code and quotes. Each list row SHALL open its item when pressed, and the detail SHALL offer a way back to the list.
 
 #### Scenario: Open an item
 - **WHEN** the user opens an item from the list
@@ -79,7 +83,7 @@ Opening an item SHALL show, first, a header with its key, priority, title, state
 - **THEN** the detail opens, then the list shows again
 
 #### Scenario: Open in Plane
-- **WHEN** the user presses "Open in Plane"
+- **WHEN** the user presses "Plane" in the detail
 - **THEN** Plane's page for that item opens in the browser, at `<app origin>/<slug>/browse/<KEY-N>/`
 
 ### Requirement: Show the agent state of a linked item

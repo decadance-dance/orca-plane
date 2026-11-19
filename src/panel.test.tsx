@@ -1331,3 +1331,36 @@ test('review 2: a lookup reply that comes after the user opened a Start confirma
   assert.equal(detailOf(view, 'WEB-8', 'Late'), null)
   await view.unmount()
 })
+
+// --- Orca's limits: 5000 nodes a panel, 500 options a Select ---
+
+test('a list at the fetch cap draws 250 rows and says so, also with the filter strip open', async () => {
+  const items = Array.from({ length: 1000 }, (_, i) => ({ ...item(`WEB-${i + 1}`, 'started', `T${i}`, [`l${i % 100}`]), priority: 'none' as const }))
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  assert.equal(rows(view).length, 250)
+  assert.equal(view.find({ testId: 'rows-capped' })?.text, 'Showing 250 of 1000. Search or filter to see the rest.')
+  // The group header still counts every item of its state.
+  assert.equal(view.find({ testId: 'count:In Progress' })?.text, '1000')
+  await view.press({ label: 'Show filters' })
+  assert.ok(view.find({ text: 'l99' }))
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('the project picker offers at most 500 projects', async () => {
+  const items = Array.from({ length: 501 }, (_, i) => item(`P${String(i).padStart(3, '0')}-1`, 'started'))
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  const options = projectOptions(view)
+  assert.equal(options.length, 500)
+  assert.equal(options[499], 'P499 · 1 item')
+  assert.deepEqual([view.errors, view.warnings], [[], []])
+  await view.unmount()
+})
+
+test('the ⋯ part opens while the first list loads, so Disconnect is reachable', async () => {
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items: [], completeness: null, refreshing: true }) }) })
+  await view.press({ label: 'Show actions' })
+  assert.ok(view.find({ label: 'Open by key or URL' }))
+  assert.ok(view.find({ text: 'Disconnect' }))
+  await view.unmount()
+})
