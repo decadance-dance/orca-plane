@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Later agent prompts name the linked item
-When Orca is about to send a prompt to an agent in a terminal that the plugin knows belongs to a workspace linked to an item, and the prompt does not contain the item key, the plugin SHALL add one leading line that names the item key and its Plane URL. The line SHALL hold no text taken from the ticket. Prompts to other terminals SHALL pass unchanged.
+When Orca submits a prompt to an agent through its `agent.prompt.before` hook (an orchestration dispatch, `orca terminal send` to an agent) in a terminal that the plugin knows belongs to a workspace linked to an item, and the prompt does not contain the item key, the plugin SHALL add one leading line that names the item key and its Plane URL. The line SHALL hold no text taken from the ticket. Prompts to other terminals SHALL pass unchanged. A prompt Orca does not pass through that hook, such as the one given to `orca agent launch --prompt` in Orca 1.4.262, is out of the plugin's reach and gets no line.
 
 #### Scenario: Orchestration prompt in a linked workspace
 - **WHEN** Orca dispatches a prompt without the text `DIOGEN-449` to an agent in a terminal of the workspace linked to `DIOGEN-449`, and that terminal existed when the link became known or was reported to the plugin since

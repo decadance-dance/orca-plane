@@ -26,11 +26,14 @@ export function isWorkspaceName(key: string, name: unknown): name is string {
   return typeof name === 'string' && (name === key || name.startsWith(`${key}-`)) && workspaceName(key, name.slice(key.length + 1)) === name
 }
 
+/** Whether a line, without its leading `\`s, equals a fence line. */
+const isFence = (line: string) => line.replace(/^\\+/, '') === FENCE_HEADER || line.replace(/^\\+/, '') === FENCE_FOOTER
+
 /** Lines that equal a fence line get a leading `\`, so only the real footer ends the block. */
 function escapeFence(text: string): string {
   return text
     .split(/\r\n|\r|\n/)
-    .map((line) => (line.replace(/^\\+/, '') === FENCE_HEADER || line.replace(/^\\+/, '') === FENCE_FOOTER ? `\\${line}` : line))
+    .map((line) => (isFence(line) ? `\\${line}` : line))
     .join('\n')
 }
 
@@ -44,7 +47,12 @@ export function fence(title: string, description: string, state: string, more: M
   if (more.parent) head.push(`Parent: ${more.parent.key ? `${more.parent.key} ` : ''}${more.parent.title}`)
   let body = escapeFence(`${head.join('\n')}\n\n${description || '(no description)'}`)
   const room = FENCE_CAP - FENCE_HEADER.length - FENCE_FOOTER.length - 2
-  if (body.length > room) body = `${body.slice(0, room - TRUNCATED.length - 1)}\n${TRUNCATED}`
+  if (body.length > room) {
+    body = body.slice(0, room - TRUNCATED.length - 1)
+    // The cut can leave a longer ticket line equal to a fence line: one character less, and it is not.
+    if (isFence(body.slice(body.lastIndexOf('\n') + 1))) body = body.slice(0, -1)
+    body = `${body}\n${TRUNCATED}`
+  }
   return `${FENCE_HEADER}\n${body}\n${FENCE_FOOTER}`
 }
 

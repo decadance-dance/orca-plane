@@ -85,3 +85,19 @@ test('the cap holds with priority, labels and a parent', () => {
   assert.ok(block.length <= FENCE_CAP, String(block.length))
   assert.ok(block.endsWith(`[truncated]\n${FENCE_FOOTER}`))
 })
+
+test('review 2: a cut never turns a longer ticket line into a second footer or header', () => {
+  const room = FENCE_CAP - FENCE_HEADER.length - FENCE_FOOTER.length - 2
+  const cut = room - '[truncated]'.length - 1
+  for (const fenceLine of [FENCE_FOOTER, FENCE_HEADER]) {
+    const prefix = 'Title: t\nState: s\nParent: '
+    const filler = 'x'.repeat(cut - prefix.length - 1 - fenceLine.length)
+    const block = fence('t', 'd', 's', { parent: { key: null, title: `${filler}\n${fenceLine}${'y'.repeat(20_000)}` } })
+    const lines = block.split('\n')
+    assert.ok(block.length <= FENCE_CAP, String(block.length))
+    assert.equal(lines.filter((line) => line === FENCE_FOOTER).length, 1)
+    assert.equal(lines.filter((line) => line === FENCE_HEADER).length, 1)
+    assert.equal(lines.at(-1), FENCE_FOOTER)
+    assert.equal(lines.at(-2), '[truncated]')
+  }
+})

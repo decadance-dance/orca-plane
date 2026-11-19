@@ -32,8 +32,14 @@ export class Links {
   private snapshot = '{}'
   /** The connection's app base and slug, for item URLs (A1). */
   private base: { appBase: string; slug: string } | null = null
-  /** Another id form of a workspace -> the id `workspace.list` gives it (A4: the launch hook names only `<projectId>::<path>`). */
+  /** Another id form of a workspace -> the id `workspace.list` gives it (A4: the launch hook names only `<projectId>::<path>`), from events. */
   private aliases = new Map<string, string>()
+  /** The same from the last `workspace.list` rows; an event's pair wins over it, as the newer fact. */
+  private listed = new Map<string, string>()
+  /** Workspaces Orca removed: a path can be reused, and a list sent before the removal must not bring them back. */
+  private gone = new Set<string>()
+  /** Whether the last `workspace.list` for the id pairs failed, so the next seed lists again. */
+  private listAgain = false
   /** Links handed over by `Starts` when `workspace.create` returns, until the Start state stores them (A4). */
   private adopted = new Map<string, string>()
   /** Linked workspaces whose terminals were listed once (A3). */
@@ -95,17 +101,22 @@ export class Links {
    */
   async seed(host: OrcaWorkerApi['host']): Promise<void> {
     const fresh = [...this.keys.keys(), ...this.adopted.keys()].filter((id) => !this.seeded.has(id))
-    if (fresh.length === 0) return
+    if (fresh.length === 0 && !this.listAgain) return
     for (const id of fresh) this.seeded.add(id)
+    this.listAgain = false
     try {
       const { workspaces } = await host.call('workspace.list')
+      const listed = new Map<string, string>()
       for (const row of workspaces) {
         // limit: Orca does not document the `<projectId>::<path>` form; the live probe
         // (test/fixtures/orca-ids.json) pins it. Only an exact match on it is ever used.
-        if (row.projectId && row.path) this.aliases.set(`${row.projectId}::${row.path}`, row.id)
+        // A row of a workspace removed since is stale: the list may have been sent before the removal.
+        if (row.projectId && row.path && !this.gone.has(row.id)) listed.set(`${row.projectId}::${row.path}`, row.id)
       }
+      this.listed = listed
     } catch {
-      // The events' id pairs still apply.
+      // The events' id pairs still apply; the next seed lists again.
+      this.listAgain = true
     }
     await Promise.all(
       fresh.map(async (workspaceId) => {
@@ -133,8 +144,10 @@ export class Links {
   private item(ids: string[]): ItemRef | null {
     if (!this.base) return null
     for (const id of ids) {
-      for (const candidate of [id, this.aliases.get(id)]) {
-        const key = candidate === undefined ? undefined : (this.keys.get(candidate) ?? this.adopted.get(candidate))
+      for (const candidate of [id, this.aliases.get(id) ?? this.listed.get(id)]) {
+        // A removed workspace's link waits for its Start state to drop it; the hooks drop it at once.
+        if (candidate === undefined || this.gone.has(candidate)) continue
+        const key = this.keys.get(candidate) ?? this.adopted.get(candidate)
         if (key) return { key, url: browseUrl(this.base.appBase, this.base.slug, key) }
       }
     }
@@ -174,7 +187,11 @@ export class Links {
       this.adopted.delete(id)
       this.seeded.delete(id)
     }
-    for (const [other, id] of this.aliases) if (ids.includes(other) || ids.includes(id)) this.aliases.delete(other)
+    // limit: grows by one entry per id form of each workspace removed while the worker runs.
+    if (event.workspaceListId) this.gone.add(event.workspaceListId)
+    for (const pairs of [this.aliases, this.listed]) {
+      for (const [other, id] of pairs) if (ids.includes(other) || ids.includes(id)) pairs.delete(other)
+    }
     for (const [terminal, of] of this.terminals) if (of.some((id) => ids.includes(id))) this.terminals.delete(terminal)
     this.publish()
   }

@@ -290,3 +290,44 @@ test('a removed workspace drops its id pair, its terminals and a handed-over lin
   assert.equal(model.launch({ workspaceId: 'p1::/a', terminalId: 't2' }), null)
   assert.equal(model.itemOfTerminal('t1'), null)
 })
+
+test('review 1: a workspace.list snapshot that answers after a removal links neither the old item nor a replacement at the same path', async () => {
+  const row = (record('workspace.list.rows').rows as Record<string, unknown>[])[0]
+  for (const replaced of [true, false]) {
+    const { model } = links({ 'OLD-1': created(probe.returnedId) })
+    model.connection(CLOUD)
+    let answer!: (rows: unknown) => void
+    const held = new Promise((resolve) => (answer = resolve))
+    const host = {
+      call: async (method: string) =>
+        method === 'workspace.list' ? { workspaces: await held, truncated: false } : { terminals: [], truncated: false }
+    } as never
+    const seeding = model.seed(host)
+    // Orca removes the workspace; the Start state still links it until its removal is written.
+    model.removed(record('workspace.removed') as never)
+    if (replaced) model.created({ workspaceId: launch.workspaceId, workspaceListId: 'replacement', kind: 'worktree', path: '/x', branch: 'x' })
+    assert.equal(model.launch({ ...launch, terminalId: 't-new' }), null)
+    answer([row])
+    await seeding
+    assert.equal(model.launch({ ...launch, terminalId: 't-new' }), null, `replaced: ${replaced}`)
+    assert.equal(model.itemOfTerminal('t-new'), null)
+  }
+})
+
+test('review 3: a failed workspace.list is retried by the next seed', async () => {
+  const row = (record('workspace.list.rows').rows as Record<string, unknown>[])[0]
+  const { model } = links({ 'DIOGEN-449': created(probe.returnedId) })
+  model.connection(CLOUD)
+  let lists = 0
+  const host = {
+    call: async (method: string) => {
+      if (method !== 'workspace.list') return { terminals: [], truncated: false }
+      if (++lists === 1) throw new Error('host busy')
+      return { workspaces: [row], truncated: false }
+    }
+  } as never
+  await model.seed(host)
+  assert.equal(model.launch({ ...launch, terminalId: 'new-tab' }), null)
+  await model.seed(host)
+  assert.equal(model.launch({ ...launch, terminalId: 'new-tab' })?.key, 'DIOGEN-449')
+})
