@@ -13,9 +13,9 @@
 ### B1. A narrow `workspace.create.before` hook, gated by a live probe
 `Starts` keeps an in-memory map `pending: (projectId, name) → branch`. An entry is added right before `workspace.create` is called and removed when the call settles. The hook changes `branch` to the pending name only when `kind === 'worktree'` and `(projectId, name)` is in that map. It decides from memory (no awaited call), so it finishes well within 2 s, and a throw passes the create unchanged.
 
-The hook cannot tell a Start's create from a manual create with the same name in the same project during the seconds a Start is pending. Both get the same branch, and Git refuses a second worktree on an existing branch, so whichever create comes second fails with Orca's error. The spec states this outcome. A failed Start is shown and reconciled as today; no workspace ends up on an unexpected branch.
+The hook cannot tell a Start's create from a manual create with the same name in the same project during the seconds a Start is pending, so both get the same branch. The task 1.1 gate (comment on #16, Orca 1.4.262) showed that Orca fails neither create: it gives the second one `<name>-2` for its path and branch. So the Start's branch is exact unless a same-named worktree is made by hand in those seconds; then the Start gets `<name>-2`. The spec states this outcome; no other workspace ends up on a branch it did not ask for.
 
-Task 1.1 is a gate. In a live Orca it proves (a) that the branch set by the hook is the final ref (Orca adds no prefix afterwards), (b) that a concurrent manual create with a different name keeps Orca's branch, and (c) that a concurrent manual create with the same name makes exactly one of the two fail. If (a) fails, the executor stops, reports on #16 with the observed branch, and asks the maintainer whether to drop the change or relax the requirement to "contains the key". The executor does not ship a partial exact-branch requirement.
+Task 1.1 was a gate. In a live Orca it proved (a) that the branch set by the hook is the final ref (Orca adds no prefix afterwards) and that the hook sees `name` exactly as the plugin passed it, (b) that a concurrent manual create with a different name keeps Orca's branch, and (c) what a concurrent manual create with the same name does: both succeed, the second with `-2`. Had (a) failed, the executor would have stopped and asked whether to drop the change or relax the requirement to "contains the key".
 
 Alternative: a hook that rewrites every create whose name looks like `KEY-N-…`. Rejected: it would touch workspaces the user made by hand.
 
@@ -27,5 +27,5 @@ Alternative: a hook that rewrites every create whose name looks like `KEY-N-…`
 
 ## Risks / Trade-offs
 
-- [The branch already exists in the repo, for example after a removed workspace] → Orca decides whether to reuse it or refuse; a refusal surfaces as a failed Start with Orca's message, as today. Task 1.1 records the observed behavior in the PR.
-- [Orca normalizes `name` before the hook] → the map is keyed by the name exactly as passed; task 1.1 checks that the hook sees the same text. If it does not, key the map by `workspaceName` output and compare after the same normalization.
+- [The branch already exists in the repo with no worktree, for example after a workspace removed without its branch] → Orca reuses it as it is, old commits included (gate on #16). No extra mechanism: the confirmation keeps showing the planned branch, which is the branch the workspace gets.
+- [Orca normalizes `name` before the hook] → ruled out by the gate: the hook sees the name exactly as passed, so the map is keyed by it.
