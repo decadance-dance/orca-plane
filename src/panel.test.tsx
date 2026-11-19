@@ -1332,6 +1332,21 @@ test('review 2: a lookup reply that comes after the user opened a Start confirma
   await view.unmount()
 })
 
+test('the dot and key column of a project is one width, wide enough for its longest key, and never wraps (#79)', async () => {
+  const items = [
+    { ...item('PLATFORM-54', 'started'), priority: 'urgent' as const },
+    { ...item('PLATFORM-1', 'unstarted'), priority: 'none' as const }
+  ]
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
+  const columns = view.findAll({ type: 'Box' }).filter((box) => box.props.shrink === false && typeof box.props.width === 'number')
+  assert.equal(columns.length, 2)
+  assert.equal(columns[0].props.width, columns[1].props.width)
+  // Geist at 12 px: the dot 10.13 px, the `sm` gap 8 px and PLATFORM-54 83.9 px; 7 px a character gave 81.
+  assert.ok((columns[0].props.width as number) >= 10.13 + 8 + 83.9)
+  assert.deepEqual(['PLATFORM-54', 'PLATFORM-1'].map((key) => view.find({ testId: `key:${key}` })?.props.truncate), [true, true])
+  await view.unmount()
+})
+
 // --- Orca's limits: 5000 nodes a panel, 500 options a Select ---
 
 test('a list at the fetch cap draws 150 rows and says so, also with the filter strip open', async () => {

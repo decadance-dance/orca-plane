@@ -32,6 +32,13 @@ const ITEMS = [
   row('API-1', 'Rate limit the export endpoint', 'backlog', 'Backlog', 'urgent', ['auth']),
   row('OPS-4', 'Rotate the staging certificates', 'unknown', null, 'none', [])
 ]
+// Eight capital letters and two wide digits (#79): the key column must hold them on one line in every row.
+const LONG_KEYS = [
+  row('PLATFORM-12', 'Move the billing jobs to the new queue', 'started', 'In Progress', 'high', []),
+  row('PLATFORM-13', 'Drop the legacy export format', 'started', 'In Progress', 'none', []),
+  row('PLATFORM-54', 'Warm the cache after each deploy', 'unstarted', 'Todo', 'urgent', []),
+  row('PLATFORM-55', 'Measure the cold start of the worker', 'unstarted', 'Todo', 'low', [])
+]
 const DETAIL: ItemDetail = {
   ...ITEMS[0],
   assignees: ['Ada'],
@@ -100,6 +107,8 @@ export default defineCheck({
   complete: connected(state({}), LINKED, AGENTS),
   // The WEB project (the third of API, OPS, WEB), with the agent badges of its linked items.
   'web-project': { ...connected(state({}), LINKED, AGENTS), ...persisted({ 'plane.tab': 'project-WEB' }) },
+  // Long keys (#79): every key stays on one line and the titles line up, at 320 and 480 px.
+  'long-keys': connected(state({ items: LONG_KEYS })),
   // An active tag keeps the filter strip open, filled and checked; an item must carry every active tag.
   tags: { ...connected(state({})), ...persisted({ 'plane.tags': ['label:auth'] }) },
   // DOC-7 left the list; its workspace shows in the section of items no longer open.
