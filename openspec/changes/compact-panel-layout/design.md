@@ -32,7 +32,7 @@ A `List` per row holding one pressable `ListItem` (keyed by the item's key) that
 "Agent working", "Agent needs input", "Agent done", tones unchanged. The bare "Done" read as the item's Plane state next to its state group (#62). The wording is the option #62 suggested.
 
 ### P8. Completeness named once
-The status line keeps the badge and the update time. The banner of a partial, stale or failed list loses its title, which repeated the badge (#63), and keeps the reason.
+The status line keeps the badge and the update time. The banner of a partial, stale or failed list repeated the badge in its title (#63). A `Callout` without a title still draws Orca's own ("Warning"), so the reason becomes one line of `sm` text in the warning or danger tone.
 
 ### P9. Detail
 From the top: the back control; a muted, framed `Box` with the key (muted) and the priority badge (its tone; "No priority" in grey) on one line, the title as a level-2 heading, and a `KeyValue` of State, Assignees, Labels and Updated; the action row with Start (or Starting…, Checking…, Open workspace) as the primary accent button and Open in Plane as an outline button. Below the action row: the agent badge, a failed Start's banner, an Open workspace error, and the Start confirmation, which replaces the Start button as before. Then the description (framed, Show more / Show less) and the earlier Starts. A closed item shows no Start, as before.

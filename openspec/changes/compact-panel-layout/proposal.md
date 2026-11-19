@@ -11,7 +11,7 @@ The list spends two to four lines on each item (title, a meta line, a row of tag
 - State groups are plain header lines (state name, count) with a separator between groups, in today's order, and no longer collapse.
 - A row is one line: the priority as a dot in its tone, the key, the truncated title, the Start failed and agent badges when they apply, and the Start / Open workspace icon.
 - The agent badge names the agent: "Agent working", "Agent needs input", "Agent done", so it no longer reads as the item's state (#62).
-- A partial, stale or failed list names its state once: the banner below the badge carries only the reason (#63).
+- A partial, stale or failed list names its state once: the reason below the badge is one line of text, not a titled banner (#63).
 - The detail opens with a muted, framed header (key and priority badge, title, State, Assignees, Labels, Updated), then an action row (Start or Open workspace, and Open in Plane), then the agent state, a failed Start and the Start confirmation, then the description and the earlier Starts.
 
 Out of scope: the "Open by key or URL" field stays where it is, always shown; any change to how the list is fetched, sorted or filtered.

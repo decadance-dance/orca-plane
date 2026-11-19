@@ -398,7 +398,7 @@ test('search spans every project: the picker counts the matches; an empty projec
   await view.unmount()
 })
 
-test('partial, stale, error, empty and loading states; the badge names the state once, the banner gives the reason', async () => {
+test('partial, stale, error, empty and loading states; the badge names the state once, a line of text gives the reason', async () => {
   const cases: [Partial<ItemsState>, string][] = [
     [{ completeness: 'partial', error: 'More than 1000 items' }, 'Partial'],
     [{ completeness: 'stale', error: 'Plane answered HTTP 500' }, 'Stale'],
@@ -407,9 +407,10 @@ test('partial, stale, error, empty and loading states; the badge names the state
   for (const [over, badge] of cases) {
     const view = await mount(panel, { host: connectedHost({ 'items.list': list(over) }) })
     assert.ok(view.find({ type: 'Badge', text: badge }), badge)
-    const callout = view.find({ type: 'Callout' })
-    assert.equal(callout?.text, over.error, badge)
-    assert.equal(callout?.props.title, undefined, badge)
+    // No Callout: Orca titles one even without a title, which named the state twice.
+    assert.equal(view.find({ type: 'Callout' }), null, badge)
+    const reason = view.find({ testId: 'list-error' })
+    assert.deepEqual([reason?.text, reason?.props.tone], [over.error, badge === 'Error' ? 'danger' : 'warning'], badge)
     await view.unmount()
   }
   const empty = await mount(panel, { host: connectedHost({ 'items.list': list({ items: [] }) }) })

@@ -506,7 +506,7 @@ function StartButton({ item, compact = false }: { item: ItemRef; compact?: boole
     return compact ? (
       <IconButton size="sm" variant="ghost" icon="open-external" label="Open workspace" onPress={open} />
     ) : (
-      <Button size="sm" tone="accent" icon="open-external" onPress={open}>
+      <Button size="xs" tone="accent" icon="open-external" onPress={open}>
         Open workspace
       </Button>
     )
@@ -516,7 +516,7 @@ function StartButton({ item, compact = false }: { item: ItemRef; compact?: boole
   return compact ? (
     <IconButton size="sm" variant="ghost" tone="accent" icon="play" label={label} disabled={disabled} onPress={() => askStart(item)} />
   ) : (
-    <Button size="sm" tone="accent" icon="play" disabled={disabled} onPress={() => askStart(item)}>
+    <Button size="xs" tone="accent" icon="play" disabled={disabled} onPress={() => askStart(item)}>
       {label}
     </Button>
   )
@@ -685,8 +685,13 @@ function ListView({ state }: { state: ItemsState | null }) {
           </Text>
         ) : null}
       </Row>
-      {/* The badge above names the state; the banner carries only the reason (design P8). */}
-      {state.error ? <Callout tone={state.completeness === 'error' ? 'danger' : 'warning'}>{state.error}</Callout> : null}
+      {/* The badge above names the state; the reason follows as one line of text, since a Callout without
+          a title still draws Orca's own ("Warning"), which named the state twice (design P8). */}
+      {state.error ? (
+        <Text key="list-error" size="sm" tone={state.completeness === 'error' ? 'danger' : 'warning'}>
+          {state.error}
+        </Text>
+      ) : null}
       {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
       {state.completeness !== 'error' && state.items.length === 0 ? (
         <EmptyState icon="check" title="Nothing open is assigned to you" />
@@ -941,11 +946,12 @@ function DetailView({ current }: { current: Loaded }) {
               ]}
             />
           </Box>
+          {/* xs buttons, so Open workspace and Open in Plane share one line at sidebar width. */}
           <Row gap="xs" wrap>
             {asked?.key !== item.key && (item.stateGroup !== 'unknown' || underWay(state)) ? (
               <StartButton key={`start:${item.key}`} item={item} />
             ) : null}
-            <Button size="sm" icon="open-external" variant="outline" onPress={() => shell.openExternal(item.url)}>
+            <Button size="xs" icon="open-external" variant="outline" onPress={() => shell.openExternal(item.url)}>
               Open in Plane
             </Button>
           </Row>
