@@ -16,11 +16,11 @@ The plugin SHALL list the work items of the connected workspace that are assigne
 
 #### Scenario: Items across projects
 - **WHEN** open items assigned to me exist in several projects
-- **THEN** each project can be picked in the project switcher, and every item is listed under its project, in its state's group, on one line with its priority, key and title
+- **THEN** each project can be picked in the project switcher, and every item is listed under its project, in its state's group, on one line with its priority, key and title, up to the 150 rows a project draws
 
 #### Scenario: More items than the panel draws
-- **WHEN** the selected project has more than 250 items that pass the search and the tags
-- **THEN** the first 250, in the list's order, are drawn, followed by a line saying how many there are and that search or a tag narrows them
+- **WHEN** the selected project has more than 150 items that pass the search and the tags
+- **THEN** the first 150, in the list's order, are drawn, followed by a line saying how many there are and that search or a tag narrows them
 
 #### Scenario: Closed or unassigned items
 - **WHEN** an item is completed, cancelled, or not assigned to me

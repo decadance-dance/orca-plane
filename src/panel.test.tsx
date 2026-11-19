@@ -1334,15 +1334,33 @@ test('review 2: a lookup reply that comes after the user opened a Start confirma
 
 // --- Orca's limits: 5000 nodes a panel, 500 options a Select ---
 
-test('a list at the fetch cap draws 250 rows and says so, also with the filter strip open', async () => {
+test('a list at the fetch cap draws 150 rows and says so, also with the filter strip open', async () => {
   const items = Array.from({ length: 1000 }, (_, i) => ({ ...item(`WEB-${i + 1}`, 'started', `T${i}`, [`l${i % 100}`]), priority: 'none' as const }))
   const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }) })
-  assert.equal(rows(view).length, 250)
-  assert.equal(view.find({ testId: 'rows-capped' })?.text, 'Showing 250 of 1000. Search or filter to see the rest.')
+  assert.equal(rows(view).length, 150)
+  assert.equal(view.find({ testId: 'rows-capped' })?.text, 'Showing 150 of 1000. Search or filter to see the rest.')
   // The group header still counts every item of its state.
   assert.equal(view.find({ testId: 'count:In Progress' })?.text, '1000')
   await view.press({ label: 'Show filters' })
   assert.ok(view.find({ text: 'l99' }))
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('150 rows still render beside 150 workspaces of items no longer open, or with 400 tags in the filter strip', async () => {
+  const items = Array.from({ length: 300 }, (_, i) => ({ ...item(`API-${i + 1}`, 'unstarted'), priority: 'none' as const }))
+  const gone = Object.fromEntries(
+    Array.from({ length: 150 }, (_, i) => [`OLD-${i}`, { kind: 'created', workspaceId: `w${i}`, name: `OLD-${i}-some-name`, projectId: 'p1' }])
+  ) as Record<string, StartState>
+  const left = await mount(panel, { host: connectedHost({ 'items.list': list({ items }) }, gone) })
+  assert.equal(rows(left).length, 150)
+  assert.deepEqual(left.errors, [])
+  await left.unmount()
+  const labelled = Array.from({ length: 400 }, (_, i) => item(`WEB-${i + 1}`, 'started', `T${i}`, [`l${i}`]))
+  const view = await mount(panel, { host: connectedHost({ 'items.list': list({ items: [...items, ...labelled] }) }) })
+  await view.press({ label: 'Show filters' })
+  assert.ok(view.find({ text: 'l399' }))
+  assert.equal(rows(view).length, 150)
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })

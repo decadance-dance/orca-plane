@@ -649,8 +649,9 @@ function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
 
 // limit: Orca has no monospace Text, so the key column is sized from the longest key at about 7 px a character
 // of `xs` text; a very wide key just pushes its title along.
-/** Rows drawn per project: Orca refuses a panel of more than 5000 nodes, and the fetch cap is 1000 items. */
-const MAX_ROWS = 250
+// limit: Orca refuses a panel of more than 5000 nodes, and the fetch cap is 1000 items. 150 rows (about 14 nodes
+// each) leave room for roughly 250 workspaces of items no longer open or 500 filter tags; past that it goes blank.
+const MAX_ROWS = 150
 const keyWidthOf = (items: Item[]) => Math.max(0, ...items.map((item) => item.key.length)) * 7 + 4
 
 function ListView({ state }: { state: ItemsState | null }) {
