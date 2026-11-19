@@ -5,7 +5,7 @@ import { type Connections, keyOf } from './connection'
 import type { Items } from './items'
 import { linkedWorkspace } from './links'
 import type { Attempt, StartState } from './protocol'
-import { workspaceName } from './start'
+import { isWorkspaceName } from './start'
 import { env } from './plane/http'
 
 type States = Record<string, StartState>
@@ -61,11 +61,15 @@ export type StartInput = {
   hostId: string | null
   agent: string | null
   prompt: string
+  /** The workspace and branch name the confirmation showed (from the detail title). */
+  name: string
 }
 
 export class Starts {
   private lock: Promise<unknown> = Promise.resolve()
   private listeners: ((states: States) => void)[] = []
+  // Start creates in flight, counted by project and workspace name, which is also the branch (design B1).
+  private readonly creating = new Map<string, number>()
 
   constructor(
     private readonly orca: OrcaWorkerApi,
@@ -113,6 +117,11 @@ export class Starts {
     })
     this.lock = run.catch(() => undefined)
     return run
+  }
+
+  /** The branch for a create that is this plugin's Start in flight; read by the create hook. */
+  branchFor(projectId: string, name: string): string | undefined {
+    return this.creating.has(`${projectId}\n${name}`) ? name : undefined
   }
 
   private changed(key: string, state: StartState): void {
@@ -215,7 +224,9 @@ export class Starts {
     const item = (await this.items.state()).items.find((entry) => entry.key === input.key)
     if (!item) return { accepted: false, reason: 'This item is not in your list; refresh and try again.' }
     if (!input.orcaProjectId) return { accepted: false, reason: 'Pick a project.' }
-    const name = workspaceName(item.key, item.title)
+    // The panel's name is input: it must be one workspaceName gives for this key.
+    if (!isWorkspaceName(item.key, input.name)) return { accepted: false, reason: 'The workspace name does not fit this item; reopen Start.' }
+    const name = input.name
     const project = await this.projectName(input.orcaProjectId)
     const verdict = await this.mutate(async (states, history) => {
       await this.reconcile(states, history, input.key)
@@ -242,13 +253,23 @@ export class Starts {
 
   private async create(input: StartInput, name: string, id: string, generation: number): Promise<void> {
     let outcome: Outcome
+    const slot = `${input.orcaProjectId}\n${name}`
+    // The branch is the workspace name; host workspace.create takes no branch, so the hook sets it.
+    // Counted: two accounts can start the same key and title into one project at once.
+    this.creating.set(slot, (this.creating.get(slot) ?? 0) + 1)
     try {
-      const created = await this.orca.host.call('workspace.create', {
-        projectId: input.orcaProjectId,
-        ...(input.hostId ? { hostId: input.hostId } : {}),
-        name,
-        ...(input.agent ? { agent: input.agent, prompt: input.prompt } : {})
-      })
+      const created = await this.orca.host
+        .call('workspace.create', {
+          projectId: input.orcaProjectId,
+          ...(input.hostId ? { hostId: input.hostId } : {}),
+          name,
+          ...(input.agent ? { agent: input.agent, prompt: input.prompt } : {})
+        })
+        .finally(() => {
+          const left = (this.creating.get(slot) ?? 1) - 1
+          if (left > 0) this.creating.set(slot, left)
+          else this.creating.delete(slot)
+        })
       outcome = { kind: 'created', workspaceId: created.workspaceId, name, projectId: input.orcaProjectId }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Start failed.'

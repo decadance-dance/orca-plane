@@ -304,7 +304,7 @@ async function askStart(ref: ItemRef): Promise<void> {
   if (loaded.item) set(prompt, buildPrompt(loaded.item))
 }
 
-async function confirmStart(key: string): Promise<void> {
+async function confirmStart(key: string, name: string): Promise<void> {
   const project = (read(projects) ?? []).find((entry) => entry.id === read(projectId))
   if (!project) return
   set(startError, null)
@@ -315,7 +315,8 @@ async function confirmStart(key: string): Promise<void> {
       orcaProjectId: project.id,
       hostId: project.hostId,
       agent: chosen === 'none' ? null : chosen,
-      prompt: read(prompt)
+      prompt: read(prompt),
+      name
     })
     if (answer.accepted) cancelStart()
     else set(startError, answer.reason)
@@ -453,6 +454,8 @@ function ReadinessHints({ description }: { description: string }) {
 function Confirmation({ current }: { current: Loaded }) {
   const project = (read(projects) ?? []).find((entry) => entry.id === read(projectId))
   const error = read(startError)
+  // Shown and sent as one value, so the workspace and branch are the ones the confirmation names.
+  const name = current.item ? workspaceName(current.item.key, current.item.title) : ''
   return (
     <Card title={`Start ${current.key}`}>
       <Stack gap="sm">
@@ -461,16 +464,15 @@ function Confirmation({ current }: { current: Loaded }) {
         <Pickers />
         {current.item ? (
           <Stack gap="sm">
-            <Text size="sm">
-              {`Workspace ${workspaceName(current.item.key, current.item.title)}`}
-            </Text>
+            <Text size="sm">{`Workspace ${name}`}</Text>
+            <Text size="sm">{`Branch ${name}`}</Text>
             <ReadinessHints description={current.item.description} />
             <Textarea label="Prompt" rows={8} value={read(prompt)} onChange={(value) => set(prompt, value)} />
           </Stack>
         ) : null}
         {error ? <Callout tone="danger">{error}</Callout> : null}
         <Row gap="xs">
-          <Button tone="accent" icon="play" disabled={!current.item || !project} onPress={() => confirmStart(current.key)}>
+          <Button tone="accent" icon="play" disabled={!current.item || !project} onPress={() => confirmStart(current.key, name)}>
             Confirm
           </Button>
           <Button variant="ghost" onPress={cancelStart}>

@@ -73,6 +73,9 @@
       { "on": "workspace.changed" },
       { "on": "workspace.removed" }
     ],
+    "hooks": [
+      { "event": "workspace.create.before" }
+    ],
     "commands": [
       {
         "id": "plane.toggleSidebar",

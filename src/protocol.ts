@@ -87,7 +87,7 @@ declare module 'orca' {
     'links.get': { output: Record<string, LinkView> }
     /** Answers at once; the outcome arrives as `start.changed`. `agent` null starts no agent. */
     'item.start': {
-      input: { key: string; orcaProjectId: string; hostId: string | null; agent: string | null; prompt: string }
+      input: { key: string; orcaProjectId: string; hostId: string | null; agent: string | null; prompt: string; name: string }
       output: { accepted: true } | { accepted: false; reason: string }
     }
     /** The known agents found on this computer; all of them when none is found. */
