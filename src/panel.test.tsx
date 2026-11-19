@@ -2,7 +2,7 @@
 import { assert, mockHost, mount, test } from 'orca/testing'
 import type { Item, ItemDetail } from './plane/map'
 import * as panel from './panel'
-import type { ConnectInput, ItemsState, StartState } from './protocol'
+import type { Attempt, ConnectInput, ItemsState, StartState } from './protocol'
 
 /** Callouts and list items read as their title plus their text, so match a part. */
 const part = (text: string) => ({ text: new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })
@@ -694,5 +694,116 @@ test('round 2: Start states and the list posted while the panel loads are not ov
   // The snapshot's other keys still apply.
   assert.equal(view.find({ testId: 'start:WEB-2' })?.label, 'Open workspace')
   assert.ok(view.find({ testId: 'WEB-4' }))
+  await view.unmount()
+})
+
+// --- start-history: Item detail shows earlier Starts (task 2.1) ---
+
+const AT = 1_700_000_000_000
+const attempt = (over: Partial<Attempt>): Attempt => ({
+  id: String(over.at ?? AT),
+  at: AT,
+  agent: 'claude',
+  project: 'repo',
+  projectId: 'p1',
+  workspace: 'WEB-1-fix-login',
+  outcome: 'created',
+  ...over
+})
+const earlier = (view: { findAll: Finder['findAll'] }) =>
+  view.findAll({ type: 'ListItem' }).filter((row) => row.key?.startsWith('1'))
+
+test('started before, workspace removed: the detail lists that Start with time, agent, project, workspace and created, and offers Start', async () => {
+  const asked: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'history.get': (input: unknown) => {
+        asked.push(input)
+        return [attempt({})]
+      }
+    })
+  })
+  await view.press({ testId: 'WEB-1' })
+  assert.deepEqual(asked, [{ key: 'WEB-1' }])
+  assert.ok(view.find({ type: 'Heading', text: 'Earlier starts' }))
+  const [row] = earlier(view)
+  assert.match(row.text, /Claude Code · repo/)
+  assert.match(row.text, /WEB-1-fix-login/)
+  assert.ok(view.find({ type: 'Badge', text: 'created' }))
+  assert.equal(view.find({ type: 'RelativeTime' })?.props.at, AT)
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.text, 'Start')
+  await view.unmount()
+})
+
+test('a failed Start shows failed; pending and unknown show not confirmed; newest first; terminal only is named', async () => {
+  let answer = [
+    attempt({ at: AT, outcome: 'failed' }),
+    attempt({ at: AT + 1, outcome: 'unknown', agent: null }),
+    attempt({ at: AT + 2, outcome: 'pending', agent: 'codex' })
+  ]
+  const view = await mount(panel, { host: connectedHost({ 'history.get': () => answer }) })
+  await view.press({ testId: 'WEB-1' })
+  assert.deepEqual(earlier(view).map((row) => row.key), [String(AT + 2), String(AT + 1), String(AT)])
+  assert.ok(view.find({ type: 'Badge', text: 'failed' }))
+  assert.equal(view.findAll({ type: 'Badge', text: 'not confirmed' }).length, 2)
+  assert.match(earlier(view)[0].text, /Codex/)
+  assert.match(earlier(view)[1].text, /Terminal only/)
+  // A Start state change of the open item fetches the history again.
+  answer = [attempt({ at: AT, outcome: 'failed' }), attempt({ at: AT + 1, outcome: 'created', agent: null })]
+  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })
+  assert.equal(view.findAll({ type: 'Badge', text: 'not confirmed' }).length, 0)
+  assert.ok(view.find({ type: 'Badge', text: 'created' }))
+  await view.unmount()
+})
+
+test('an item that was never started shows no list of earlier Starts', async () => {
+  const view = await mount(panel, { host: connectedHost({ 'history.get': [] }) })
+  await view.press({ testId: 'WEB-1' })
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  assert.equal(view.find({ type: 'Heading', text: 'Earlier starts' }), null)
+  assert.equal(view.find({ type: 'List', label: 'Earlier starts' }), null)
+  await view.unmount()
+})
+
+test('review 1: a delayed history reply does not roll back a newer one', async () => {
+  let calls = 0
+  const view = await mount(panel, {
+    host: connectedHost({
+      'history.get': async () => {
+        // The reply to opening the item comes late, after the one asked on start.changed.
+        if (++calls === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 30))
+          return [attempt({ outcome: 'pending' })]
+        }
+        return [attempt({ outcome: 'created' })]
+      }
+    })
+  })
+  const pressed = view.press({ testId: 'WEB-1' })
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  await Promise.all([pressed, view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })])
+  assert.equal(calls, 2)
+  assert.ok(view.find({ type: 'Badge', text: 'created' }))
+  assert.equal(view.find({ type: 'Badge', text: 'not confirmed' }), null)
+  await view.unmount()
+})
+
+test('review 2: a direct switch to another connection drops the shown history and loads the new one', async () => {
+  let answer = [attempt({ project: 'old-repo' })]
+  const asked: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'history.get': (input: unknown) => {
+        asked.push(input)
+        return answer
+      }
+    })
+  })
+  await view.press({ testId: 'WEB-1' })
+  assert.match(earlier(view)[0].text, /old-repo/)
+  answer = []
+  await view.post('connection.changed', { ...CONNECTED, slug: 'other' })
+  assert.equal(view.find({ type: 'Heading', text: 'Earlier starts' }), null)
+  assert.deepEqual(asked, [{ key: 'WEB-1' }, { key: 'WEB-1' }])
   await view.unmount()
 })

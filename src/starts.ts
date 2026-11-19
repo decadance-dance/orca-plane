@@ -4,11 +4,42 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import { type Connections, keyOf } from './connection'
 import type { Items } from './items'
 import { linkedWorkspace } from './links'
-import type { StartState } from './protocol'
+import type { Attempt, StartState } from './protocol'
 import { workspaceName } from './start'
 import { env } from './plane/http'
 
 type States = Record<string, StartState>
+/** Earlier Starts per item key, oldest first (design H1 of start-history). */
+type History = Record<string, Attempt[]>
+type Outcome = Extract<StartState, { kind: 'created' | 'failed' | 'unknown' }>
+
+const KEEP_PER_ITEM = 10
+const KEEP_ITEMS = 50
+/** Orca refuses a storage value over 256 KiB; the history stays well under it. */
+const MAX_BYTES = 200 * 1024
+
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length
+
+/**
+ * Appends an attempt, keeping the item's last 10 and the 50 items started most recently, then drops
+ * the oldest items while the value is over 200 KiB, never the newest (H4). Changes `history`.
+ */
+export function append(history: History, key: string, attempt: Attempt): void {
+  history[key] = [...(history[key] ?? []), attempt].slice(-KEEP_PER_ITEM)
+  const newest = (item: string) => history[item].at(-1)?.at ?? 0
+  // The item just appended counts as the newest, whatever its clock says.
+  const older = Object.keys(history)
+    .filter((item) => item !== key)
+    .sort((a, b) => newest(b) - newest(a))
+  for (const item of older.splice(KEEP_ITEMS - 1)) delete history[item]
+  while (older.length > 0 && bytes(history) > MAX_BYTES) delete history[older.pop()!]
+}
+
+/** Sets the outcome of the item's attempt `id`; a no-op when it has it already or was dropped. Changes `history`. */
+export function settle(history: History, key: string, id: string, outcome: Attempt['outcome']): void {
+  const attempt = history[key]?.find((entry) => entry.id === id)
+  if (attempt) attempt.outcome = outcome
+}
 type Row = { id: string; name: string; projectId?: string | null }
 
 // Host errors that say the create was refused before anything happened.
@@ -48,10 +79,10 @@ export class Starts {
   }
 
   /**
-   * Runs `change` on the stored states one at a time; writes only if the connection is the same.
+   * Runs `change` on the stored states and history one at a time; writes only if the connection is the same.
    * With `since`, does nothing unless the connection is still the one of that generation.
    */
-  private mutate<T>(change: (states: States) => Promise<T> | T, since?: number): Promise<T | null> {
+  private mutate<T>(change: (states: States, history: History) => Promise<T> | T, since?: number): Promise<T | null> {
     const run = this.lock.then(async () => {
       const generation = this.conns.generation
       const conn = await this.conns.current()
@@ -59,13 +90,22 @@ export class Starts {
       const saved = await this.orca.storage.get(keyOf(conn.id, 'starts'))
       const states: States = saved && typeof saved === 'object' ? { ...(saved as States) } : {}
       const before = { ...states }
-      const result = await change(states)
+      const kept = await this.orca.storage.get(keyOf(conn.id, 'history'))
+      const historyBefore = JSON.stringify(kept && typeof kept === 'object' ? kept : {})
+      const history: History = JSON.parse(historyBefore)
+      const result = await change(states, history)
       await this.conns.whileCurrent(generation, async () => {
+        const old: History = JSON.parse(historyBefore)
+        // History first (design H2); a failed write loses only the attempt, and the Start goes on.
+        if (JSON.stringify(history) !== historyBefore) {
+          await this.orca.storage.set(keyOf(conn.id, 'history'), history).catch(() => undefined)
+        }
         await this.orca.storage.set(keyOf(conn.id, 'starts'), states)
-        // Every state a write changed or dropped (idle) reaches open panels, reconciles included.
-        for (const key of new Set([...Object.keys(before), ...Object.keys(states)])) {
+        // Every state or history a write changed or dropped (idle) reaches open panels, reconciles included.
+        for (const key of new Set([...Object.keys(before), ...Object.keys(states), ...Object.keys(history), ...Object.keys(old)])) {
           const state = states[key] ?? { kind: 'idle' }
-          if (JSON.stringify(state) !== JSON.stringify(before[key] ?? { kind: 'idle' })) this.changed(key, state)
+          const moved = JSON.stringify(state) !== JSON.stringify(before[key] ?? { kind: 'idle' })
+          if (moved || JSON.stringify(history[key]) !== JSON.stringify(old[key])) this.changed(key, state)
         }
         for (const listener of this.listeners) listener({ ...states })
       })
@@ -81,10 +121,11 @@ export class Starts {
 
   /** On worker start: a create that was running when the worker stopped has an unknown outcome. */
   recover(): Promise<unknown> {
-    return this.mutate((states) => {
+    return this.mutate((states, history) => {
       for (const [key, state] of Object.entries(states)) {
         if (state.kind === 'pending') states[key] = { kind: 'unknown', name: state.name, projectId: state.projectId }
       }
+      for (const attempt of Object.values(history).flat()) if (attempt.outcome === 'pending') attempt.outcome = 'unknown'
     })
   }
 
@@ -103,16 +144,24 @@ export class Starts {
   }
 
   /**
-   * Resolves `unknown` by name, and drops links whose workspace is gone. Changes `states`.
-   * A truncated list proves only the rows it has: a link or an outcome it lacks is kept.
+   * Resolves `unknown` states and attempts by name, and drops links whose workspace is gone. Changes
+   * `states` and `history`. A truncated list proves only the rows it has: a link or an outcome it lacks is kept.
    */
-  private async reconcile(states: States, only?: string): Promise<void> {
+  private async reconcile(states: States, history: History, only?: string): Promise<void> {
     const keys = Object.keys(states).filter((key) => (only === undefined || key === only) && states[key].kind !== 'pending')
-    if (!keys.some((key) => ['unknown', 'created', 'failed'].includes(states[key].kind))) return
+    // Each attempt by its own project and name (H3): it needs no state, which may be gone or never written.
+    const open = Object.entries(history)
+      .filter(([key]) => only === undefined || key === only)
+      .flatMap(([, attempts]) => attempts.filter((attempt) => attempt.outcome === 'unknown'))
+    if (!keys.some((key) => ['unknown', 'created', 'failed'].includes(states[key].kind)) && open.length === 0) return
     const list = await this.workspaces()
     if (!list) return
     const rows = list.workspaces
     const complete = !list.truncated
+    for (const attempt of open) {
+      if (Starts.find(rows, attempt.projectId, attempt.workspace)) attempt.outcome = 'created'
+      else if (complete) attempt.outcome = 'failed'
+    }
     for (const key of keys) {
       const state = states[key]
       if (state.kind === 'unknown') {
@@ -128,10 +177,27 @@ export class Starts {
   }
 
   async all(): Promise<States> {
-    return (await this.mutate(async (states) => {
-      await this.reconcile(states)
+    return (await this.mutate(async (states, history) => {
+      await this.reconcile(states, history)
       return { ...states }
     })) ?? {}
+  }
+
+  /** The item's earlier Starts, oldest first. */
+  async history(key: string): Promise<Attempt[]> {
+    const conn = await this.conns.current()
+    if (!conn) return []
+    const kept = await this.orca.storage.get(keyOf(conn.id, 'history'))
+    return (kept && typeof kept === 'object' ? (kept as History)[key] : undefined) ?? []
+  }
+
+  private async projectName(id: string): Promise<string> {
+    try {
+      const { projects } = await this.orca.host.call('project.list')
+      return projects.find((project) => project.id === id)?.name ?? id
+    } catch {
+      return id
+    }
   }
 
   /** Orca removed this workspace: drop every link to it, which needs no (possibly truncated) list. */
@@ -150,8 +216,9 @@ export class Starts {
     if (!item) return { accepted: false, reason: 'This item is not in your list; refresh and try again.' }
     if (!input.orcaProjectId) return { accepted: false, reason: 'Pick a project.' }
     const name = workspaceName(item.key, item.title)
-    const verdict = await this.mutate(async (states) => {
-      await this.reconcile(states, input.key)
+    const project = await this.projectName(input.orcaProjectId)
+    const verdict = await this.mutate(async (states, history) => {
+      await this.reconcile(states, history, input.key)
       const state = states[input.key]
       if (state?.kind === 'pending') return { reason: 'A start for this item is already running.' }
       if (state?.kind === 'unknown') {
@@ -160,17 +227,21 @@ export class Starts {
       if (state?.kind === 'created' || (state?.kind === 'failed' && state.workspaceId)) {
         return { reason: 'This item already has a workspace: open it instead.' }
       }
-      states[input.key] = { kind: 'pending', name, projectId: input.orcaProjectId, startedAt: env.now() }
-      return { reason: null }
+      const at = env.now()
+      // Not the time: a clock can repeat a reading, and the id must name one attempt only.
+      const id = crypto.randomUUID()
+      append(history, input.key, { id, at, agent: input.agent, project, projectId: input.orcaProjectId, workspace: name, outcome: 'pending' })
+      states[input.key] = { kind: 'pending', name, projectId: input.orcaProjectId, startedAt: at }
+      return { reason: null, id }
     }, generation)
     if (!verdict || generation !== this.conns.generation) return { accepted: false, reason: 'Not connected to Plane.' }
     if (verdict.reason !== null) return { accepted: false, reason: verdict.reason }
-    void this.create(input, name, generation)
+    void this.create(input, name, verdict.id, generation)
     return { accepted: true }
   }
 
-  private async create(input: StartInput, name: string, generation: number): Promise<void> {
-    let outcome: StartState
+  private async create(input: StartInput, name: string, id: string, generation: number): Promise<void> {
+    let outcome: Outcome
     try {
       const created = await this.orca.host.call('workspace.create', {
         projectId: input.orcaProjectId,
@@ -189,8 +260,9 @@ export class Starts {
       else if (list && !list.truncated && typeof code === 'string' && REFUSED.has(code)) outcome = { kind: 'failed', error: message }
       else outcome = { kind: 'unknown', name, projectId: input.orcaProjectId }
     }
-    await this.mutate((states) => {
+    await this.mutate((states, history) => {
       states[input.key] = outcome
+      settle(history, input.key, id, outcome.kind)
     }, generation)
   }
 }
