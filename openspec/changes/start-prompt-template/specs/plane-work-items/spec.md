@@ -12,7 +12,7 @@ The plugin SHALL offer a multi-line setting for a Start prompt template with the
 - **THEN** the confirmation's prompt is the default prompt
 
 ### Requirement: A template cannot drop or break the ticket block
-Whatever the template says, the Start prompt SHALL contain the fenced ticket block exactly once, with its header and footer each on a line of their own, and the item key and URL. The first `{ticket}` SHALL become the block, set on its own lines; later `{ticket}` tokens SHALL be removed. With no `{ticket}`, the block SHALL be appended at the end; when the template lacks `{key}` or `{url}`, a first line SHALL name the key and URL. Placeholders SHALL be replaced in one pass, so placeholder text inside the ticket is not expanded.
+Whatever the template says, the Start prompt SHALL contain the fenced ticket block exactly once, with its header and footer each on a whole line, and the item key and URL. Only the first `{ticket}` SHALL become the block; with none, the block SHALL be appended. When `{key}` or `{url}` is missing, a first line SHALL name both. Placeholders SHALL be replaced in one pass.
 
 #### Scenario: Template without the ticket placeholder
 - **WHEN** the template is "Follow AGENTS.md." with no placeholders
