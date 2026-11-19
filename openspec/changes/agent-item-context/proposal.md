@@ -29,4 +29,4 @@ Out of scope: the plugin's own MCP server or agent skill (#20 stays open for any
 - `src/start.ts`: the ticket block fields; a one-line item pointer helper.
 - `src/plane/map.ts`, `src/plane/api.ts`, `src/items.ts`: the parent item in `ItemDetail`.
 - `README.md`: a section on Plane's MCP server.
-- Tests: `src/start.test.ts`, `src/links.test.ts`, `src/worker.test.ts`, `src/plane/map.test.ts`, `src/plane/api.test.ts`.
+- Tests: `src/start.test.ts`, `src/links.test.ts`, `src/starts.test.ts`, `src/worker.test.ts`, `src/plane/map.test.ts`, `src/plane/api.test.ts`.

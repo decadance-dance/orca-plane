@@ -12,6 +12,9 @@ const LIST_FILTERS = {
   per_page: String(PER_PAGE)
 }
 
+/** One item also gets its parent (design A5 of agent-item-context); list rows do not need it. */
+const DETAIL_EXPAND = `${LIST_FILTERS.expand},parent`
+
 export type Me = { id: string; displayName: string }
 
 /** A 404 here means no v2: `users/me` needs no slug. */
@@ -89,11 +92,11 @@ export async function getItem(
   const path =
     `/api/v2/workspaces/${encodeURIComponent(slug)}/projects/${encodeURIComponent(projectId)}` +
     `/work-items/${encodeURIComponent(key)}/`
-  return planeGet(conn, path, { query: { expand: LIST_FILTERS.expand }, signal })
+  return planeGet(conn, path, { query: { expand: DETAIL_EXPAND }, signal })
 }
 
 /** A work item by its key alone (`KEY-N`), from any project: Plane v2 get by identifier. */
 export async function getItemByKey(conn: Conn, slug: string, key: string, signal?: AbortSignal): Promise<unknown> {
   const path = `/api/v2/workspaces/${encodeURIComponent(slug)}/work-items/${encodeURIComponent(key)}/`
-  return planeGet(conn, path, { query: { expand: LIST_FILTERS.expand }, signal })
+  return planeGet(conn, path, { query: { expand: DETAIL_EXPAND }, signal })
 }

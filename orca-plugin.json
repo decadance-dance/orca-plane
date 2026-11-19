@@ -71,10 +71,13 @@
     "events": [
       { "on": "agent.status.changed" },
       { "on": "workspace.changed" },
-      { "on": "workspace.removed" }
+      { "on": "workspace.removed" },
+      { "on": "workspace.created" }
     ],
     "hooks": [
-      { "event": "workspace.create.before" }
+      { "event": "workspace.create.before" },
+      { "event": "agent.launch.before" },
+      { "event": "agent.prompt.before" }
     ],
     "commands": [
       {

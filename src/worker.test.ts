@@ -986,3 +986,93 @@ test('plane.refresh refreshes the list from Plane; disconnected it says so', asy
   assert.equal(await worker.command('plane.refresh'), 'Not connected to Plane.')
   await worker.deactivate()
 })
+
+// --- agent-item-context: later prompts and agent environments name the linked item ---
+
+const ITEM_URL = 'https://app.plane.so/truelogic/browse/DIOGEN-449/'
+const POINTER = `Plane work item DIOGEN-449: ${ITEM_URL}`
+const LISTED = { 'terminal.list': { terminals: [], truncated: false } }
+const prompt = (terminalId: string, text: string) => ({ agent: 'claude', terminalId, prompt: text, inputKind: 'orchestration' as const })
+const launch = (workspaceId: string | null, terminalId?: string) => ({
+  agent: 'claude',
+  workspaceId,
+  workspaceKind: 'worktree' as const,
+  ...(terminalId ? { terminalId } : {}),
+  command: 'claude',
+  env: { LANG: 'C' }
+})
+const promptOf = (decision: unknown) => (decision as { event: { prompt: string } }).event.prompt
+const envOf = (decision: unknown) => (decision as { event: { env: Record<string, string> } }).event.env
+
+test('later prompts: a linked terminal gets one leading line with key and URL; others pass unchanged', async () => {
+  plane()
+  const { worker } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW, ROW2], LISTED)
+  await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
+  await worker.emit('agent.status.changed', agentEvent('w2', 'working'))
+  const fire = (terminalId: string, text: string) => worker.hooks.fire('agent.prompt.before', prompt(terminalId, text))
+  // Orchestration prompt in a linked workspace.
+  assert.equal(promptOf(await fire('t-w1', 'Review the diff')), `${POINTER}\nReview the diff`)
+  // A longer key is not this key.
+  assert.equal(promptOf(await fire('t-w1', 'See DIOGEN-4490')), `${POINTER}\nSee DIOGEN-4490`)
+  // Prompt already names the item.
+  assert.equal(promptOf(await fire('t-w1', 'Go on with DIOGEN-449.')), 'Go on with DIOGEN-449.')
+  // Unlinked workspace, and a terminal Orca never reported.
+  assert.equal(promptOf(await fire('t-w2', 'Review the diff')), 'Review the diff')
+  assert.equal(promptOf(await fire('t-unseen', 'Review the diff')), 'Review the diff')
+  await worker.deactivate()
+})
+
+test('agent environment: a new tab in a linked workspace gets key and URL, never the token; an unlinked one gets nothing', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW, ROW2], LISTED)
+  await until(() => h.callsOf('terminal.list').length === 1, 'terminals listed')
+  // The launch hook names the workspace by `<projectId>::<path>` only (test/fixtures/orca-ids.json).
+  const env = envOf(await worker.hooks.fire('agent.launch.before', launch('p1::/w', 't-new')))
+  assert.deepEqual(env, { LANG: 'C', PLANE_ITEM_KEY: 'DIOGEN-449', PLANE_ITEM_URL: ITEM_URL })
+  assert.ok(!Object.values(env).some((value) => value.includes(TOKEN)))
+  // The new tab's later prompts name the item too.
+  assert.equal(promptOf(await worker.hooks.fire('agent.prompt.before', prompt('t-new', 'Next step'))), `${POINTER}\nNext step`)
+  // Unlinked workspace, and a launch outside any workspace.
+  assert.deepEqual(envOf(await worker.hooks.fire('agent.launch.before', launch('p1::/w2', 't-other'))), { LANG: 'C' })
+  assert.deepEqual(envOf(await worker.hooks.fire('agent.launch.before', launch(null))), { LANG: 'C' })
+  await worker.deactivate()
+})
+
+test('the first agent launched before the create returns gets no Plane variables; its prompt names the item', async () => {
+  plane()
+  const hold = gate()
+  let rows: unknown[] = []
+  const h = host({
+    'workspace.create': async () => {
+      await hold.opened
+      rows = [ROW]
+      return { workspaceId: 'w1', terminalId: 't-first' }
+    },
+    'workspace.list': () => ({ workspaces: rows, truncated: false }),
+    ...LISTED
+  })
+  const worker = await connected(h)
+  // Orca reports the new workspace by both ids before the create returns (the live probe's order).
+  await worker.emit('workspace.created', { workspaceId: 'p1::/w-new', workspaceListId: 'w1', kind: 'worktree', path: '/w-new', branch: NAME })
+  const started = worker.request('item.start', START)
+  await until(() => h.callsOf('workspace.create').length === 1, 'create called')
+  const first = worker.hooks.fire('agent.launch.before', launch('p1::/w-new', 't-first'))
+  setTimeout(hold.open, 50)
+  assert.deepEqual(envOf(await first), { LANG: 'C' })
+  assert.equal((await started).accepted, true)
+  await until(async () => (await startOf(worker))?.kind === 'created', 'created')
+  const startPrompt = `Work on Plane work item DIOGEN-449.\nLink: ${ITEM_URL}`
+  assert.equal(promptOf(await worker.hooks.fire('agent.prompt.before', prompt('t-first', startPrompt))), startPrompt)
+  // A later agent in the same workspace gets the variables.
+  assert.equal(envOf(await worker.hooks.fire('agent.launch.before', launch('p1::/w-new', 't-later'))).PLANE_ITEM_KEY, 'DIOGEN-449')
+  await worker.deactivate()
+})
+
+test('review round 2: a removal that names only the other id form drops the link when an event paired the ids', async () => {
+  plane()
+  const { worker } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW])
+  await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
+  await worker.emit('workspace.removed', { workspaceId: 'p1::/w1', kind: 'worktree', path: '/w' })
+  await until(async () => Object.keys(await worker.request('links.get')).length === 0, 'link dropped')
+  await worker.deactivate()
+})

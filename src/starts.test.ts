@@ -5,6 +5,7 @@ import page from '../test/fixtures/v2-list-page.json' with { type: 'json' }
 import v2item from '../test/fixtures/v2-item.json' with { type: 'json' }
 import { Connections, connectionId, keyOf } from './connection'
 import type { Items } from './items'
+import { Links } from './links'
 import { fakeFetch } from './plane/fake-fetch'
 import { env } from './plane/http'
 import type { Attempt } from './protocol'
@@ -126,6 +127,51 @@ test('a Start that completes after an account switch writes nothing into the new
   assert.equal(f.storage.get(keyOf(newId, 'starts')), undefined)
   assert.equal(f.storage.get(keyOf(newId, 'history')), undefined)
   assert.deepEqual(await starts.all(), {})
+})
+
+test("account switch: a create of account A that returns after B's rebuild never reaches the hooks (A4)", async () => {
+  fakeFetch((url) => {
+    if (url.pathname.endsWith('/users/me/')) return { json: { id: 'new-user', display_name: 'New' } }
+    return { json: { ...page, has_more: false, next_cursor: null } }
+  })
+  const created = gate()
+  const newId = await connectionId(RECORD.apiBase, 'other', 'new-user')
+  const f = fake(
+    {
+      'secrets.protection': () => ({ status: 'os-keyring' }),
+      'workspace.create': async () => {
+        await created.opened
+        return { workspaceId: 'old-created', terminalId: 't-old' }
+      },
+      'workspace.list': async () => ({ workspaces: [OTHER_ROW], truncated: false }),
+      'terminal.list': async () => ({ terminals: [], truncated: false })
+    },
+    { storage: { [keyOf(newId, 'starts')]: { 'OTHER-1': { kind: 'created', workspaceId: 'w9', name: 'OTHER-1-x', projectId: 'p1' } } } }
+  )
+  const conns = new Connections(f.orca)
+  const starts = new Starts(f.orca, conns, items)
+  // Wired as the worker wires them.
+  const links = new Links({ changed: () => undefined, focus: () => undefined })
+  starts.onWrite((states) => links.set(states))
+  starts.onCreated((key, workspaceId, terminalId) => links.adopt(key, workspaceId, terminalId))
+  let rebuilt: Promise<unknown> = Promise.resolve()
+  conns.onChange((conn) => {
+    links.clear()
+    links.connection(conn)
+    rebuilt = starts.all()
+  })
+  links.connection(await conns.current())
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  await until(() => (f.counts['workspace.create'] ?? 0) === 1, 'create called')
+  const switched = await conns.connect({ hostKind: 'cloud', serverUrl: '', slug: 'other', token: 'new-token' })
+  assert.equal(switched.ok, true, JSON.stringify(switched))
+  await rebuilt
+  assert.equal(links.launch({ workspaceId: 'w9' })?.key, 'OTHER-1', "B's rebuild finished")
+  created.open()
+  await settle()
+  assert.equal(links.launch({ workspaceId: 'old-created', terminalId: 't-new' }), null)
+  assert.equal(links.itemOfTerminal('t-old'), null)
+  assert.equal(links.itemOfTerminal('t-new'), null)
 })
 
 test('two creates of one name in flight: the first to settle keeps the branch for the other', async () => {

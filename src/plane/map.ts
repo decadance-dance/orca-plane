@@ -1,4 +1,4 @@
-// Maps Plane API v2 payloads (rows with `expand=state,assignees,labels`) to the plugin's model.
+// Maps Plane API v2 payloads (rows with `expand=state,assignees,labels`, a detail also `parent`) to the plugin's model.
 import { htmlToMarkdown } from './markdown'
 
 export type StateGroup = 'backlog' | 'unstarted' | 'started' | 'unknown'
@@ -23,6 +23,8 @@ export type ItemDetail = Item & {
   assignees: string[]
   description: string
   url: string
+  /** From `expand=parent`; null without a parent or when Plane did not send a readable one (design A5). */
+  parent?: { key: string | null; title: string } | null
 }
 
 const GROUPS = new Set<string>(['backlog', 'unstarted', 'started'])
@@ -62,10 +64,13 @@ export function toDetail(raw: unknown, url: (key: string) => string): ItemDetail
   const item = toItem(raw)
   if (!item) return null
   const row = raw as Row
+  const parent = row.parent && typeof row.parent === 'object' ? (row.parent as Row) : null
   return {
     ...item,
     assignees: names(row.assignees, 'display_name'),
     description: htmlToMarkdown(str(row.description_html)),
-    url: url(item.key)
+    url: url(item.key),
+    // The expanded parent has no project, so its key prefix is unknown: the title alone.
+    parent: parent && str(parent.name) ? { key: null, title: str(parent.name) } : null
   }
 }

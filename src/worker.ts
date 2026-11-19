@@ -4,12 +4,13 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import { agentFinder } from './agents'
 import { Connections } from './connection'
 import { Items } from './items'
-import { idsOf, Links } from './links'
+import { Links } from './links'
 import { getItem, getItemByKey } from './plane/api'
 import { PlaneError } from './plane/http'
 import { type ItemDetail, toDetail } from './plane/map'
 import { browseUrl, parseItemRef } from './plane/url'
 import type { Result } from './protocol'
+import { namesKey, pointer } from './start'
 import { Starts } from './starts'
 
 // Timers to stop on deactivate; a set, since tests mount the worker more than once per module.
@@ -26,13 +27,25 @@ export default function activate(orca: OrcaWorkerApi): void {
     },
     focus: (key) => orca.panels.post('focus.changed', { key })
   })
-  starts.onWrite((states) => links.set(states))
+  starts.onWrite((states) => {
+    links.set(states)
+    void links.seed(orca.host)
+  })
+  starts.onCreated((key, workspaceId, terminalId) => {
+    links.adopt(key, workspaceId, terminalId)
+    void links.seed(orca.host)
+  })
   conns.onChange(async () => orca.panels.post('connection.changed', await conns.status()))
   // Listeners run inside the connection lock, which a Start read waits for: clear now, rebuild
   // unawaited. The rebuild's write lands only if the connection is still the same (whileCurrent).
-  conns.onChange(() => {
+  conns.onChange((conn) => {
     links.clear()
+    links.connection(conn)
     void starts.all()
+  })
+  const generation = conns.generation
+  void conns.current().then((conn) => {
+    if (generation === conns.generation) links.connection(conn)
   })
   running.add(items)
 
@@ -49,11 +62,12 @@ export default function activate(orca: OrcaWorkerApi): void {
   }
   subscribe(() => orca.events.on('agent.status.changed', (event) => links.agent(event)))
   subscribe(() => orca.events.on('workspace.changed', (event) => links.focus(event)))
+  subscribe(() => orca.events.on('workspace.created', (event) => links.created(event)))
   subscribe(() =>
     orca.events.on('workspace.removed', async (event) => {
-      links.removed(event)
-      // Also when Links does not know the link yet (a rebuild in flight): the event names the workspace.
-      await starts.dropWorkspace(idsOf(event))
+      // Also when Links does not know the link yet (a rebuild in flight): the event names the workspace,
+      // and Links adds the stable id when the event names only the other form.
+      await starts.dropWorkspace(links.removed(event))
     })
   )
 
@@ -61,6 +75,17 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.hooks.on('workspace.create.before', (event, next) => {
     const branch = event.kind === 'worktree' ? starts.branchFor(event.projectId, event.name) : undefined
     return next(branch ? { ...event, branch } : event)
+  })
+
+  // agent-item-context A1, A2: from memory only; a throw or timeout passes the prompt or launch unchanged.
+  orca.hooks.on('agent.prompt.before', (event, next) => {
+    const item = links.itemOfTerminal(event.terminalId)
+    return next(item && !namesKey(event.prompt, item.key) ? { ...event, prompt: `${pointer(item.key, item.url)}\n${event.prompt}` } : event)
+  })
+  // The key and URL only: the token never leaves the worker.
+  orca.hooks.on('agent.launch.before', (event, next) => {
+    const item = links.launch(event)
+    return next(item ? { ...event, env: { ...event.env, PLANE_ITEM_KEY: item.key, PLANE_ITEM_URL: item.url } } : event)
   })
 
   orca.panels.handle('connection.get', () => conns.status())
