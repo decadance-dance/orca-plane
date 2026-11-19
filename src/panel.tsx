@@ -611,17 +611,20 @@ function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
         <List label={item.key}>
           <ListItem key={item.key} onPress={() => openItem(item)}>
             <Box direction="row" align="center" gap="sm" width="100%" minWidth={0}>
-              {item.priority === 'none' ? (
-                <Text key={`priority:${item.key}`} size="xs" muted>
-                  ○
-                </Text>
-              ) : (
-                <Text key={`priority:${item.key}`} size="xs" tone={PRIORITY_TONE[item.priority]}>
-                  ●
-                </Text>
-              )}
-              <Box shrink={false} width={keyWidth}>
-                <Text size="xs" muted>
+              {/* The dot and the key share one column that never shrinks, so the title starts at the same x in
+                  every row; a dot of its own would shrink by the title's overflow (#79). */}
+              <Box direction="row" align="center" gap="sm" shrink={false} width={keyWidth}>
+                {item.priority === 'none' ? (
+                  <Text key={`priority:${item.key}`} size="xs" muted>
+                    ○
+                  </Text>
+                ) : (
+                  <Text key={`priority:${item.key}`} size="xs" tone={PRIORITY_TONE[item.priority]}>
+                    ●
+                  </Text>
+                )}
+                {/* truncate is Orca's only nowrap: a key wider than the column loses its end, never wraps. */}
+                <Text key={`key:${item.key}`} size="xs" muted truncate>
                   {item.key}
                 </Text>
               </Box>
@@ -647,12 +650,22 @@ function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
   )
 }
 
-// limit: Orca has no monospace Text, so the key column is sized from the longest key at about 7 px a character
-// of `xs` text; a very wide key just pushes its title along.
+// Advance widths in px of Geist, Orca's default app font, at `xs` (12 px), rounded up. Any other character counts
+// as 12 px, a full em: Plane allows non-ASCII identifiers, and a full-width (CJK) glyph is wider than W.
+// limit: Orca has no monospace Text and no way to measure text, so with another app font set in Orca a key may be
+// cut short by an ellipsis; widen these if that font is common.
+const GLYPH: Record<string, number> = {
+  A: 8.1, B: 8.2, C: 8.5, D: 8.4, E: 7.3, F: 7.1, G: 8.4, H: 8.6, I: 3.3, J: 7.2, K: 7.7, L: 7, M: 10.6,
+  N: 9, O: 8.9, P: 7.8, Q: 8.8, R: 8.1, S: 7.7, T: 6.7, U: 8.3, V: 8, W: 11.4, X: 7.3, Y: 7, Z: 6.6,
+  '0': 8, '1': 4.7, '2': 7.5, '3': 7.4, '4': 7.4, '5': 7.6, '6': 7.2, '7': 6.3, '8': 7.3, '9': 7.2, '-': 5.1
+}
+// The dot (10.2 px), the `sm` gap (8 px), the longest key, and 2 px for rounding.
+const keyWidthOf = (items: Item[]) =>
+  Math.ceil(20.2 + Math.max(0, ...items.map((item) => [...item.key].reduce((sum, c) => sum + (GLYPH[c] ?? 12), 0))))
+
 // limit: Orca refuses a panel of more than 5000 nodes, and the fetch cap is 1000 items. 150 rows (about 14 nodes
 // each) leave room for roughly 250 workspaces of items no longer open or 500 filter tags; past that it goes blank.
 const MAX_ROWS = 150
-const keyWidthOf = (items: Item[]) => Math.max(0, ...items.map((item) => item.key.length)) * 7 + 4
 
 function ListView({ state }: { state: ItemsState | null }) {
   if (!state || state.completeness === null) {
