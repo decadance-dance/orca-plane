@@ -959,3 +959,44 @@ test('review 1: a late Hide reply does not hide the workspace that replaced the 
   assert.ok(view.find({ type: 'Collapsible', label: LEFTOVER }))
   await view.unmount()
 })
+
+test("review 2: a late detail reply from the former account does not replace the new account's detail", async () => {
+  let account = 'A'
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.get': async () => {
+        const from = account
+        // Account A's reply comes after the switch and after B's.
+        if (from === 'A') await new Promise((resolve) => setTimeout(resolve, 30))
+        return { ok: true, item: { ...DETAIL, title: `Title from ${from}` } }
+      }
+    })
+  })
+  const pressed = view.press({ testId: 'WEB-1' })
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  account = 'B'
+  await Promise.all([pressed, view.post('connection.changed', { ...CONNECTED, slug: 'other' })])
+  assert.ok(view.find({ text: 'WEB-1 Title from B' }))
+  assert.equal(view.find({ text: 'WEB-1 Title from A' }), null)
+  await view.unmount()
+})
+
+test('review 2: a reload that fails after an account switch shows the error with Retry', async () => {
+  let fail = false
+  const view = await mount(panel, {
+    host: connectedHost({
+      'starts.get': () => {
+        if (fail) throw new Error('worker gone')
+        return { states: {}, hidden: [] }
+      }
+    })
+  })
+  fail = true
+  await view.post('connection.changed', { ...CONNECTED, slug: 'other' })
+  assert.ok(view.find(part('worker gone')))
+  fail = false
+  await view.press({ text: 'Retry' })
+  assert.equal(view.find(part('worker gone')), null)
+  assert.ok(view.find({ testId: 'WEB-1' }))
+  await view.unmount()
+})

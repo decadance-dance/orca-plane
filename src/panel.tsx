@@ -217,8 +217,15 @@ export function setup(ctx: PanelContext): void {
       set(starts, {})
       set(hidden, [])
       set(links, {})
+      // The open detail and confirmation reload (loadConnected); until then they show as loading.
+      const open = read(opened)
+      set(detail, open ? { ...refOf(open), item: null, error: null } : null)
+      set(confirmation, null)
       if (next.connected) {
-        void loadConnected()
+        // As on the first load: a failure shows Retry, unless another connection change came since.
+        void loadConnected().catch((error: unknown) => {
+          if (read(status) === next) set(loadError, message(error))
+        })
       } else {
         closeItem()
         cancelStart()
@@ -306,8 +313,10 @@ async function openItem(ref: ItemRef): Promise<void> {
   set(descriptionOpen, false)
   set(history, [])
   void loadHistory(ref.key)
+  const ask = loadAsk
   const loaded = await fetchDetail(ref)
-  if (read(detail)?.key === ref.key) set(detail, loaded)
+  // A reply from before a connection change belongs to the former account.
+  if (ask === loadAsk && read(detail)?.key === ref.key) set(detail, loaded)
 }
 
 /** The focused Orca workspace belongs to `key` (design L4): show it, unless a Start waits for confirmation. */
@@ -323,8 +332,9 @@ async function askStart(ref: ItemRef): Promise<void> {
   set(confirmation, { ...refOf(ref), item: null, error: null })
   set(startError, null)
   const shown = read(detail)
+  const ask = loadAsk
   const loaded = shown?.key === ref.key && shown.item ? shown : await fetchDetail(ref)
-  if (read(confirming)?.key !== ref.key) return
+  if (ask !== loadAsk || read(confirming)?.key !== ref.key) return
   set(confirmation, loaded)
   if (loaded.item) set(prompt, buildPrompt(loaded.item))
 }
