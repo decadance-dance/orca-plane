@@ -1,8 +1,8 @@
 {
   "manifestVersion": 2,
   "id": "plane",
-  "name": "Plane",
-  "version": "0.1.0",
+  "name": "Plane for Orca",
+  "version": "0.1.1",
   "description": "Your open Plane work items in Orca's sidebar: see what is assigned to you, read an item, and start a coding agent on it in a new workspace. Plane Cloud or self-hosted (API v2). Not affiliated with Plane.",
   "author": {
     "name": "decadance-dance",
