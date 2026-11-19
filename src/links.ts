@@ -144,7 +144,10 @@ export class Links {
   private item(ids: string[]): ItemRef | null {
     if (!this.base) return null
     for (const id of ids) {
-      for (const candidate of [id, this.aliases.get(id) ?? this.listed.get(id)]) {
+      // A fenced path form resolves only through the pair a later `workspace.created` gave it (A4),
+      // also when a Start link is stored under it (Orca's raw-id fallback) and its removal is pending.
+      const direct = this.fenced.has(id) ? [] : [id]
+      for (const candidate of [...direct, this.aliases.get(id) ?? this.listed.get(id)]) {
         if (candidate === undefined) continue
         const key = this.keys.get(candidate) ?? this.adopted.get(candidate)
         if (key) return { key, url: browseUrl(this.base.appBase, this.base.slug, key) }
@@ -190,8 +193,9 @@ export class Links {
     }
     // The stable id also when the event names only the other form (`workspaceListId` is optional), for Starts.
     const stable = [event.workspaceListId, ...ids.map((id) => this.aliases.get(id) ?? this.listed.get(id))]
-    // limit: one entry per removed path, kept while the worker runs.
-    if (event.workspaceId && event.workspaceId !== event.workspaceListId) this.fenced.add(event.workspaceId)
+    // Whatever `workspaceListId` says: without an identity id, Orca gives the raw path id in both fields.
+    // limit: one entry per removed workspace, kept while the worker runs.
+    if (event.workspaceId) this.fenced.add(event.workspaceId)
     for (const pairs of [this.aliases, this.listed]) {
       for (const [other, id] of pairs) if (ids.includes(other) || ids.includes(id)) pairs.delete(other)
     }

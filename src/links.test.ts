@@ -413,3 +413,18 @@ test('review round 3: after a path-only removal, agent status and list rows do n
   await model.seed(seedHostWith([row]))
   assert.equal(model.launch({ ...launch, terminalId: 't-c' })?.key, 'NEW-1', 'created')
 })
+
+test('review round 4: a worktree without an identity id is removed under its raw path id in both fields', () => {
+  // Orca falls back to `<projectId>::<path>` for the id `workspace.create` returns, so the Start link is stored under it.
+  const raw = launch.workspaceId
+  const seen: Record<string, (string | undefined)[]> = {}
+  for (const order of ['launch before its create', 'launch after its create']) {
+    const { model } = links({ 'OLD-1': created(raw), 'NEW-1': created('new-stable') })
+    model.connection(CLOUD)
+    model.removed({ workspaceId: raw, workspaceListId: raw, kind: 'worktree', path: '/x' })
+    const after = order === 'launch after its create'
+    if (after) model.created({ workspaceId: raw, workspaceListId: 'new-stable', kind: 'worktree', path: '/x', branch: 'x' })
+    seen[order] = [model.launch({ workspaceId: raw, terminalId: 't-new' })?.key, model.itemOfTerminal('t-new')?.key]
+  }
+  assert.deepEqual(seen, { 'launch before its create': [undefined, undefined], 'launch after its create': ['NEW-1', 'NEW-1'] })
+})
