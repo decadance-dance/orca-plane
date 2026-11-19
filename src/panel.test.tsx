@@ -495,6 +495,30 @@ test('no Git projects: the confirmation shows a hint instead of the project pick
   await view.unmount()
 })
 
+test('readiness hints before Start: one warning Callout of advice above the prompt; Confirm stays enabled', async () => {
+  const ready = `${'The login page waits for the session check before it draws the form. '.repeat(3)}The code is in src/auth/login.ts.\n\n- [ ] The form draws first`
+  const HINTS = ['No description', 'Short description', 'No checklist', 'No code reference or link']
+  const cases: [string, string[]][] = [
+    ['', ['No description']],
+    ['Login is slow.', ['Short description', 'No checklist', 'No code reference or link']],
+    [ready, []]
+  ]
+  for (const [description, hints] of cases) {
+    const view = await mount(panel, { host: connectedHost({ 'item.get': { ok: true, item: { ...DETAIL, description } } }) })
+    await view.press({ testId: 'start:WEB-1' })
+    const callouts = view.findAll({ type: 'Callout' })
+    if (hints.length === 0) assert.equal(callouts.length, 0, description)
+    else {
+      assert.equal(callouts.length, 1, description)
+      assert.match(callouts[0].text, /This ticket may be hard for an agent/)
+      assert.equal(callouts[0].props.tone, 'warning')
+      assert.deepEqual(HINTS.filter((hint) => callouts[0].text.includes(hint)), hints)
+    }
+    assert.equal(view.find({ text: 'Confirm' })?.disabled, false)
+    await view.unmount()
+  }
+})
+
 test('the preselected agent: the remembered one if installed, else defaultAgent if installed, else the first', async () => {
   const cases: [Record<string, string>, Record<string, string>, string][] = [
     [{ 'plane.agent': 'codex' }, {}, 'codex'],
