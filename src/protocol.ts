@@ -33,6 +33,17 @@ export type StartState =
   | { kind: 'failed'; error: string; workspaceId?: string }
   | { kind: 'unknown'; name: string; projectId: string }
 
+/** One Start of an item as the history keeps it (design H1 of start-history); `id` is its `startedAt`. */
+export type Attempt = {
+  id: string
+  at: number
+  agent: string | null
+  project: string
+  projectId: string
+  workspace: string
+  outcome: 'pending' | 'created' | 'failed' | 'unknown'
+}
+
 /** The agent state of a linked workspace: Orca's blocked and waiting are both `needs-input`. */
 export type AgentState = 'working' | 'needs-input' | 'done'
 
@@ -70,6 +81,8 @@ declare module 'orca' {
     'item.get': { input: { key: string; projectId?: string }; output: Result<{ item: ItemDetail }> }
     /** Every item's Start state that is not idle, reconciled with Orca's workspaces. */
     'starts.get': { output: Record<string, StartState> }
+    /** The item's earlier Starts, oldest first; empty when it has none or nothing is connected. */
+    'history.get': { input: { key: string }; output: Attempt[] }
     /** Every linked item (key) with its workspace and agent state. */
     'links.get': { output: Record<string, LinkView> }
     /** Answers at once; the outcome arrives as `start.changed`. `agent` null starts no agent. */

@@ -522,6 +522,31 @@ test('a lost reply or a worker restart: pending becomes unknown, then reconciles
   }
 })
 
+test('history: the attempts survive a worker remount, and a disconnect and reconnect empties them', async () => {
+  plane()
+  const h = host({
+    'project.list': { projects: [{ id: 'p1', name: 'repo', kind: 'git', hostId: 'local', path: '/r' }], truncated: false },
+    'workspace.create': { workspaceId: 'w1' }
+  })
+  const worker = await connected(h)
+  assert.deepEqual(await worker.request('history.get', { key: 'DIOGEN-449' }), [])
+  assert.deepEqual(await worker.request('item.start', START), { accepted: true })
+  await until(async () => (await worker.request('history.get', { key: 'DIOGEN-449' }))[0]?.outcome === 'created', 'created')
+  await worker.deactivate()
+
+  const again = await mountWorker(main, { host: h })
+  const [attempt] = await again.request('history.get', { key: 'DIOGEN-449' })
+  assert.deepEqual(
+    { ...attempt, id: '', at: 0 },
+    { id: '', at: 0, agent: 'claude', project: 'repo', projectId: 'p1', workspace: NAME, outcome: 'created' }
+  )
+  await again.request('connection.disconnect')
+  assert.deepEqual(await again.request('history.get', { key: 'DIOGEN-449' }), [])
+  assert.equal((await again.request('connection.connect', CLOUD)).ok, true)
+  assert.deepEqual(await again.request('history.get', { key: 'DIOGEN-449' }), [])
+  await again.deactivate()
+})
+
 test('an unknown outcome refuses Start until it is reconciled', async () => {
   plane()
   const h = host({
