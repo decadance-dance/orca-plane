@@ -70,7 +70,7 @@ const connected = (
 const onDetail = { persisted: { plugin: { 'plane.open': { key: 'WEB-12', projectId: 'project-WEB' } } } }
 const persisted = (plugin: Record<string, unknown>) => ({ persisted: { plugin } }) as const
 
-// The first tab (API) shows each row decoration: a linked workspace whose agent works, and a failed Start.
+// The first project (API) shows each row decoration: a linked workspace whose agent works, and a failed Start.
 const LINKED: Record<string, StartState> = {
   'API-3': { kind: 'created', workspaceId: 'w3', name: 'API-3-paginate-the-audit-log', projectId: 'p1' },
   'API-1': { kind: 'failed', error: 'Orca could not create the worktree.' },
@@ -98,9 +98,9 @@ export default defineCheck({
   disconnected: { requests: { 'connection.get': { connected: false } } },
   loading: connected(state({ items: [], completeness: null, fetchedAt: null, refreshing: true })),
   complete: connected(state({}), LINKED, AGENTS),
-  // The WEB project's tab (the third of API, OPS, WEB), with the agent badges of its linked items.
-  'web-tab': { ...connected(state({}), LINKED, AGENTS), ...persisted({ 'plane.tab': 'project-WEB' }) },
-  // An active tag filter is filled with its tone; an item must carry every active tag.
+  // The WEB project (the third of API, OPS, WEB), with the agent badges of its linked items.
+  'web-project': { ...connected(state({}), LINKED, AGENTS), ...persisted({ 'plane.tab': 'project-WEB' }) },
+  // An active tag keeps the filter strip open, filled and checked; an item must carry every active tag.
   tags: { ...connected(state({})), ...persisted({ 'plane.tags': ['label:auth'] }) },
   // DOC-7 left the list; its workspace shows in the section of items no longer open.
   leftovers: connected(state({}), { 'DOC-7': { kind: 'created', workspaceId: 'w7', name: 'DOC-7-update-the-api-guide', projectId: 'p1' } }),

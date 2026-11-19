@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="orca-plane: the command orca plugin install orca-plane beside the Plane panel in Orca's sidebar, which lists the work items assigned to you by project tab and state, WEB-12 Fix the login redirect in progress with its agent done and WEB-9 Add a dark mode toggle in Todo with its agent needing input; Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data; the status bar reads 12 · 2 waiting" src="docs/assets/banner.svg" width="100%">
+  <img alt="orca-plane: the command orca plugin install orca-plane beside the Plane panel in Orca's sidebar, which lists the work items assigned to you by project and state, WEB-12 Fix the login redirect in progress with its agent done and WEB-9 Add a dark mode toggle in Todo with its agent needing input; Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data; the status bar reads 12 · 2 waiting" src="docs/assets/banner.svg" width="100%">
 </p>
 
 <h3 align="center">Your Plane work items in Orca's sidebar, one click from ticket to coding agent</h3>
@@ -32,9 +32,9 @@ one waits for you. The plugin only **reads** Plane, and its token never reaches 
 affiliated with Plane.
 
 <p align="center">
-  <img alt="The Plane panel on the WEB tab: items grouped by state, each with its key, priority and labels, and the agent badges of the items you started" src="docs/screenshots/plane-web-tab.png" width="32%">
+  <img alt="The Plane panel on the WEB project: one line per item under its state, each with its priority dot, key and title, and on the items you started an icon for the agent's state" src="docs/screenshots/plane-web-project.png" width="32%">
   &nbsp;
-  <img alt="The Plane panel showing WEB-12 Fix the login redirect: state, priority, assignees, labels, the framed description, the agent badge, Open workspace and the earlier Starts of the item" src="docs/screenshots/plane-detail-linked.png" width="32%">
+  <img alt="The Plane panel showing WEB-12 Fix the login redirect: a framed header with its key, priority, state, assignees, labels, update time and agent state, then Open workspace and the Plane button, the description and the earlier Starts of the item" src="docs/screenshots/plane-detail-linked.png" width="32%">
   &nbsp;
   <img alt="The Start confirmation for WEB-12: the Orca project, the agent, the workspace and branch name, readiness hints and the prompt the agent gets" src="docs/screenshots/plane-confirm.png" width="32%">
   <br>
@@ -62,18 +62,21 @@ affiliated with Plane.
 ### 📋 Your open items, at a glance
 > *What is assigned to you, in the sidebar next to your code, without opening Plane.*
 
-* **One tab per project**: items are grouped by state (started, then unstarted, then backlog), newest
-  update first, each with its key, priority and labels. Search filters by key, title or label;
-  pressing a priority or label tag filters by it.
-* **Honest about gaps**: the list says whether it is complete, partial (the item cap was reached or
-  a page failed) or stale (the last refresh failed), and the status bar shows `?` instead of a
+* **One line per item**: a picker switches between Plane projects and counts their items; items are
+  grouped by state (started, then unstarted, then backlog), newest update first, each with its
+  priority dot, key and title; on an item you started, the workspace icon shows the agent's state.
+  The Search icon opens a search by key, title or label; the Filter icon opens the priority and
+  label tags, and pressing one filters by it; `⋯` holds Open by key or URL and Disconnect.
+* **Honest about gaps**: a complete list shows when it was updated; a partial one (the item cap was
+  reached or a page failed) or a stale one (the last refresh failed) says so, with the reason, and the status bar shows `?` instead of a
   wrong count.
 * **Fast and gentle on Plane**: the panel shows the last known list at once and refreshes it in the
   background (every 10 minutes by default). On a rate limit it retries once, only for a wait of 30
   seconds or less.
-* **Item detail**: state, priority, assignees, labels and the description (a long one folds), with a
-  link to the item in Plane. **Open by key or URL** finds any item of the workspace, also one
-  assigned to someone else or closed.
+* **Item detail**: a framed header with the key, priority, title, state, assignees, labels and last
+  update and the agent's state, then Start work (or Open workspace) and the Plane button, which opens
+  the item in Plane, then the description (a long one folds). **Open by key or URL**, behind `⋯`,
+  finds any item of the workspace, also one assigned to someone else or closed.
 
 ### 🤖 Start an agent on an item
 > *One confirmation turns a ticket into a workspace, a branch and a running agent.*
@@ -92,7 +95,8 @@ affiliated with Plane.
 ### 🧭 Follow the agents you started
 > *The panel and the status bar tell you which agent needs you, and take you there.*
 
-* **Agent state on the item**: Working, Needs input or Done, from the agent in the item's workspace.
+* **Agent state on the item**: Agent working, Agent needs input or Agent done, from the agent in the
+  item's workspace: the row's workspace icon (agent, bell, check) and the detail's Agent field.
 * **Status bar**: your open items and the agents that wait (`12 · 2 waiting`); a click toggles the
   sidebar.
 * **Follow the workspace**: switching to a workspace started from an item shows that item, even after
@@ -174,7 +178,7 @@ flowchart TB
     subgraph plugin["Plane for Orca"]
         direction LR
         worker["<b>Worker</b><br/>token in Orca's secrets<br/>cached list · background refresh"]
-        panel["<b>Panel</b><br/>tabs · search · tags<br/>item detail · Start"]
+        panel["<b>Panel</b><br/>projects · search · tags<br/>item detail · Start"]
         status["<b>Status bar</b><br/>12 · 2 waiting"]
     end
 
@@ -255,7 +259,7 @@ openspec validate --all            # the specs and open changes
 - Files, comments, commits and issues are in English.
 
 `docs/screenshots/plane-*.png` are scenarios of `src/panel.check.ts`, drawn by Orca with Orca's
-window minimized: `orca plugin shot . --scenario web-tab --theme dark --width 320 --out docs/screenshots/plane-web-tab.png`.
+window minimized: `orca plugin shot . --scenario web-project --theme dark --width 320 --out docs/screenshots/plane-web-project.png`.
 
 </details>
 

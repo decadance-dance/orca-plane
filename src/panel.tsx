@@ -1,4 +1,4 @@
-// The Plane panel (layout: design D10). It never sees the token after the connect form submits,
+// The Plane panel (layout: design D10, reworked by P1-P9 of compact-panel-layout). It never sees the token after the connect form submits,
 // and never waits on the network for the list: the worker answers from its cache and posts
 // `items.changed`.
 import {
@@ -13,7 +13,6 @@ import {
   Heading,
   IconButton,
   Input,
-  KeyValue,
   List,
   ListItem,
   Markdown,
@@ -23,6 +22,7 @@ import {
   RelativeTime,
   Row,
   Select,
+  Separator,
   set,
   settings,
   shell,
@@ -31,6 +31,7 @@ import {
   Text,
   Textarea,
   update,
+  type OrcaNode,
   type PanelContext,
   type Tone
 } from 'orca'
@@ -52,16 +53,18 @@ import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
 
-/** Priority pill outlines (design D10); Orca's theme tones are the only colours a plugin has. */
+/** Priority tones (design D10); Orca's theme tones are the only colours a plugin has. */
 const PRIORITY_TONE = { urgent: 'danger', high: 'accent', medium: 'warning', low: 'success' } as const
+const PRIORITIES = ['urgent', 'high', 'medium', 'low'] as const
 
 /** States sort by their Plane group first (design D10). */
 const GROUP_RANK = { started: 0, unstarted: 1, backlog: 2, unknown: 3 } as const
 const UNKNOWN_STATE = 'Unknown state'
-const AGENT_BADGE = {
-  working: { tone: 'neutral', label: 'Working' },
-  'needs-input': { tone: 'warning', label: 'Needs input' },
-  done: { tone: 'success', label: 'Done' }
+/** The agent's state: the icon of a row's workspace control and its name, and a field of the detail (design P7). */
+const AGENT_STATE = {
+  working: { tone: 'neutral', icon: 'agent', label: 'Agent working', short: 'Working' },
+  'needs-input': { tone: 'warning', icon: 'bell', label: 'Agent needs input', short: 'Needs input' },
+  done: { tone: 'success', icon: 'check', label: 'Agent done', short: 'Done' }
 } as const
 /** A pending or unknown attempt is shown as not confirmed (design H4 of start-history). */
 const OUTCOME = {
@@ -70,8 +73,8 @@ const OUTCOME = {
   pending: { tone: 'warning', label: 'not confirmed' },
   unknown: { tone: 'warning', label: 'not confirmed' }
 } as const
+/** A list that is not complete names its state once, with the reason (design P8). */
 const COMPLETENESS = {
-  complete: { tone: 'success', label: 'Complete' },
   partial: { tone: 'warning', label: 'Partial' },
   stale: { tone: 'warning', label: 'Stale' },
   error: { tone: 'danger', label: 'Error' }
@@ -108,6 +111,11 @@ const connectError = atom<string | null>(null)
 type ItemRef = { key: string; projectId?: string }
 type Loaded = ItemRef & { item: ItemDetail | null; error: string | null }
 const search = atom('plane.search', '', { persist: 'plugin' })
+/** The header's Search and Filter toggles (design P3, P4); their parts also show while they hold a value. */
+const searchShown = atom(false)
+const filterShown = atom(false)
+/** The header's `⋯`: the "Open by key or URL" field and Disconnect (design P1). */
+const moreShown = atom(false)
 /** Active tag filters, `priority:<p>` or `label:<name>`; an item must have them all (design D10). */
 const tags = atom<string[]>('plane.tags', [], { persist: 'plugin' })
 /** The selected Plane project's id (design D10). */
@@ -491,27 +499,49 @@ function Pickers() {
   )
 }
 
-/** Start, Starting…, Checking… or Open workspace, by the item's Start state; `compact` draws only
- *  the icon, named by its tooltip (list rows). Callers key it `start:<KEY>`. */
+/** Start work, Starting…, Checking… or Open workspace, by the item's Start state. `compact` (a list row) draws
+ *  only the icon, named by its tooltip: the agent's state or a failed Start shows as the icon (design P6, P7).
+ *  The full button is the detail's primary action and fills its row (design P9). Callers key it `start:<KEY>`. */
 function StartButton({ item, compact = false }: { item: ItemRef; compact?: boolean }) {
   const state = read(starts)[item.key]
+  const failed = state?.kind === 'failed'
   const workspaceId = state?.kind === 'created' || state?.kind === 'failed' ? state.workspaceId : undefined
   if (workspaceId) {
     const open = () => openWorkspace(workspaceId)
-    return compact ? (
-      <IconButton size="sm" variant="ghost" icon="open-external" label="Open workspace" onPress={open} />
-    ) : (
-      <Button size="sm" icon="open-external" onPress={open}>
-        Open workspace
-      </Button>
+    if (!compact) {
+      return (
+        <Button variant="solid" icon="open-external" onPress={open}>
+          Open workspace
+        </Button>
+      )
+    }
+    const agentState = read(links)[item.key]?.agent
+    const shown = agentState ? AGENT_STATE[agentState] : null
+    return (
+      <IconButton
+        size="sm"
+        variant="ghost"
+        icon={failed ? 'warning' : (shown?.icon ?? 'open-external')}
+        tone={failed ? 'danger' : (shown?.tone ?? 'neutral')}
+        label={failed ? 'Open workspace · The agent did not start' : shown ? `Open workspace · ${shown.label}` : 'Open workspace'}
+        onPress={open}
+      />
     )
   }
   const disabled = state?.kind === 'pending' || state?.kind === 'unknown' || read(confirming)?.key === item.key
-  const label = state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : 'Start'
+  const label = state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : compact ? 'Start' : 'Start work'
   return compact ? (
-    <IconButton size="sm" variant="ghost" tone="accent" icon="play" label={label} disabled={disabled} onPress={() => askStart(item)} />
+    <IconButton
+      size="sm"
+      variant="ghost"
+      tone={failed ? 'danger' : 'accent'}
+      icon={failed ? 'warning' : 'play'}
+      label={failed ? 'Start failed · Start again' : label}
+      disabled={disabled}
+      onPress={() => askStart(item)}
+    />
   ) : (
-    <Button size="sm" tone="accent" icon="play" disabled={disabled} onPress={() => askStart(item)}>
+    <Button variant="solid" icon="play" disabled={disabled} onPress={() => askStart(item)}>
       {label}
     </Button>
   )
@@ -567,116 +597,101 @@ function Confirmation({ current }: { current: Loaded }) {
   )
 }
 
-/** The agent state of the item's linked workspace; nothing when none is known. */
-function AgentBadge({ itemKey }: { itemKey: string }) {
-  const agent = read(links)[itemKey]?.agent
-  if (!agent) return null
-  const badge = AGENT_BADGE[agent]
-  return <Badge tone={badge.tone}>{badge.label}</Badge>
-}
-
-/** A row after Orca's Agents panel (design D10): the pressable item (title, then a muted meta line) opens
- *  it; Start sits beside it, since a pressable ListItem cannot hold other controls. */
-function ItemRow({ item }: { item: Item }) {
-  const state = read(starts)[item.key]
+/** One line (design P6): the pressable item (priority dot, key, title) opens it; the Start or workspace icon
+ *  sits beside it, since a pressable ListItem cannot hold other controls. `keyWidth` aligns the titles. */
+function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
   const asked = read(confirmation)
-  const meta = `${item.key} · ${item.stateName ?? UNKNOWN_STATE}`
-  const updated = Date.parse(item.updatedAt)
-  return (
-    <Stack gap="xs">
-      {/* The item shrinks and truncates; Start keeps its size, so the row never overflows. */}
-      <Box direction="row" align="center" gap="xs" width="100%" minWidth={0}>
-        <Box grow shrink minWidth={0}>
-          <List label={item.key}>
-            <ListItem key={item.key} onPress={() => openItem(item)}>
-              <Text weight="medium" truncate>
-                {item.title}
-              </Text>
-              <Text muted size="xs">
-                {Number.isNaN(updated) ? meta : `${meta} · `}
-                {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
-              </Text>
-              {state?.kind === 'failed' || read(links)[item.key]?.agent ? (
-                <Row gap="xs">
-                  {state?.kind === 'failed' ? <Badge tone="danger">Start failed</Badge> : null}
-                  <AgentBadge itemKey={item.key} />
-                </Row>
-              ) : null}
-            </ListItem>
-          </List>
-        </Box>
-        {asked?.key === item.key ? null : (
-          <Box shrink={false}>
-            <StartButton key={`start:${item.key}`} item={item} compact />
-          </Box>
-        )}
+  const asking = asked?.key === item.key
+  // Orca refuses a panel of more than 5000 nodes: a row spends as few as it can (no wrapper around the dot or
+  // the icon, no Stack unless a confirmation follows), and Groups draws at most MAX_ROWS of them.
+  const line = (
+    // The title shrinks and truncates; the rest keeps its size, so the row never overflows.
+    <Box direction="row" align="center" gap="xs" width="100%" minWidth={0}>
+      <Box grow shrink minWidth={0}>
+        <List label={item.key}>
+          <ListItem key={item.key} onPress={() => openItem(item)}>
+            <Box direction="row" align="center" gap="sm" width="100%" minWidth={0}>
+              {item.priority === 'none' ? (
+                <Text key={`priority:${item.key}`} size="xs" muted>
+                  ○
+                </Text>
+              ) : (
+                <Text key={`priority:${item.key}`} size="xs" tone={PRIORITY_TONE[item.priority]}>
+                  ●
+                </Text>
+              )}
+              <Box shrink={false} width={keyWidth}>
+                <Text size="xs" muted>
+                  {item.key}
+                </Text>
+              </Box>
+              <Box grow shrink minWidth={0}>
+                <Text size="sm" weight="medium" truncate>
+                  {item.title}
+                </Text>
+              </Box>
+            </Box>
+          </ListItem>
+        </List>
       </Box>
-      {item.priority !== 'none' || item.labels.length > 0 ? (
-        <Box direction="row" wrap gap="xs" paddingX="sm">
-          {item.priority === 'none' ? null : (
-            <TagButton key={`priority:${item.key}`} tag={`priority:${item.priority}`} tone={PRIORITY_TONE[item.priority]}>
-              {item.priority}
-            </TagButton>
-          )}
-          {item.labels.map((label) => (
-            <TagButton key={label} tag={`label:${label}`}>
-              {label}
-            </TagButton>
-          ))}
-        </Box>
-      ) : null}
-      {asked?.key === item.key ? <Confirmation current={asked} /> : null}
+      {asking ? null : <StartButton key={`start:${item.key}`} item={item} compact />}
+    </Box>
+  )
+  return asking ? (
+    <Stack gap="xs">
+      {line}
+      <Confirmation current={asked} />
     </Stack>
+  ) : (
+    line
   )
 }
+
+// limit: Orca has no monospace Text, so the key column is sized from the longest key at about 7 px a character
+// of `xs` text; a very wide key just pushes its title along.
+// limit: Orca refuses a panel of more than 5000 nodes, and the fetch cap is 1000 items. 150 rows (about 14 nodes
+// each) leave room for roughly 250 workspaces of items no longer open or 500 filter tags; past that it goes blank.
+const MAX_ROWS = 150
+const keyWidthOf = (items: Item[]) => Math.max(0, ...items.map((item) => item.key.length)) * 7 + 4
 
 function ListView({ state }: { state: ItemsState | null }) {
   if (!state || state.completeness === null) {
     return <Skeleton lines={4} label="Loading your items" />
   }
-  const badge = COMPLETENESS[state.completeness]
   const query = read(search).trim().toLowerCase()
   const active = read(tags)
   const shown = state.items.filter((item) => matches(item, query) && active.every((tag) => tagsOf(item).includes(tag)))
-  // One tab per project with listed items, ordered by name; a project no longer listed falls back to the first.
+  // One picker entry per project with listed items, ordered by name; a project no longer listed falls back to the first.
   // The newest item names it, so the name is one fixed choice.
   const names = new Map<string, string>()
   for (const item of state.items) if (!names.has(item.projectId)) names.set(item.projectId, prefix(item.key))
-  const tabs = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  // limit: Orca's Select drops every option past 500, so only the first 500 projects by name are offered;
+  // items in more than 500 projects at once are not expected.
+  const tabs = [...names.entries()].sort((a, b) => a[1].localeCompare(b[1])).slice(0, 500)
   const selected = tabs.some(([id]) => id === read(tab)) ? (read(tab) ?? undefined) : tabs[0]?.[0]
   const inTab = shown.filter((item) => item.projectId === selected)
   const failedOpen = read(openError)
+  const incomplete = state.completeness === 'complete' ? null : COMPLETENESS[state.completeness]
+  const count = (id: string) => shown.filter((item) => item.projectId === id).length
   return (
-    <Stack gap="md">
-      <Input
-        label="Search"
-        labelHidden
-        type="search"
-        placeholder="Search by key, title or label"
-        value={read(search)}
-        onChange={(value) => set(search, value)}
-      />
-      <Input
-        label="Open by key or URL"
-        labelHidden
-        placeholder="Open by key or URL, e.g. DIOGEN-12"
-        value={read(lookupText)}
-        onChange={(value) => set(lookupText, value)}
-        onSubmit={() => void lookup()}
-      />
-      {read(lookupError) ? <Callout tone="warning">{read(lookupError)}</Callout> : null}
-      <Row justify="between">
-        <Badge tone={badge.tone}>{badge.label}</Badge>
-        {state.fetchedAt ? (
-          <Text muted size="xs">
-            updated <RelativeTime at={state.fetchedAt} />
-          </Text>
-        ) : null}
-      </Row>
-      {state.error ? (
-        <Callout tone={state.completeness === 'error' ? 'danger' : 'warning'} title={badge.label}>
-          {state.error}
-        </Callout>
+    <Stack gap="sm">
+      {read(searchShown) || read(search) ? (
+        <Input
+          label="Search"
+          labelHidden
+          type="search"
+          placeholder="Search by key, title or label"
+          value={read(search)}
+          onChange={(value) => set(search, value)}
+        />
+      ) : null}
+      {read(filterShown) || active.length > 0 ? <FilterStrip listed={state.items} /> : null}
+      {/* A complete list shows only its update time, at the bottom; any other state is named once, with its
+          reason, as text: a Callout without a title still draws Orca's own "Warning" (design P8). */}
+      {incomplete ? (
+        <Text key="list-state" size="sm" tone={incomplete.tone}>
+          {state.error ? `${incomplete.label} · ${state.error}` : incomplete.label}
+        </Text>
       ) : null}
       {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
       {state.completeness !== 'error' && state.items.length === 0 ? (
@@ -684,32 +699,62 @@ function ListView({ state }: { state: ItemsState | null }) {
       ) : null}
       {tabs.length > 0 ? (
         <Stack gap="sm">
-          {/* A segmented switcher like the Agents panel's; Orca Tabs scroll sideways and cut labels off.
-              Each segment grows, so every line of segments fills the width. */}
-          <Box direction="row" wrap gap="xs" padding="xs" radius="md" background="muted">
-            {tabs.map(([id, name]) => (
-              <Box key={id} grow align="stretch">
-                <Button
-                  key={`tab:${id}`}
-                  size="xs"
-                  variant={id === selected ? 'outline' : 'ghost'}
-                  onPress={() => set(tab, id)}
-                >
-                  {`${name} ${shown.filter((item) => item.projectId === id).length}`}
-                </Button>
-              </Box>
-            ))}
-          </Box>
-          <Box direction="row" justify="between" paddingX="sm" paddingY="xs" radius="sm" background="muted">
-            <Text weight="semibold" size="xs">{`${inTab.length} ${inTab.length === 1 ? 'item' : 'items'}`}</Text>
-            <Text muted size="xs">
-              Last updated
-            </Text>
-          </Box>
+          {/* One picker never wraps, however many projects (design P2); "Project" is a Start's Orca project. */}
+          <Select
+            label="Plane project"
+            labelHidden
+            value={selected}
+            options={tabs.map(([id, name]) => ({
+              value: id,
+              label: `${name} · ${count(id)} ${count(id) === 1 ? 'item' : 'items'}`
+            }))}
+            onChange={(value) => set(tab, value)}
+          />
           <Groups entries={inTab} all={state.items.filter((item) => item.projectId === selected)} />
         </Stack>
       ) : null}
       {state.completeness === 'complete' ? <Leftovers listed={state.items} /> : null}
+      {state.fetchedAt ? (
+        <Box key="list-updated" direction="row" justify="center">
+          <Text muted size="xs">
+            updated <RelativeTime at={state.fetchedAt} />
+          </Text>
+        </Box>
+      ) : null}
+    </Stack>
+  )
+}
+
+/** The `⋯` part stays shown while it holds a key or a refusal. */
+const moreHeld = () => read(lookupText) !== '' || read(lookupError) !== null
+
+/** Behind the header's `⋯` (design P1): Open by key or URL, and Disconnect. */
+function More() {
+  const refused = read(lookupError)
+  return (
+    <Stack gap="xs">
+      <Input
+        label="Open by key or URL"
+        labelHidden
+        placeholder="Open by key or URL, e.g. DIOGEN-12"
+        value={read(lookupText)}
+        // Editing drops the refusal, so the part can be hidden once the field is empty.
+        onChange={(value) => {
+          set(lookupText, value)
+          set(lookupError, null)
+        }}
+        onSubmit={() => void lookup()}
+      />
+      {refused ? (
+        <Text key="lookup-error" size="sm" tone="warning">
+          {refused}
+        </Text>
+      ) : null}
+      <Row justify="end">
+        <Button variant="ghost" size="xs" onPress={disconnect}>
+          Disconnect
+        </Button>
+      </Row>
     </Stack>
   )
 }
@@ -756,15 +801,46 @@ function Leftovers({ listed }: { listed: Item[] }) {
   )
 }
 
-/** A tag that toggles itself in the filter: outlined in its tone, filled with it while active (design D10).
- *  The colour is on a Box: Orca colours only `danger` Buttons, so the Button inside is ghost. */
+/** A tag that toggles itself in the filter: outlined in its tone; while active, filled (accent for a grey
+ *  label, which a muted fill did not set apart) and checked (design P4). The colour is on a Box: Orca colours
+ *  only `danger` Buttons, so the Button inside is ghost. */
 function TagButton({ tag, tone = 'neutral', children }: { tag: string; tone?: Tone; children: string }) {
   const active = read(tags).includes(tag)
   return (
-    <Box border={tone} background={active ? (tone === 'neutral' ? 'muted' : tone) : 'none'} radius="full">
-      <Button size="xs" variant="ghost" onPress={() => toggleTag(tag)}>
+    <Box border={tone} background={active ? (tone === 'neutral' ? 'accent' : tone) : 'none'} radius="full">
+      <Button size="xs" variant="ghost" icon={active ? 'check' : undefined} onPress={() => toggleTag(tag)}>
         {children}
       </Button>
+    </Box>
+  )
+}
+
+/** The Filter icon's strip (design P4): the priorities, then the labels, of the whole loaded list, plus any
+ *  active tag no longer in it, so a remembered tag can always be turned off. */
+function FilterStrip({ listed }: { listed: Item[] }) {
+  const active = read(tags)
+  const offered = new Set([...listed.flatMap(tagsOf), ...active])
+  const labels = [...offered].filter((tag) => tag.startsWith('label:')).sort((a, b) => a.localeCompare(b))
+  const priorities = PRIORITIES.filter((priority) => offered.has(`priority:${priority}`))
+  if (priorities.length === 0 && labels.length === 0) {
+    return (
+      <Text muted size="xs">
+        No priorities or labels to filter by.
+      </Text>
+    )
+  }
+  return (
+    <Box direction="row" wrap gap="xs">
+      {priorities.map((priority) => (
+        <TagButton key={`priority:${priority}`} tag={`priority:${priority}`} tone={PRIORITY_TONE[priority]}>
+          {priority}
+        </TagButton>
+      ))}
+      {labels.map((tag) => (
+        <TagButton key={tag} tag={tag}>
+          {tag.slice('label:'.length)}
+        </TagButton>
+      ))}
     </Box>
   )
 }
@@ -782,7 +858,7 @@ function stateOrder(items: Item[]): string[] {
     .map(([name]) => name)
 }
 
-/** One tab's shown items by state, ordered by Plane group, then the state's count among `all` (the tab's
+/** One project's shown items by state, ordered by Plane group, then the state's count among `all` (the project's
  *  loaded items, so a search does not reorder them), then name; empty only under a search. */
 function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
   if (entries.length === 0) {
@@ -790,37 +866,57 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
       <Stack gap="xs">
         <EmptyState icon="search" title="No matching items" description="Try another key, title or label." />
         <Row>
-          <Button variant="ghost" onPress={clearFilters}>
-            Clear search
+          <Button variant="outline" size="sm" onPress={clearFilters}>
+            {read(tags).length > 0 ? 'Clear filters' : 'Clear search'}
           </Button>
         </Row>
       </Stack>
     )
   }
+  const keyWidth = keyWidthOf(entries)
+  let room = MAX_ROWS
+  const groups = stateOrder(all)
+    .map((name) => ({ name, rows: entries.filter((item) => (item.stateName ?? UNKNOWN_STATE) === name) }))
+    .filter((group) => group.rows.length > 0)
+    .map((group) => {
+      const drawn = group.rows.slice(0, room)
+      room -= drawn.length
+      return { ...group, drawn }
+    })
+    .filter((group) => group.drawn.length > 0)
+  // A plain header per state, a separator between states; groups do not collapse (design P5).
   return (
-    <Stack gap="md">
-      {stateOrder(all).map((name) => {
-        const inGroup = entries.filter((item) => (item.stateName ?? UNKNOWN_STATE) === name)
-        return inGroup.length === 0 ? null : (
-          <Collapsible key={name} title={name} description={`${inGroup.length} ${inGroup.length === 1 ? 'item' : 'items'}`} defaultOpen>
-            <Stack gap="sm">
-              {inGroup.map((item) => (
-                <ItemRow key={item.key} item={item} />
-              ))}
-            </Stack>
-          </Collapsible>
-        )
-      })}
+    <Stack gap="sm">
+      {groups.map(({ name, rows, drawn }, index) => (
+        <Stack key={name} gap="xs">
+          {index > 0 ? <Separator /> : null}
+          <Box key={`group:${name}`} direction="row" justify="between" align="center" gap="xs" paddingX="sm" minWidth={0}>
+            {/* Orca draws a level-3 heading small, upper case and muted, as the mockup's group headers. */}
+            <Heading level={3}>{name}</Heading>
+            <Text key={`count:${name}`} size="xs" muted>
+              {String(rows.length)}
+            </Text>
+          </Box>
+          {drawn.map((item) => (
+            <ItemRow key={item.key} item={item} keyWidth={keyWidth} />
+          ))}
+        </Stack>
+      ))}
+      {entries.length > MAX_ROWS ? (
+        <Text key="rows-capped" size="xs" muted>
+          {`Showing ${MAX_ROWS} of ${entries.length}. Search or filter to see the rest.`}
+        </Text>
+      ) : null}
     </Stack>
   )
 }
 
-/** The description sits in its own framed block, apart from the detail around it. */
+/** The description as plain text under the actions, with Show more below it (design P9). */
 function Description({ text }: { text: string }) {
   const short = preview(text)
   const open = read(descriptionOpen)
   return (
-    <Box direction="column" gap="xs" padding="sm" border radius="md" background="muted">
+    <Stack gap="xs">
       <Markdown content={short && !open ? short : text} />
       {short ? (
         <Row>
@@ -829,7 +925,7 @@ function Description({ text }: { text: string }) {
           </Button>
         </Row>
       ) : null}
-    </Box>
+    </Stack>
   )
 }
 
@@ -868,11 +964,41 @@ function EarlierStarts() {
 const underWay = (state: StartState | undefined) =>
   state !== undefined && (state.kind === 'pending' || state.kind === 'unknown' || linkedWorkspace(state) !== undefined)
 
+/** A pill outlined and written in its tone, as the mockup's badges; Orca's Badge is filled. */
+function Pill({ tone, children }: { tone: Tone; children: string }) {
+  return (
+    <Box border={tone} radius="full" paddingX="sm">
+      <Text size="xs" tone={tone === 'neutral' ? undefined : tone} muted={tone === 'neutral'}>
+        {children}
+      </Text>
+    </Box>
+  )
+}
+
+/** A label and its value on one line; KeyValue takes only text, so it cannot hold a RelativeTime. */
+function Field({ label, children }: { label: string; children: OrcaNode }) {
+  return (
+    <Box direction="row" gap="sm" minWidth={0}>
+      <Box shrink={false} width={72}>
+        <Text size="xs" muted>
+          {label}
+        </Text>
+      </Box>
+      <Box grow shrink minWidth={0}>
+        {children}
+      </Box>
+    </Box>
+  )
+}
+
 function DetailView({ current }: { current: Loaded }) {
   const item = current.item
   const state = read(starts)[current.key]
   const asked = read(confirmation)
   const failedOpen = read(openError)
+  const agentState = item ? read(links)[item.key]?.agent : undefined
+  const updated = item ? Date.parse(item.updatedAt) : Number.NaN
+  const startable = item !== null && asked?.key !== item.key && (item.stateGroup !== 'unknown' || underWay(state))
   return (
     <Stack gap="md">
       <Row>
@@ -884,44 +1010,80 @@ function DetailView({ current }: { current: Loaded }) {
       {!item && !current.error ? <Skeleton lines={6} label={`Loading ${current.key}`} /> : null}
       {item ? (
         <Stack gap="md">
-          <Heading level={2}>{`${item.key} ${item.title}`}</Heading>
-          {read(links)[item.key]?.agent ? (
-            <Row>
-              <AgentBadge itemKey={item.key} />
-            </Row>
-          ) : null}
-          <KeyValue
-            items={[
-              { label: 'State', value: item.stateName ?? 'Unknown' },
-              { label: 'Priority', value: item.priority },
-              { label: 'Assignees', value: item.assignees.join(', ') || '—' },
-              { label: 'Labels', value: item.labels.join(', ') || '—' },
-              { label: 'Updated', value: item.updatedAt.slice(0, 16).replace('T', ' ') }
-            ]}
-          />
-          <Row>
-            <Button icon="open-external" variant="outline" onPress={() => shell.openExternal(item.url)}>
-              Open in Plane
-            </Button>
-          </Row>
-          {item.description ? <Description text={item.description} /> : <Text muted size="sm">No description.</Text>}
+          {/* The framed header, then the actions, then what follows from them, then the description (design P9). */}
+          <Box key="detail-header" direction="column" gap="sm" padding="sm" radius="md" background="muted">
+            <Box direction="row" justify="between" align="center" gap="xs" minWidth={0}>
+              <Text size="xs" muted>
+                {item.key}
+              </Text>
+              <Pill tone={item.priority === 'none' ? 'neutral' : PRIORITY_TONE[item.priority]}>
+                {item.priority === 'none' ? 'No priority' : item.priority}
+              </Pill>
+            </Box>
+            <Heading level={2}>{item.title}</Heading>
+            <Stack key="detail-fields" gap="xs">
+              <Field label="State">
+                <Text size="xs">{item.stateName ?? 'Unknown'}</Text>
+              </Field>
+              <Field label="Assignees">
+                <Text size="xs">{item.assignees.join(', ') || '—'}</Text>
+              </Field>
+              <Field label="Labels">
+                <Text size="xs">{item.labels.join(', ') || '—'}</Text>
+              </Field>
+              <Field label="Updated">
+                <Text size="xs">{Number.isNaN(updated) ? item.updatedAt : <RelativeTime at={updated} />}</Text>
+              </Field>
+              {agentState ? (
+                <Field label="Agent">
+                  <Text key="detail-agent" size="xs" tone={AGENT_STATE[agentState].tone === 'neutral' ? undefined : AGENT_STATE[agentState].tone}>
+                    {AGENT_STATE[agentState].short}
+                  </Text>
+                </Field>
+              ) : null}
+            </Stack>
+          </Box>
+          {/* Start (or Open workspace) fills the row; Plane keeps its size beside it. */}
+          <Box key="detail-actions" direction="row" gap="xs" align="center" width="100%" minWidth={0}>
+            {startable ? (
+              <Box grow shrink minWidth={0} align="stretch">
+                <StartButton key={`start:${item.key}`} item={item} />
+              </Box>
+            ) : null}
+            <Box shrink={false}>
+              <Button icon="open-external" variant="outline" tooltip="Open in Plane" onPress={() => shell.openExternal(item.url)}>
+                Plane
+              </Button>
+            </Box>
+          </Box>
           {state?.kind === 'failed' ? (
             <Callout tone="danger" title={state.workspaceId ? 'The agent did not start' : 'Start failed'}>
               {state.error}
             </Callout>
           ) : null}
           {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
-          {asked?.key === item.key ? (
-            <Confirmation current={asked} />
-          ) : item.stateGroup !== 'unknown' || underWay(state) ? (
-            <Row>
-              <StartButton key={`start:${item.key}`} item={item} />
-            </Row>
-          ) : null}
+          {asked?.key === item.key ? <Confirmation current={asked} /> : null}
+          {item.description ? <Description text={item.description} /> : <Text muted size="sm">No description.</Text>}
           <EarlierStarts />
         </Stack>
       ) : null}
     </Stack>
+  )
+}
+
+/** A header toggle (design P1, P3, P4): outlined while its part shows. A part that holds a value stays shown,
+ *  so its toggle is disabled then rather than pressable to no effect. */
+function Toggle({ shown, held, icon, name }: { shown: typeof searchShown; held: boolean; icon: 'search' | 'filter' | 'more'; name: string }) {
+  const on = read(shown) || held
+  return (
+    <IconButton
+      key={`toggle:${icon}`}
+      icon={icon}
+      variant={on ? 'outline' : 'ghost'}
+      label={`${on ? 'Hide' : 'Show'} ${name}`}
+      disabled={held}
+      onPress={() => set(shown, !on)}
+    />
   )
 }
 
@@ -944,9 +1106,11 @@ export default function Panel() {
   if (!current.connected) return <ConnectView />
   const open = read(detail)
   const list = read(items)
+  // The detail starts with its back control, without the list's header (design P9).
+  if (open) return <DetailView current={open} />
   return (
     <Stack gap="md">
-      {/* The name shrinks and truncates; the buttons keep their size, so a narrow sidebar does not scroll. */}
+      {/* The name shrinks and truncates; the icons keep their size, so a narrow sidebar does not scroll. */}
       <Box direction="row" justify="between" align="center" gap="xs" width="100%" minWidth={0}>
         <Box grow shrink minWidth={0}>
           <Text size="xs" weight="semibold">
@@ -957,18 +1121,21 @@ export default function Panel() {
           </Text>
         </Box>
         <Box direction="row" gap="xs" align="center" shrink={false}>
+          <Toggle shown={searchShown} held={read(search) !== ''} icon="search" name="search" />
+          <Toggle shown={filterShown} held={read(tags).length > 0} icon="filter" name="filters" />
           <IconButton
             icon="refresh"
+            variant="ghost"
             label={list?.refreshing ? 'Refreshing' : 'Refresh'}
             disabled={!list || list.refreshing}
             onPress={refresh}
           />
-          <Button variant="ghost" size="xs" onPress={disconnect}>
-            Disconnect
-          </Button>
+          <Toggle shown={moreShown} held={moreHeld()} icon="more" name="actions" />
         </Box>
       </Box>
-      {open ? <DetailView current={open} /> : <ListView state={read(items)} />}
+      {/* Above the list, so Disconnect is reachable while the first list loads. */}
+      {read(moreShown) || moreHeld() ? <More /> : null}
+      <ListView state={read(items)} />
     </Stack>
   )
 }
