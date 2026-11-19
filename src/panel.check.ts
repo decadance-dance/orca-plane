@@ -91,14 +91,15 @@ const attempt = (id: string, agent: string | null, outcome: Attempt['outcome'], 
   workspace: 'WEB-12-fix-the-login-redirect',
   outcome
 })
-const HISTORY = [attempt('a1', 'codex', 'failed', 86_400_000), attempt('a2', null, 'unknown', 7_200_000), attempt('a3', 'claude', 'created', 600_000)]
+// Settled, as the worker returns it once `starts.get` has reconciled the history with the linked workspace.
+const HISTORY = [attempt('a1', 'codex', 'failed', 86_400_000), attempt('a2', 'claude', 'created', 600_000)]
 
 export default defineCheck({
   disconnected: { requests: { 'connection.get': { connected: false } } },
   loading: connected(state({ items: [], completeness: null, fetchedAt: null, refreshing: true })),
   complete: connected(state({}), LINKED, AGENTS),
-  // The second project's tab, with the agent badges of its linked items.
-  'second-tab': { ...connected(state({}), LINKED, AGENTS), ...persisted({ 'plane.tab': 'project-WEB' }) },
+  // The WEB project's tab (the third of API, OPS, WEB), with the agent badges of its linked items.
+  'web-tab': { ...connected(state({}), LINKED, AGENTS), ...persisted({ 'plane.tab': 'project-WEB' }) },
   // An active tag filter is filled with its tone; an item must carry every active tag.
   tags: { ...connected(state({})), ...persisted({ 'plane.tags': ['label:auth'] }) },
   // DOC-7 left the list; its workspace shows in the section of items no longer open.
@@ -119,16 +120,28 @@ export default defineCheck({
   detail: { ...connected(state({})), ...onDetail },
   // A linked item: its agent badge, Open workspace and its earlier Starts.
   'detail-linked': { ...connected(state({}), LINKED, AGENTS, HISTORY), ...onDetail },
+  // Orca created the workspace but the agent did not start: the link stands with no agent state, and the attempt failed.
   'start-failed': {
-    ...connected(state({}), { 'WEB-12': { kind: 'failed', error: 'The agent did not answer.', workspaceId: 'w2', name: 'WEB-12-fix-the-login-redirect' } }),
+    ...connected(
+      state({}),
+      { 'WEB-12': { kind: 'failed', error: 'The agent did not answer.', workspaceId: 'w2', name: 'WEB-12-fix-the-login-redirect' } },
+      { 'WEB-12': { workspaceId: 'w2', agent: null } },
+      [attempt('a1', 'claude', 'failed', 60_000)]
+    ),
     ...onDetail
   },
   'start-pending': {
     ...connected(state({}), { 'WEB-12': { kind: 'pending', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1', startedAt: now } }),
     ...onDetail
   },
+  // A create whose outcome Orca has not shown yet: its attempt is not confirmed.
   'start-unknown': {
-    ...connected(state({}), { 'WEB-12': { kind: 'unknown', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1' } }),
+    ...connected(
+      state({}),
+      { 'WEB-12': { kind: 'unknown', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1' } },
+      {},
+      [attempt('a1', null, 'unknown', 120_000)]
+    ),
     ...onDetail
   }
 })
