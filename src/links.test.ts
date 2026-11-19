@@ -331,3 +331,28 @@ test('review 3: a failed workspace.list is retried by the next seed', async () =
   await model.seed(host)
   assert.equal(model.launch({ ...launch, terminalId: 'new-tab' })?.key, 'DIOGEN-449')
 })
+
+test('review round 2: a removal without workspaceListId still wins over a list sent before it', async () => {
+  const row = (record('workspace.list.rows').rows as Record<string, unknown>[])[0]
+  const removed = { ...(record('workspace.removed') as Record<string, unknown>) }
+  delete removed.workspaceListId
+  // primed: the pair was known from workspace.created; replaced: the replacement reports itself (path id only) before the list lands.
+  for (const [primed, replaced] of [[true, false], [true, true], [false, false], [false, true]]) {
+    const { model } = links({ 'OLD-1': created(probe.returnedId) })
+    model.connection(CLOUD)
+    if (primed) model.created(record('workspace.created') as never)
+    let answer!: (rows: unknown) => void
+    const held = new Promise((resolve) => (answer = resolve))
+    const host = {
+      call: async (method: string) =>
+        method === 'workspace.list' ? { workspaces: await held, truncated: false } : { terminals: [], truncated: false }
+    } as never
+    const seeding = model.seed(host)
+    model.removed(removed as never)
+    if (replaced) model.created({ workspaceId: launch.workspaceId, kind: 'worktree', path: '/x', branch: 'x' })
+    answer([row])
+    await seeding
+    assert.equal(model.launch({ ...launch, terminalId: 't-new' }), null, `primed: ${primed}, replaced: ${replaced}`)
+    assert.equal(model.itemOfTerminal('t-new'), null)
+  }
+})

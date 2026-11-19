@@ -38,6 +38,9 @@ export class Links {
   private listed = new Map<string, string>()
   /** Workspaces Orca removed: a path can be reused, and a list sent before the removal must not bring them back. */
   private gone = new Set<string>()
+  /** Each removed id (either form) -> the removal count when it was removed, to skip rows of a list asked for before it. */
+  private removedAt = new Map<string, number>()
+  private removals = 0
   /** Whether the last `workspace.list` for the id pairs failed, so the next seed lists again. */
   private listAgain = false
   /** Links handed over by `Starts` when `workspace.create` returns, until the Start state stores them (A4). */
@@ -104,6 +107,8 @@ export class Links {
     if (fresh.length === 0 && !this.listAgain) return
     for (const id of fresh) this.seeded.add(id)
     this.listAgain = false
+    const asked = this.removals
+    const removedSince = (id: string) => (this.removedAt.get(id) ?? 0) > asked
     try {
       const { workspaces } = await host.call('workspace.list')
       const listed = new Map<string, string>()
@@ -111,7 +116,8 @@ export class Links {
         // limit: Orca does not document the `<projectId>::<path>` form; the live probe
         // (test/fixtures/orca-ids.json) pins it. Only an exact match on it is ever used.
         // A row of a workspace removed since is stale: the list may have been sent before the removal.
-        if (row.projectId && row.path && !this.gone.has(row.id)) listed.set(`${row.projectId}::${row.path}`, row.id)
+        const other = `${row.projectId}::${row.path}`
+        if (row.projectId && row.path && !this.gone.has(row.id) && !removedSince(other) && !removedSince(row.id)) listed.set(other, row.id)
       }
       this.listed = listed
     } catch {
@@ -179,21 +185,26 @@ export class Links {
     this.publish()
   }
 
-  /** Forgets a removed workspace's agent state at once; Starts drops its link (design L3). */
-  removed(event: PluginEvents['workspace.removed']): void {
+  /** Forgets a removed workspace's agent state at once; Starts drops its link (design L3). Returns every id it knows the workspace by. */
+  removed(event: PluginEvents['workspace.removed']): string[] {
     const ids = idsOf(event)
     for (const id of ids) {
       this.agents.delete(id)
       this.adopted.delete(id)
       this.seeded.delete(id)
     }
-    // limit: grows by one entry per id form of each workspace removed while the worker runs.
-    if (event.workspaceListId) this.gone.add(event.workspaceListId)
+    // The stable id also when the event names only the other form (`workspaceListId` is optional).
+    const stable = [event.workspaceListId, ...ids.map((id) => this.aliases.get(id) ?? this.listed.get(id))]
+    // limit: grows by a few entries per workspace removed while the worker runs.
+    for (const id of stable) if (id) this.gone.add(id)
+    this.removals++
+    for (const id of ids) this.removedAt.set(id, this.removals)
     for (const pairs of [this.aliases, this.listed]) {
       for (const [other, id] of pairs) if (ids.includes(other) || ids.includes(id)) pairs.delete(other)
     }
     for (const [terminal, of] of this.terminals) if (of.some((id) => ids.includes(id))) this.terminals.delete(terminal)
     this.publish()
+    return [...new Set([...ids, ...stable.filter((id): id is string => id !== undefined)])]
   }
 
   /** L4: posts only when the focused workspace changes to one of another item; the first event only sets it. */

@@ -978,3 +978,12 @@ test('the first agent launched before the create returns gets no Plane variables
   assert.equal(envOf(await worker.hooks.fire('agent.launch.before', launch('p1::/w-new', 't-later'))).PLANE_ITEM_KEY, 'DIOGEN-449')
   await worker.deactivate()
 })
+
+test('review round 2: a removal that names only the other id form drops the link when an event paired the ids', async () => {
+  plane()
+  const { worker } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW])
+  await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
+  await worker.emit('workspace.removed', { workspaceId: 'p1::/w1', kind: 'worktree', path: '/w' })
+  await until(async () => Object.keys(await worker.request('links.get')).length === 0, 'link dropped')
+  await worker.deactivate()
+})

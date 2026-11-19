@@ -4,7 +4,7 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import { agentFinder } from './agents'
 import { Connections } from './connection'
 import { Items } from './items'
-import { idsOf, Links } from './links'
+import { Links } from './links'
 import { namesKey, pointer } from './start'
 import { Starts } from './starts'
 
@@ -60,9 +60,9 @@ export default function activate(orca: OrcaWorkerApi): void {
   subscribe(() => orca.events.on('workspace.created', (event) => links.created(event)))
   subscribe(() =>
     orca.events.on('workspace.removed', async (event) => {
-      links.removed(event)
-      // Also when Links does not know the link yet (a rebuild in flight): the event names the workspace.
-      await starts.dropWorkspace(idsOf(event))
+      // Also when Links does not know the link yet (a rebuild in flight): the event names the workspace,
+      // and Links adds the stable id when the event names only the other form.
+      await starts.dropWorkspace(links.removed(event))
     })
   )
 
