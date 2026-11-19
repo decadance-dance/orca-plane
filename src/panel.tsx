@@ -13,7 +13,6 @@ import {
   Heading,
   IconButton,
   Input,
-  KeyValue,
   List,
   ListItem,
   Markdown,
@@ -32,6 +31,7 @@ import {
   Text,
   Textarea,
   update,
+  type OrcaNode,
   type PanelContext,
   type Tone
 } from 'orca'
@@ -60,10 +60,11 @@ const PRIORITIES = ['urgent', 'high', 'medium', 'low'] as const
 /** States sort by their Plane group first (design D10). */
 const GROUP_RANK = { started: 0, unstarted: 1, backlog: 2, unknown: 3 } as const
 const UNKNOWN_STATE = 'Unknown state'
-const AGENT_BADGE = {
-  working: { tone: 'neutral', label: 'Agent working' },
-  'needs-input': { tone: 'warning', label: 'Agent needs input' },
-  done: { tone: 'success', label: 'Agent done' }
+/** The agent's state: the icon of a row's workspace control and its name, and a field of the detail (design P7). */
+const AGENT_STATE = {
+  working: { tone: 'neutral', icon: 'agent', label: 'Agent working', short: 'Working' },
+  'needs-input': { tone: 'warning', icon: 'bell', label: 'Agent needs input', short: 'Needs input' },
+  done: { tone: 'success', icon: 'check', label: 'Agent done', short: 'Done' }
 } as const
 /** A pending or unknown attempt is shown as not confirmed (design H4 of start-history). */
 const OUTCOME = {
@@ -72,8 +73,8 @@ const OUTCOME = {
   pending: { tone: 'warning', label: 'not confirmed' },
   unknown: { tone: 'warning', label: 'not confirmed' }
 } as const
+/** A list that is not complete names its state once, with the reason (design P8). */
 const COMPLETENESS = {
-  complete: { tone: 'success', label: 'Complete' },
   partial: { tone: 'warning', label: 'Partial' },
   stale: { tone: 'warning', label: 'Stale' },
   error: { tone: 'danger', label: 'Error' }
@@ -113,6 +114,8 @@ const search = atom('plane.search', '', { persist: 'plugin' })
 /** The header's Search and Filter toggles (design P3, P4); their parts also show while they hold a value. */
 const searchShown = atom(false)
 const filterShown = atom(false)
+/** The header's `⋯`: the "Open by key or URL" field and Disconnect (design P1). */
+const moreShown = atom(false)
 /** Active tag filters, `priority:<p>` or `label:<name>`; an item must have them all (design D10). */
 const tags = atom<string[]>('plane.tags', [], { persist: 'plugin' })
 /** The selected Plane project's id (design D10). */
@@ -496,27 +499,49 @@ function Pickers() {
   )
 }
 
-/** Start, Starting…, Checking… or Open workspace, by the item's Start state; `compact` draws only
- *  the icon, named by its tooltip (list rows). Callers key it `start:<KEY>`. */
+/** Start work, Starting…, Checking… or Open workspace, by the item's Start state. `compact` (a list row) draws
+ *  only the icon, named by its tooltip: the agent's state or a failed Start shows as the icon (design P6, P7).
+ *  The full button is the detail's primary action and fills its row (design P9). Callers key it `start:<KEY>`. */
 function StartButton({ item, compact = false }: { item: ItemRef; compact?: boolean }) {
   const state = read(starts)[item.key]
+  const failed = state?.kind === 'failed'
   const workspaceId = state?.kind === 'created' || state?.kind === 'failed' ? state.workspaceId : undefined
   if (workspaceId) {
     const open = () => openWorkspace(workspaceId)
-    return compact ? (
-      <IconButton size="sm" variant="ghost" icon="open-external" label="Open workspace" onPress={open} />
-    ) : (
-      <Button size="xs" tone="accent" icon="open-external" onPress={open}>
-        Open workspace
-      </Button>
+    if (!compact) {
+      return (
+        <Button variant="solid" icon="open-external" onPress={open}>
+          Open workspace
+        </Button>
+      )
+    }
+    const agentState = read(links)[item.key]?.agent
+    const shown = agentState ? AGENT_STATE[agentState] : null
+    return (
+      <IconButton
+        size="sm"
+        variant="ghost"
+        icon={failed ? 'warning' : (shown?.icon ?? 'open-external')}
+        tone={failed ? 'danger' : (shown?.tone ?? 'neutral')}
+        label={failed ? 'Open workspace · The agent did not start' : shown ? `Open workspace · ${shown.label}` : 'Open workspace'}
+        onPress={open}
+      />
     )
   }
   const disabled = state?.kind === 'pending' || state?.kind === 'unknown' || read(confirming)?.key === item.key
-  const label = state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : 'Start'
+  const label = state?.kind === 'pending' ? 'Starting…' : state?.kind === 'unknown' ? 'Checking…' : compact ? 'Start' : 'Start work'
   return compact ? (
-    <IconButton size="sm" variant="ghost" tone="accent" icon="play" label={label} disabled={disabled} onPress={() => askStart(item)} />
+    <IconButton
+      size="sm"
+      variant="ghost"
+      tone={failed ? 'danger' : 'accent'}
+      icon={failed ? 'warning' : 'play'}
+      label={failed ? 'Start failed · Start again' : label}
+      disabled={disabled}
+      onPress={() => askStart(item)}
+    />
   ) : (
-    <Button size="xs" tone="accent" icon="play" disabled={disabled} onPress={() => askStart(item)}>
+    <Button variant="solid" icon="play" disabled={disabled} onPress={() => askStart(item)}>
       {label}
     </Button>
   )
@@ -572,18 +597,9 @@ function Confirmation({ current }: { current: Loaded }) {
   )
 }
 
-/** The agent state of the item's linked workspace; nothing when none is known. */
-function AgentBadge({ itemKey }: { itemKey: string }) {
-  const agent = read(links)[itemKey]?.agent
-  if (!agent) return null
-  const badge = AGENT_BADGE[agent]
-  return <Badge tone={badge.tone}>{badge.label}</Badge>
-}
-
-/** One line (design P6): the pressable item (priority dot, key, title, badges) opens it; Start sits beside
- *  it, since a pressable ListItem cannot hold other controls. */
-function ItemRow({ item }: { item: Item }) {
-  const state = read(starts)[item.key]
+/** One line (design P6): the pressable item (priority dot, key, title) opens it; the Start or workspace icon
+ *  sits beside it, since a pressable ListItem cannot hold other controls. `keyWidth` aligns the titles. */
+function ItemRow({ item, keyWidth }: { item: Item; keyWidth: number }) {
   const asked = read(confirmation)
   return (
     <Stack gap="xs">
@@ -592,7 +608,7 @@ function ItemRow({ item }: { item: Item }) {
         <Box grow shrink minWidth={0}>
           <List label={item.key}>
             <ListItem key={item.key} onPress={() => openItem(item)}>
-              <Box direction="row" align="center" gap="xs" width="100%" minWidth={0}>
+              <Box direction="row" align="center" gap="sm" width="100%" minWidth={0}>
                 <Box shrink={false}>
                   {item.priority === 'none' ? (
                     <Text key={`priority:${item.key}`} size="xs" muted>
@@ -604,26 +620,16 @@ function ItemRow({ item }: { item: Item }) {
                     </Text>
                   )}
                 </Box>
-                <Box shrink={false}>
+                <Box shrink={false} width={keyWidth}>
                   <Text size="xs" muted>
                     {item.key}
                   </Text>
                 </Box>
                 <Box grow shrink minWidth={0}>
-                  <Text size="sm" truncate>
+                  <Text size="sm" weight="medium" truncate>
                     {item.title}
                   </Text>
                 </Box>
-                {state?.kind === 'failed' ? (
-                  <Box shrink={false}>
-                    <Badge tone="danger">Start failed</Badge>
-                  </Box>
-                ) : null}
-                {read(links)[item.key]?.agent ? (
-                  <Box shrink={false}>
-                    <AgentBadge itemKey={item.key} />
-                  </Box>
-                ) : null}
               </Box>
             </ListItem>
           </List>
@@ -639,11 +645,14 @@ function ItemRow({ item }: { item: Item }) {
   )
 }
 
+// limit: Orca has no monospace Text, so the key column is sized from the longest key at about 7 px a character
+// of `xs` text; a very wide key just pushes its title along.
+const keyWidthOf = (items: Item[]) => Math.max(0, ...items.map((item) => item.key.length)) * 7 + 4
+
 function ListView({ state }: { state: ItemsState | null }) {
   if (!state || state.completeness === null) {
     return <Skeleton lines={4} label="Loading your items" />
   }
-  const badge = COMPLETENESS[state.completeness]
   const query = read(search).trim().toLowerCase()
   const active = read(tags)
   const shown = state.items.filter((item) => matches(item, query) && active.every((tag) => tagsOf(item).includes(tag)))
@@ -655,6 +664,8 @@ function ListView({ state }: { state: ItemsState | null }) {
   const selected = tabs.some(([id]) => id === read(tab)) ? (read(tab) ?? undefined) : tabs[0]?.[0]
   const inTab = shown.filter((item) => item.projectId === selected)
   const failedOpen = read(openError)
+  const incomplete = state.completeness === 'complete' ? null : COMPLETENESS[state.completeness]
+  const count = (id: string) => shown.filter((item) => item.projectId === id).length
   return (
     <Stack gap="sm">
       {read(searchShown) || read(search) ? (
@@ -668,28 +679,12 @@ function ListView({ state }: { state: ItemsState | null }) {
         />
       ) : null}
       {read(filterShown) || active.length > 0 ? <FilterStrip listed={state.items} /> : null}
-      <Input
-        label="Open by key or URL"
-        labelHidden
-        placeholder="Open by key or URL, e.g. DIOGEN-12"
-        value={read(lookupText)}
-        onChange={(value) => set(lookupText, value)}
-        onSubmit={() => void lookup()}
-      />
-      {read(lookupError) ? <Callout tone="warning">{read(lookupError)}</Callout> : null}
-      <Row justify="between">
-        <Badge tone={badge.tone}>{badge.label}</Badge>
-        {state.fetchedAt ? (
-          <Text muted size="xs">
-            updated <RelativeTime at={state.fetchedAt} />
-          </Text>
-        ) : null}
-      </Row>
-      {/* The badge above names the state; the reason follows as one line of text, since a Callout without
-          a title still draws Orca's own ("Warning"), which named the state twice (design P8). */}
-      {state.error ? (
-        <Text key="list-error" size="sm" tone={state.completeness === 'error' ? 'danger' : 'warning'}>
-          {state.error}
+      {read(moreShown) || moreHeld() ? <More /> : null}
+      {/* A complete list shows only its update time, at the bottom; any other state is named once, with its
+          reason, as text: a Callout without a title still draws Orca's own "Warning" (design P8). */}
+      {incomplete ? (
+        <Text key="list-state" size="sm" tone={incomplete.tone}>
+          {state.error ? `${incomplete.label} · ${state.error}` : incomplete.label}
         </Text>
       ) : null}
       {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
@@ -705,7 +700,7 @@ function ListView({ state }: { state: ItemsState | null }) {
             value={selected}
             options={tabs.map(([id, name]) => ({
               value: id,
-              label: `${name} · ${shown.filter((item) => item.projectId === id).length}`
+              label: `${name} · ${count(id)} ${count(id) === 1 ? 'item' : 'items'}`
             }))}
             onChange={(value) => set(tab, value)}
           />
@@ -713,6 +708,43 @@ function ListView({ state }: { state: ItemsState | null }) {
         </Stack>
       ) : null}
       {state.completeness === 'complete' ? <Leftovers listed={state.items} /> : null}
+      {state.fetchedAt ? (
+        <Box key="list-updated" direction="row" justify="center">
+          <Text muted size="xs">
+            updated <RelativeTime at={state.fetchedAt} />
+          </Text>
+        </Box>
+      ) : null}
+    </Stack>
+  )
+}
+
+/** The `⋯` part stays shown while it holds a key or a refusal. */
+const moreHeld = () => read(lookupText) !== '' || read(lookupError) !== null
+
+/** Behind the header's `⋯` (design P1): Open by key or URL, and Disconnect. */
+function More() {
+  const refused = read(lookupError)
+  return (
+    <Stack gap="xs">
+      <Input
+        label="Open by key or URL"
+        labelHidden
+        placeholder="Open by key or URL, e.g. DIOGEN-12"
+        value={read(lookupText)}
+        onChange={(value) => set(lookupText, value)}
+        onSubmit={() => void lookup()}
+      />
+      {refused ? (
+        <Text key="lookup-error" size="sm" tone="warning">
+          {refused}
+        </Text>
+      ) : null}
+      <Row justify="end">
+        <Button variant="ghost" size="xs" onPress={disconnect}>
+          Disconnect
+        </Button>
+      </Row>
     </Stack>
   )
 }
@@ -831,6 +863,7 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
       </Stack>
     )
   }
+  const keyWidth = keyWidthOf(entries)
   const groups = stateOrder(all)
     .map((name) => ({ name, rows: entries.filter((item) => (item.stateName ?? UNKNOWN_STATE) === name) }))
     .filter((group) => group.rows.length > 0)
@@ -841,15 +874,14 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
         <Stack key={name} gap="xs">
           {index > 0 ? <Separator /> : null}
           <Box key={`group:${name}`} direction="row" justify="between" align="center" gap="xs" paddingX="sm" minWidth={0}>
-            <Text size="xs" weight="semibold" truncate>
-              {name}
-            </Text>
+            {/* Orca draws a level-3 heading small, upper case and muted, as the mockup's group headers. */}
+            <Heading level={3}>{name}</Heading>
             <Text key={`count:${name}`} size="xs" muted>
               {String(rows.length)}
             </Text>
           </Box>
           {rows.map((item) => (
-            <ItemRow key={item.key} item={item} />
+            <ItemRow key={item.key} item={item} keyWidth={keyWidth} />
           ))}
         </Stack>
       ))}
@@ -857,12 +889,12 @@ function Groups({ entries, all }: { entries: Item[]; all: Item[] }) {
   )
 }
 
-/** The description sits in its own framed block, apart from the detail around it. */
+/** The description as plain text under the actions, with Show more below it (design P9). */
 function Description({ text }: { text: string }) {
   const short = preview(text)
   const open = read(descriptionOpen)
   return (
-    <Box direction="column" gap="xs" padding="sm" border radius="md" background="muted">
+    <Stack gap="xs">
       <Markdown content={short && !open ? short : text} />
       {short ? (
         <Row>
@@ -871,7 +903,7 @@ function Description({ text }: { text: string }) {
           </Button>
         </Row>
       ) : null}
-    </Box>
+    </Stack>
   )
 }
 
@@ -910,11 +942,41 @@ function EarlierStarts() {
 const underWay = (state: StartState | undefined) =>
   state !== undefined && (state.kind === 'pending' || state.kind === 'unknown' || linkedWorkspace(state) !== undefined)
 
+/** A pill outlined and written in its tone, as the mockup's badges; Orca's Badge is filled. */
+function Pill({ tone, children }: { tone: Tone; children: string }) {
+  return (
+    <Box border={tone} radius="full" paddingX="sm">
+      <Text size="xs" tone={tone === 'neutral' ? undefined : tone} muted={tone === 'neutral'}>
+        {children}
+      </Text>
+    </Box>
+  )
+}
+
+/** A label and its value on one line; KeyValue takes only text, so it cannot hold a RelativeTime. */
+function Field({ label, children }: { label: string; children: OrcaNode }) {
+  return (
+    <Box direction="row" gap="sm" minWidth={0}>
+      <Box shrink={false} width={72}>
+        <Text size="xs" muted>
+          {label}
+        </Text>
+      </Box>
+      <Box grow shrink minWidth={0}>
+        {children}
+      </Box>
+    </Box>
+  )
+}
+
 function DetailView({ current }: { current: Loaded }) {
   const item = current.item
   const state = read(starts)[current.key]
   const asked = read(confirmation)
   const failedOpen = read(openError)
+  const agentState = item ? read(links)[item.key]?.agent : undefined
+  const updated = item ? Date.parse(item.updatedAt) : Number.NaN
+  const startable = item !== null && asked?.key !== item.key && (item.stateGroup !== 'unknown' || underWay(state))
   return (
     <Stack gap="md">
       <Row>
@@ -927,39 +989,51 @@ function DetailView({ current }: { current: Loaded }) {
       {item ? (
         <Stack gap="md">
           {/* The framed header, then the actions, then what follows from them, then the description (design P9). */}
-          <Box key="detail-header" direction="column" gap="xs" padding="sm" border radius="md" background="muted">
-            <Row gap="xs" align="center">
+          <Box key="detail-header" direction="column" gap="sm" padding="sm" radius="md" background="muted">
+            <Box direction="row" justify="between" align="center" gap="xs" minWidth={0}>
               <Text size="xs" muted>
                 {item.key}
               </Text>
-              <Badge tone={item.priority === 'none' ? 'neutral' : PRIORITY_TONE[item.priority]}>
+              <Pill tone={item.priority === 'none' ? 'neutral' : PRIORITY_TONE[item.priority]}>
                 {item.priority === 'none' ? 'No priority' : item.priority}
-              </Badge>
-            </Row>
+              </Pill>
+            </Box>
             <Heading level={2}>{item.title}</Heading>
-            <KeyValue
-              items={[
-                { label: 'State', value: item.stateName ?? 'Unknown' },
-                { label: 'Assignees', value: item.assignees.join(', ') || '—' },
-                { label: 'Labels', value: item.labels.join(', ') || '—' },
-                { label: 'Updated', value: item.updatedAt.slice(0, 16).replace('T', ' ') }
-              ]}
-            />
+            <Stack key="detail-fields" gap="xs">
+              <Field label="State">
+                <Text size="xs">{item.stateName ?? 'Unknown'}</Text>
+              </Field>
+              <Field label="Assignees">
+                <Text size="xs">{item.assignees.join(', ') || '—'}</Text>
+              </Field>
+              <Field label="Labels">
+                <Text size="xs">{item.labels.join(', ') || '—'}</Text>
+              </Field>
+              <Field label="Updated">
+                <Text size="xs">{Number.isNaN(updated) ? item.updatedAt : <RelativeTime at={updated} />}</Text>
+              </Field>
+              {agentState ? (
+                <Field label="Agent">
+                  <Text key="detail-agent" size="xs" tone={AGENT_STATE[agentState].tone === 'neutral' ? undefined : AGENT_STATE[agentState].tone}>
+                    {AGENT_STATE[agentState].short}
+                  </Text>
+                </Field>
+              ) : null}
+            </Stack>
           </Box>
-          {/* xs buttons, so Open workspace and Open in Plane share one line at sidebar width. */}
-          <Row gap="xs" wrap>
-            {asked?.key !== item.key && (item.stateGroup !== 'unknown' || underWay(state)) ? (
-              <StartButton key={`start:${item.key}`} item={item} />
+          {/* Start (or Open workspace) fills the row; Plane keeps its size beside it. */}
+          <Box key="detail-actions" direction="row" gap="xs" align="center" width="100%" minWidth={0}>
+            {startable ? (
+              <Box grow shrink minWidth={0} align="stretch">
+                <StartButton key={`start:${item.key}`} item={item} />
+              </Box>
             ) : null}
-            <Button size="xs" icon="open-external" variant="outline" onPress={() => shell.openExternal(item.url)}>
-              Open in Plane
-            </Button>
-          </Row>
-          {read(links)[item.key]?.agent ? (
-            <Row>
-              <AgentBadge itemKey={item.key} />
-            </Row>
-          ) : null}
+            <Box shrink={false}>
+              <Button icon="open-external" variant="outline" tooltip="Open in Plane" onPress={() => shell.openExternal(item.url)}>
+                Plane
+              </Button>
+            </Box>
+          </Box>
           {state?.kind === 'failed' ? (
             <Callout tone="danger" title={state.workspaceId ? 'The agent did not start' : 'Start failed'}>
               {state.error}
@@ -977,7 +1051,7 @@ function DetailView({ current }: { current: Loaded }) {
 
 /** A header toggle (design P1, P3, P4): outlined while its part shows. A part that holds a value stays shown,
  *  so its toggle is disabled then rather than pressable to no effect. */
-function Toggle({ shown, held, icon, name }: { shown: typeof searchShown; held: boolean; icon: 'search' | 'filter'; name: string }) {
+function Toggle({ shown, held, icon, name }: { shown: typeof searchShown; held: boolean; icon: 'search' | 'filter' | 'more'; name: string }) {
   const on = read(shown) || held
   return (
     <IconButton
@@ -1010,9 +1084,11 @@ export default function Panel() {
   if (!current.connected) return <ConnectView />
   const open = read(detail)
   const list = read(items)
+  // The detail starts with its back control, without the list's header (design P9).
+  if (open) return <DetailView current={open} />
   return (
     <Stack gap="md">
-      {/* The name shrinks and truncates; the buttons keep their size, so a narrow sidebar does not scroll. */}
+      {/* The name shrinks and truncates; the icons keep their size, so a narrow sidebar does not scroll. */}
       <Box direction="row" justify="between" align="center" gap="xs" width="100%" minWidth={0}>
         <Box grow shrink minWidth={0}>
           <Text size="xs" weight="semibold">
@@ -1023,9 +1099,8 @@ export default function Panel() {
           </Text>
         </Box>
         <Box direction="row" gap="xs" align="center" shrink={false}>
-          {/* Search and Filter act on the list, so the detail leaves them out (design P1). */}
-          {open ? null : <Toggle shown={searchShown} held={read(search) !== ''} icon="search" name="search" />}
-          {open ? null : <Toggle shown={filterShown} held={read(tags).length > 0} icon="filter" name="filters" />}
+          <Toggle shown={searchShown} held={read(search) !== ''} icon="search" name="search" />
+          <Toggle shown={filterShown} held={read(tags).length > 0} icon="filter" name="filters" />
           <IconButton
             icon="refresh"
             variant="ghost"
@@ -1033,12 +1108,10 @@ export default function Panel() {
             disabled={!list || list.refreshing}
             onPress={refresh}
           />
-          <Button variant="ghost" size="xs" onPress={disconnect}>
-            Disconnect
-          </Button>
+          <Toggle shown={moreShown} held={moreHeld()} icon="more" name="actions" />
         </Box>
       </Box>
-      {open ? <DetailView current={open} /> : <ListView state={read(items)} />}
+      <ListView state={read(items)} />
     </Stack>
   )
 }

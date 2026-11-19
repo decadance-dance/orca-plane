@@ -68,7 +68,7 @@ The panel SHALL offer a filter control that shows the priorities and labels pres
 - **THEN** the tags are shown, with that tag filled
 
 ### Requirement: Item detail
-Opening an item SHALL show, first, a header with its key, priority, title, state, assignees, labels and last update; right below it, its actions: Start (or Open workspace) and a control that opens the item in Plane's web app; then its description. The description SHALL keep its formatting: paragraphs, headings, lists, links, code and quotes. Each list row SHALL open its item when pressed, and the detail SHALL offer a way back to the list.
+Opening an item SHALL show, first, a header with its key, priority, title, state, assignees, labels and last update (relative to now); right below it, its actions: Start (or Open workspace) as the main action, and a control named "Open in Plane" that opens the item in Plane's web app; then its description. The description SHALL keep its formatting: paragraphs, headings, lists, links, code and quotes. Each list row SHALL open its item when pressed, and the detail SHALL offer a way back to the list.
 
 #### Scenario: Open an item
 - **WHEN** the user opens an item from the list
@@ -83,15 +83,15 @@ Opening an item SHALL show, first, a header with its key, priority, title, state
 - **THEN** Plane's page for that item opens in the browser, at `<app origin>/<slug>/browse/<KEY-N>/`
 
 ### Requirement: Show the agent state of a linked item
-For an item linked to an existing workspace, the list row and the item detail SHALL show the latest known state of the agent in that workspace, named as the agent's: "Agent working", "Agent needs input" (Orca's blocked or waiting) or "Agent done". When no state has been reported since the plugin started, nothing SHALL be shown. The row SHALL update when the state changes, without a refresh from Plane.
+For an item linked to an existing workspace, the list row and the item detail SHALL show the latest known state of the agent in that workspace: working, needs input (Orca's blocked or waiting) or done. The row SHALL show it as the icon of its workspace control, which SHALL be named with the state as the agent's ("Agent working", "Agent needs input", "Agent done"); the detail SHALL show it as its "Agent" field. When no state has been reported since the plugin started, nothing SHALL be shown. The row SHALL update when the state changes, without a refresh from Plane.
 
 #### Scenario: Agent waits for input
 - **WHEN** the agent in an item's linked workspace reports that it is waiting for input
-- **THEN** the item's row shows "Agent needs input"
+- **THEN** the item's row shows the waiting icon on its workspace control, named "Open workspace · Agent needs input"
 
 #### Scenario: Agent finishes
 - **WHEN** the agent in an item's linked workspace reports done
-- **THEN** the item's row and detail show "Agent done"
+- **THEN** the item's row shows the done icon, named "Open workspace · Agent done", and the detail's "Agent" field says "Done"
 
 #### Scenario: Unlinked workspace
 - **WHEN** an agent reports a state in a workspace that no item is linked to
@@ -124,10 +124,54 @@ When the list is complete, the panel SHALL show, below the list, a collapsible s
 - **WHEN** the user presses "Open workspace" in the section
 - **THEN** Orca shows that workspace
 
+### Requirement: Show whether the list is complete
+The list SHALL always carry one of these completeness states:
+- `complete`;
+- `partial`: the item cap was reached, or a page failed;
+- `stale`: the last refresh failed and older data is shown;
+- `error`: no data.
+
+Partial or stale data SHALL never be shown as complete. A complete list SHALL show its last update time; any other state SHALL be named once, together with its reason.
+
+#### Scenario: More items than the cap
+- **WHEN** the server reports more items after the plugin's item cap is reached
+- **THEN** the list is marked partial
+
+#### Scenario: A later page fails
+- **WHEN** the first page loads and a later page fails
+- **THEN** the loaded items are shown and the list is marked partial, with the error
+
+#### Scenario: Refresh fails after a good one
+- **WHEN** a refresh fails after an earlier refresh succeeded
+- **THEN** the earlier items are shown and the list is marked stale, with the error
+
+### Requirement: Open an item by key or URL
+The list SHALL offer a field, which MAY sit behind a control in the panel's header and SHALL stay shown while it holds text or a refusal, that takes an item key (`KEY-N`, any case) or a Plane URL of an item in the connected workspace, and opens that item's detail on Enter, whether or not the item is in my list. A URL of another server, app path or workspace, text that is neither, and a key that Plane does not find SHALL each show a message saying so, and no request SHALL be sent for the first two.
+
+#### Scenario: Key of an item assigned to someone else
+- **WHEN** the user types `diogen-12` into the field and presses Enter, and that item exists but is assigned to someone else
+- **THEN** the detail of `DIOGEN-12` opens
+
+#### Scenario: Pasted URL
+- **WHEN** the user pastes `https://app.plane.so/acme/browse/DIOGEN-12/` while connected to the workspace `acme` on Plane Cloud
+- **THEN** the detail of `DIOGEN-12` opens
+
+#### Scenario: Self-hosted Plane under a path
+- **WHEN** the plugin is connected to a self-hosted Plane whose app is at `https://plane.example.org/tools/plane`, and the user pastes the URL that "Open in Plane" gives for `DIOGEN-12`
+- **THEN** the detail of `DIOGEN-12` opens
+
+#### Scenario: URL of another workspace
+- **WHEN** the user pastes a Plane URL of the workspace `other` while connected to `acme`
+- **THEN** the panel says the URL is not from the connected workspace, and no request is sent
+
+#### Scenario: Unknown key
+- **WHEN** Plane does not find the typed key
+- **THEN** the panel says that no item has that key
+
 ## ADDED Requirements
 
 ### Requirement: Switch between Plane projects
-The list SHALL show one Plane project at a time, picked in one project switcher. The switcher SHALL offer each Plane project that has listed items, named by the key prefix of its newest item (`DIOGEN` for `DIOGEN-449`), ordered alphabetically, each with its count of matching items (`DIOGEN · 3`). There SHALL be no entry for all projects. The panel SHALL remember the selected project; when it has no listed items anymore, the first project SHALL be selected.
+The list SHALL show one Plane project at a time, picked in one project switcher. The switcher SHALL offer each Plane project that has listed items, named by the key prefix of its newest item (`DIOGEN` for `DIOGEN-449`), ordered alphabetically, each with its count of matching items (`DIOGEN · 3 items`). There SHALL be no entry for all projects. The panel SHALL remember the selected project; when it has no listed items anymore, the first project SHALL be selected.
 
 #### Scenario: Selected project is remembered
 - **WHEN** the user selects the project `ENGAUTUMNS` and the panel is opened again
