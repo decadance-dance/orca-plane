@@ -68,6 +68,11 @@
         ]
       }
     ],
+    "events": [
+      { "on": "agent.status.changed" },
+      { "on": "workspace.changed" },
+      { "on": "workspace.removed" }
+    ],
     "commands": [
       {
         "id": "plane.toggleSidebar",
@@ -97,6 +102,9 @@
     },
     {
       "kind": "agent:launch"
+    },
+    {
+      "kind": "agent:read"
     },
     {
       "kind": "notifications:show"

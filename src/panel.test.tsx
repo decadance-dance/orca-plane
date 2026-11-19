@@ -526,3 +526,79 @@ test('a worker that does not answer shows the error and Retry loads again', asyn
   assert.ok(view.find({ text: 'Connect to Plane' }))
   await view.unmount()
 })
+
+// --- Links: agent state and the focused workspace (link-items-to-workspaces) ---
+
+const badges = (view: Awaited<ReturnType<typeof mount>>) => view.findAll({ type: 'Badge' }).map((badge) => badge.text)
+
+test('agent state: needs input on the row; done on the row and in the detail; none when unknown or unlinked', async () => {
+  const view = await mount(panel, {
+    host: connectedHost({ 'links.get': { 'WEB-1': { workspaceId: 'w1', agent: null } } })
+  })
+  // Linked, no state reported yet: no agent badge.
+  assert.deepEqual(badges(view), ['Complete'])
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'needs-input' } })
+  assert.ok(view.find({ type: 'Badge', text: 'Needs input' }))
+  assert.equal(view.find({ type: 'Badge', text: 'Needs input' })?.props.tone, 'warning')
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'done' } })
+  assert.deepEqual(badges(view), ['Complete', 'Done'])
+  await view.press({ testId: 'WEB-1' })
+  assert.equal(view.find({ type: 'Badge', text: 'Done' })?.props.tone, 'success')
+  await view.press({ text: '← All items' })
+  // An agent in an unlinked workspace: the worker posts nothing, so no row changes.
+  assert.deepEqual(badges(view), ['Complete', 'Done'])
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'working' } })
+  assert.equal(view.find({ type: 'Badge', text: 'Working' })?.props.tone, 'neutral')
+  await view.unmount()
+})
+
+test('focus on a linked workspace opens its item; an unlinked one keeps the panel as it is', async () => {
+  const asked: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.get': (input: unknown) => {
+        asked.push(input)
+        return { ok: true, item: DETAIL }
+      }
+    })
+  })
+  await view.post('focus.changed', { key: null })
+  assert.ok(view.find({ testId: 'WEB-1' }))
+  await view.post('focus.changed', { key: 'WEB-1' })
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  // A listed item is fetched with its project.
+  assert.deepEqual(asked, [{ key: 'WEB-1', projectId: 'project-WEB' }])
+  await view.post('focus.changed', { key: null })
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  // Back in the list while the same workspace stays focused: the worker posts nothing, the list stays.
+  await view.press({ text: '← All items' })
+  assert.ok(view.find({ type: 'Collapsible', label: 'Todo' }))
+  await view.unmount()
+})
+
+test('focus on the workspace of an item that left the list opens it by its key alone', async () => {
+  const asked: unknown[] = []
+  const gone: ItemDetail = { ...DETAIL, key: 'WEB-7', title: 'Shipped', url: 'https://app.plane.so/truelogic/browse/WEB-7/' }
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.get': (input: unknown) => {
+        asked.push(input)
+        return { ok: true, item: gone }
+      }
+    })
+  })
+  await view.post('focus.changed', { key: 'WEB-7' })
+  assert.ok(view.find({ text: 'WEB-7 Shipped' }))
+  assert.deepEqual(asked, [{ key: 'WEB-7' }])
+  await view.unmount()
+})
+
+test('an open Start confirmation stays open when a linked workspace is focused', async () => {
+  const view = await mount(panel, { host: connectedHost() })
+  await view.press({ testId: 'start:WEB-2' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-2' }))
+  await view.post('focus.changed', { key: 'WEB-1' })
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-2' }))
+  assert.equal(view.find({ text: 'WEB-1 Fix login' }), null)
+  await view.unmount()
+})

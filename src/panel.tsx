@@ -36,7 +36,15 @@ import {
 } from 'orca'
 import type { Item, ItemDetail } from './plane/map'
 import { preview } from './plane/markdown'
-import { type AgentChoice, type ConnectionStatus, type ItemsState, KNOWN_AGENTS, type OrcaProject, type StartState } from './protocol'
+import {
+  type AgentChoice,
+  type ConnectionStatus,
+  type ItemsState,
+  KNOWN_AGENTS,
+  type LinkView,
+  type OrcaProject,
+  type StartState
+} from './protocol'
 import { buildPrompt, workspaceName } from './start'
 
 const SLOW = { timeoutMs: 60_000 }
@@ -47,6 +55,11 @@ const PRIORITY_TONE = { urgent: 'danger', high: 'accent', medium: 'warning', low
 /** States sort by their Plane group first (design D10). */
 const GROUP_RANK = { started: 0, unstarted: 1, backlog: 2, unknown: 3 } as const
 const UNKNOWN_STATE = 'Unknown state'
+const AGENT_BADGE = {
+  working: { tone: 'neutral', label: 'Working' },
+  'needs-input': { tone: 'warning', label: 'Needs input' },
+  done: { tone: 'success', label: 'Done' }
+} as const
 const COMPLETENESS = {
   complete: { tone: 'success', label: 'Complete' },
   partial: { tone: 'warning', label: 'Partial' },
@@ -58,6 +71,8 @@ const status = atom<ConnectionStatus | null>(null)
 const loadError = atom<string | null>(null)
 const items = atom<ItemsState | null>(null)
 const starts = atom<Record<string, StartState>>({})
+/** Linked items with their agent state, from the worker (design L3). */
+const links = atom<Record<string, LinkView>>({})
 const projects = atom<OrcaProject[] | null>(null)
 /** Installed agents, then terminal only (design D8). */
 const agents = atom<AgentChoice[]>([])
@@ -70,7 +85,8 @@ const token = atom('')
 const connecting = atom(false)
 const connectError = atom<string | null>(null)
 
-type ItemRef = { key: string; projectId: string }
+/** Without `projectId` the item is fetched by its key alone (a linked item that left the list). */
+type ItemRef = { key: string; projectId?: string }
 type Loaded = ItemRef & { item: ItemDetail | null; error: string | null }
 const search = atom('plane.search', '', { persist: 'plugin' })
 /** Active tag filters, `priority:<p>` or `label:<name>`; an item must have them all (design D10). */
@@ -90,6 +106,9 @@ const agent = atom('plane.agent', '', { persist: 'plugin' })
 const prompt = atom('')
 const startError = atom<string | null>(null)
 const openError = atom<string | null>(null)
+
+/** Only the ref's own fields: an atom holds JSON, which has no undefined. */
+const refOf = ({ key, projectId }: ItemRef): ItemRef => (projectId ? { key, projectId } : { key })
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
@@ -128,13 +147,15 @@ async function loadPickers(): Promise<void> {
 }
 
 async function loadConnected(): Promise<void> {
-  const [list, known] = await Promise.all([
+  const [list, known, linked] = await Promise.all([
     plugin.request('items.list', undefined),
     plugin.request('starts.get'),
+    plugin.request('links.get').catch(() => ({})),
     loadPickers()
   ])
   set(items, list)
   set(starts, known)
+  set(links, linked)
   const open = read(opened)
   const asked = read(confirming)
   await Promise.all([open ? openItem(open) : null, asked ? askStart(asked) : null])
@@ -147,12 +168,15 @@ export function setup(ctx: PanelContext): void {
       if (!next.connected) {
         set(items, null)
         set(starts, {})
+        set(links, {})
         closeItem()
         cancelStart()
       }
     }),
     plugin.on('items.changed', (next) => set(items, next)),
-    plugin.on('start.changed', ({ key, state }) => update(starts, (all) => ({ ...all, [key]: state })))
+    plugin.on('start.changed', ({ key, state }) => update(starts, (all) => ({ ...all, [key]: state }))),
+    plugin.on('links.changed', (next) => set(links, next)),
+    plugin.on('focus.changed', ({ key }) => followFocus(key))
   )
   void load()
 }
@@ -192,6 +216,7 @@ async function disconnect(): Promise<void> {
   set(status, await plugin.request('connection.disconnect'))
   set(items, null)
   set(starts, {})
+  set(links, {})
   closeItem()
   cancelStart()
 }
@@ -202,25 +227,32 @@ async function refresh(): Promise<void> {
 
 async function fetchDetail(ref: ItemRef): Promise<Loaded> {
   const answer = await plugin
-    .request('item.get', { key: ref.key, projectId: ref.projectId }, SLOW)
+    .request('item.get', refOf(ref), SLOW)
     .catch((error: unknown) => ({ ok: false as const, error: message(error) }))
-  const at = { key: ref.key, projectId: ref.projectId }
+  const at = refOf(ref)
   return answer.ok ? { ...at, item: answer.item, error: null } : { ...at, item: null, error: answer.error }
 }
 
 async function openItem(ref: ItemRef): Promise<void> {
-  set(opened, { key: ref.key, projectId: ref.projectId })
-  set(detail, { key: ref.key, projectId: ref.projectId, item: null, error: null })
+  set(opened, refOf(ref))
+  set(detail, { ...refOf(ref), item: null, error: null })
   set(openError, null)
   set(descriptionOpen, false)
   const loaded = await fetchDetail(ref)
   if (read(detail)?.key === ref.key) set(detail, loaded)
 }
 
+/** The focused Orca workspace belongs to `key` (design L4): show it, unless a Start waits for confirmation. */
+function followFocus(key: string | null): void {
+  if (!key || read(confirming) || !read(status)?.connected) return
+  const listed = read(items)?.items.find((item) => item.key === key)
+  void openItem(listed ?? { key })
+}
+
 /** Shows the confirmation for a Start, with the prompt built from the item's detail. */
 async function askStart(ref: ItemRef): Promise<void> {
-  set(confirming, { key: ref.key, projectId: ref.projectId })
-  set(confirmation, { key: ref.key, projectId: ref.projectId, item: null, error: null })
+  set(confirming, refOf(ref))
+  set(confirmation, { ...refOf(ref), item: null, error: null })
   set(startError, null)
   const shown = read(detail)
   const loaded = shown?.key === ref.key && shown.item ? shown : await fetchDetail(ref)
@@ -389,6 +421,14 @@ function Confirmation({ current }: { current: Loaded }) {
   )
 }
 
+/** The agent state of the item's linked workspace; nothing when none is known. */
+function AgentBadge({ itemKey }: { itemKey: string }) {
+  const agent = read(links)[itemKey]?.agent
+  if (!agent) return null
+  const badge = AGENT_BADGE[agent]
+  return <Badge tone={badge.tone}>{badge.label}</Badge>
+}
+
 /** A row after Orca's Agents panel (design D10): the pressable item (title, then a muted meta line) opens
  *  it; Start sits beside it, since a pressable ListItem cannot hold other controls. */
 function ItemRow({ item }: { item: Item }) {
@@ -410,9 +450,10 @@ function ItemRow({ item }: { item: Item }) {
                 {Number.isNaN(updated) ? meta : `${meta} · `}
                 {Number.isNaN(updated) ? null : <RelativeTime at={updated} />}
               </Text>
-              {state?.kind === 'failed' ? (
-                <Row>
-                  <Badge tone="danger">Start failed</Badge>
+              {state?.kind === 'failed' || read(links)[item.key]?.agent ? (
+                <Row gap="xs">
+                  {state?.kind === 'failed' ? <Badge tone="danger">Start failed</Badge> : null}
+                  <AgentBadge itemKey={item.key} />
                 </Row>
               ) : null}
             </ListItem>
@@ -611,6 +652,11 @@ function DetailView({ current }: { current: Loaded }) {
       {item ? (
         <Stack gap="md">
           <Heading level={2}>{`${item.key} ${item.title}`}</Heading>
+          {read(links)[item.key]?.agent ? (
+            <Row>
+              <AgentBadge itemKey={item.key} />
+            </Row>
+          ) : null}
           <KeyValue
             items={[
               { label: 'State', value: item.stateName ?? 'Unknown' },

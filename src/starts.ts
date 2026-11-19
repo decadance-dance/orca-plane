@@ -33,12 +33,18 @@ export type StartInput = {
 
 export class Starts {
   private lock: Promise<unknown> = Promise.resolve()
+  private listeners: ((states: States) => void)[] = []
 
   constructor(
     private readonly orca: OrcaWorkerApi,
     private readonly conns: Connections,
     private readonly items: Items
   ) {}
+
+  /** Hears the states after every write, inside the connection lock: a listener must not wait on Starts. */
+  onWrite(listener: (states: States) => void): void {
+    this.listeners.push(listener)
+  }
 
   /**
    * Runs `change` on the stored states one at a time; writes only if the connection is the same.
@@ -52,7 +58,10 @@ export class Starts {
       const saved = await this.orca.storage.get(keyOf(conn.id, 'starts'))
       const states: States = saved && typeof saved === 'object' ? { ...(saved as States) } : {}
       const result = await change(states)
-      await this.conns.whileCurrent(generation, () => this.orca.storage.set(keyOf(conn.id, 'starts'), states))
+      await this.conns.whileCurrent(generation, async () => {
+        await this.orca.storage.set(keyOf(conn.id, 'starts'), states)
+        for (const listener of this.listeners) listener({ ...states })
+      })
       return result
     })
     this.lock = run.catch(() => undefined)
@@ -116,6 +125,11 @@ export class Starts {
       await this.reconcile(states)
       return { ...states }
     })) ?? {}
+  }
+
+  /** Drops `key`'s link if its workspace is gone (after Orca reports a workspace removed). */
+  async reconcileKey(key: string): Promise<void> {
+    await this.mutate((states) => this.reconcile(states, key))
   }
 
   async start(input: StartInput): Promise<{ accepted: true } | { accepted: false; reason: string }> {
