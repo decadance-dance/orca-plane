@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="orca-plane: the command orca plugin install orca-plane beside the Plane panel in Orca's sidebar, which lists the work items assigned to you by project and state, WEB-12 Fix the login redirect in progress with its agent done and WEB-9 Add a dark mode toggle in Todo with its agent needing input; Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data; the status bar reads 12 · 2 waiting" src="docs/assets/banner.svg" width="100%">
+  <img alt="Plane for Orca, unofficial, not made or endorsed by Plane Software, Inc.: the Plane panel in Orca's sidebar, which lists the work items assigned to you by project and state, WEB-12 Fix the login redirect in progress with its agent done and WEB-9 Add a dark mode toggle in Todo with its agent needing input; Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data; the status bar reads 12 · 2 waiting" src="docs/assets/banner.svg" width="100%">
 </p>
 
 <h3 align="center">Your Plane work items in Orca's sidebar, one click from ticket to coding agent</h3>
