@@ -46,6 +46,7 @@ import {
   type OrcaProject,
   type StartState
 } from './protocol'
+import { linkedWorkspace } from './links'
 import { readiness } from './readiness'
 import { buildPrompt, workspaceName } from './start'
 
@@ -80,10 +81,17 @@ const status = atom<ConnectionStatus | null>(null)
 const loadError = atom<string | null>(null)
 const items = atom<ItemsState | null>(null)
 const starts = atom<Record<string, StartState>>({})
+/** Linked keys hidden from the section of items no longer open (closed-item-workspaces C2). */
+const hidden = atom<string[]>([])
 /** Linked items with their agent state, from the worker (design L3). */
 const links = atom<Record<string, LinkView>>({})
 /** Posts heard while `loadConnected` waits: they are newer than its snapshots, which never overwrite them. */
-let heard: { items?: ItemsState; links?: Record<string, LinkView>; starts: Record<string, StartState> } | null = null
+let heard: {
+  items?: ItemsState
+  links?: Record<string, LinkView>
+  starts: Record<string, StartState>
+  hidden: Record<string, boolean>
+} | null = null
 const projects = atom<OrcaProject[] | null>(null)
 /** Installed agents, then terminal only (design D8). */
 const agents = atom<AgentChoice[]>([])
@@ -169,18 +177,26 @@ async function loadPickers(): Promise<void> {
   if (!has(read(agent))) set(agent, has(fallback) ? String(fallback) : offered[0].value)
 }
 
+/** Counts loads and connection changes: a load overtaken by either belongs to a former connection. */
+let loadAsk = 0
+
 async function loadConnected(): Promise<void> {
-  heard = { starts: {} }
+  const ask = ++loadAsk
+  heard = { starts: {}, hidden: {} }
   const [list, known, linked] = await Promise.all([
     plugin.request('items.list', undefined),
     plugin.request('starts.get'),
     plugin.request('links.get').catch(() => ({})),
     loadPickers()
   ])
-  const newer = heard ?? { starts: {} }
+  if (ask !== loadAsk) return
+  const newer = heard ?? { starts: {}, hidden: {} }
   heard = null
   set(items, newer.items ?? list)
-  set(starts, { ...known, ...newer.starts })
+  set(starts, { ...known.states, ...newer.starts })
+  // A hiding heard during the load wins over the answer, as the states do.
+  const kept = known.hidden.filter((key) => newer.hidden[key] !== false)
+  set(hidden, [...new Set([...kept, ...Object.keys(newer.hidden).filter((key) => newer.hidden[key])])])
   set(links, newer.links ?? linked)
   const open = read(opened)
   const asked = read(confirming)
@@ -191,15 +207,26 @@ export function setup(ctx: PanelContext): void {
   ctx.subscriptions.push(
     plugin.on('connection.changed', (next) => {
       set(status, next)
-      // The shown history belongs to the old connection: drop it, and ask the new one if the detail stays open.
+      // What is shown belongs to the old connection: drop it, and load the new one's (the open detail
+      // and its history included).
+      loadAsk++
+      heard = null
       historyAsk++
       set(history, [])
+      set(items, null)
+      set(starts, {})
+      set(hidden, [])
+      set(links, {})
+      // The open detail and confirmation reload (loadConnected); until then they show as loading.
       const open = read(opened)
-      if (next.connected && open) void loadHistory(open.key)
-      if (!next.connected) {
-        set(items, null)
-        set(starts, {})
-        set(links, {})
+      set(detail, open ? { ...refOf(open), item: null, error: null } : null)
+      set(confirmation, null)
+      if (next.connected) {
+        // As on the first load: a failure shows Retry, unless another connection change came since.
+        void loadConnected().catch((error: unknown) => {
+          if (read(status) === next) set(loadError, message(error))
+        })
+      } else {
         closeItem()
         cancelStart()
       }
@@ -208,9 +235,13 @@ export function setup(ctx: PanelContext): void {
       if (heard) heard.items = next
       set(items, next)
     }),
-    plugin.on('start.changed', ({ key, state }) => {
-      if (heard) heard.starts[key] = state
+    plugin.on('start.changed', ({ key, state, hidden: isHidden }) => {
+      if (heard) {
+        heard.starts[key] = state
+        heard.hidden[key] = isHidden === true
+      }
       update(starts, (all) => ({ ...all, [key]: state }))
+      update(hidden, (keys) => (isHidden ? [...new Set([...keys, key])] : keys.filter((entry) => entry !== key)))
       if (read(opened)?.key === key) void loadHistory(key)
     }),
     plugin.on('links.changed', (next) => {
@@ -257,6 +288,7 @@ async function disconnect(): Promise<void> {
   set(status, await plugin.request('connection.disconnect'))
   set(items, null)
   set(starts, {})
+  set(hidden, [])
   set(links, {})
   closeItem()
   cancelStart()
@@ -281,8 +313,10 @@ async function openItem(ref: ItemRef): Promise<void> {
   set(descriptionOpen, false)
   set(history, [])
   void loadHistory(ref.key)
+  const ask = loadAsk
   const loaded = await fetchDetail(ref)
-  if (read(detail)?.key === ref.key) set(detail, loaded)
+  // A reply from before a connection change belongs to the former account.
+  if (ask === loadAsk && read(detail)?.key === ref.key) set(detail, loaded)
 }
 
 /** The focused Orca workspace belongs to `key` (design L4): show it, unless a Start waits for confirmation. */
@@ -298,8 +332,9 @@ async function askStart(ref: ItemRef): Promise<void> {
   set(confirmation, { ...refOf(ref), item: null, error: null })
   set(startError, null)
   const shown = read(detail)
+  const ask = loadAsk
   const loaded = shown?.key === ref.key && shown.item ? shown : await fetchDetail(ref)
-  if (read(confirming)?.key !== ref.key) return
+  if (ask !== loadAsk || read(confirming)?.key !== ref.key) return
   set(confirmation, loaded)
   if (loaded.item) set(prompt, buildPrompt(loaded.item))
 }
@@ -332,6 +367,16 @@ async function openWorkspace(workspaceId: string): Promise<void> {
     error: message(error)
   }))
   if (!answer.ok) set(openError, answer.error)
+}
+
+async function hideLeftover(key: string): Promise<void> {
+  set(openError, null)
+  try {
+    // The worker's start.changed shows the hide: set here, a late reply could hide a newer link.
+    await plugin.request('start.hide', { key })
+  } catch (error) {
+    set(openError, message(error))
+  }
 }
 
 const matches = (item: Item, query: string) =>
@@ -617,7 +662,50 @@ function ListView({ state }: { state: ItemsState | null }) {
           <Groups entries={inTab} all={state.items.filter((item) => item.projectId === selected)} />
         </Stack>
       ) : null}
+      {state.completeness === 'complete' ? <Leftovers listed={state.items} /> : null}
     </Stack>
+  )
+}
+
+/** Linked workspaces of items no longer in the complete list (design C1, C4 of closed-item-workspaces):
+ *  only a complete list proves that an item left it. */
+function Leftovers({ listed }: { listed: Item[] }) {
+  const keys = new Set(listed.map((item) => item.key))
+  const leftovers = Object.entries(read(starts)).flatMap(([key, state]) => {
+    const workspaceId = linkedWorkspace(state)
+    if (!workspaceId || keys.has(key) || read(hidden).includes(key)) return []
+    // A link saved by an earlier version without a name shows the key only (C3).
+    const name = state.kind === 'created' || state.kind === 'failed' ? state.name : undefined
+    return [{ key, workspaceId, name }]
+  })
+  if (leftovers.length === 0) return null
+  return (
+    <Collapsible title={`No longer in your open items (${leftovers.length})`}>
+      <Stack gap="xs">
+        {leftovers.map(({ key, workspaceId, name }) => (
+          <Box key={key} direction="row" align="center" gap="xs" width="100%" minWidth={0}>
+            <Box grow shrink minWidth={0}>
+              <Text weight="medium">{key}</Text>
+              {name ? (
+                <Text muted size="xs" truncate>
+                  {name}
+                </Text>
+              ) : null}
+            </Box>
+            <Box shrink={false}>
+              <Row gap="xs">
+                <Button key={`leftover-open:${key}`} size="sm" icon="open-external" onPress={() => openWorkspace(workspaceId)}>
+                  Open workspace
+                </Button>
+                <Button key={`leftover-hide:${key}`} size="sm" variant="ghost" onPress={() => hideLeftover(key)}>
+                  Hide
+                </Button>
+              </Row>
+            </Box>
+          </Box>
+        ))}
+      </Stack>
+    </Collapsible>
   )
 }
 

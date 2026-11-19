@@ -371,3 +371,53 @@ test('history: the byte guard drops the oldest items while the value is over 200
   assert.ok(history['A-49'])
   assert.equal(history['A-0'], undefined)
 })
+
+// --- closed-item-workspaces: workspace names and hiding (tasks 1.1 and 1.2) ---
+
+test('an agent that fails after the workspace exists keeps the workspace name; a link saved without one stays valid', async () => {
+  const f = fake({
+    'workspace.list': () => ({ workspaces: [ROW], truncated: false }),
+    'workspace.create': () => {
+      throw hostError('action_failed', 'Agent failed to start')
+    }
+  })
+  const starts = new Starts(f.orca, new Connections(f.orca), items)
+  assert.deepEqual(await starts.start(START), { accepted: true })
+  await settle()
+  assert.deepEqual((await starts.all())['DIOGEN-449'], { kind: 'failed', error: 'Agent failed to start', workspaceId: 'w1', name: NAME })
+
+  const old = { kind: 'failed', error: 'Agent failed to start', workspaceId: 'w1' }
+  const g = fake({ 'workspace.list': () => ({ workspaces: [ROW], truncated: false }) }, { storage: { [keyOf(await oldId(), 'starts')]: { 'DIOGEN-449': old } } })
+  const earlier = new Starts(g.orca, new Connections(g.orca), items)
+  assert.deepEqual((await earlier.all())['DIOGEN-449'], old)
+  assert.equal((await earlier.start(START)).accepted, false)
+})
+
+test('hide keeps the link and its duplicate protection, survives a remount, and ends with the workspace', async () => {
+  const linked = { kind: 'created', workspaceId: 'w1', name: NAME, projectId: 'p1' }
+  let rows = [ROW]
+  const f = fake(
+    { 'workspace.list': () => ({ workspaces: rows, truncated: false }), 'workspace.create': () => ({ workspaceId: 'w2' }) },
+    { storage: { [keyOf(await oldId(), 'starts')]: { 'DIOGEN-449': linked } } }
+  )
+  const posts: unknown[] = []
+  ;(f.orca.panels as { post: (event: string, payload: unknown) => void }).post = (event, payload) => void posts.push({ event, payload })
+  const starts = new Starts(f.orca, new Connections(f.orca), items)
+  // Only a linked key can be hidden.
+  await starts.hide('OTHER-1')
+  assert.deepEqual(await starts.get(), { states: { 'DIOGEN-449': linked }, hidden: [] })
+  await starts.hide('DIOGEN-449')
+  assert.deepEqual(posts.at(-1), { event: 'start.changed', payload: { key: 'DIOGEN-449', state: linked, hidden: true } })
+  assert.deepEqual(await starts.get(), { states: { 'DIOGEN-449': linked }, hidden: ['DIOGEN-449'] })
+
+  const again = new Starts(f.orca, new Connections(f.orca), items)
+  assert.deepEqual(await again.get(), { states: { 'DIOGEN-449': linked }, hidden: ['DIOGEN-449'] })
+  assert.deepEqual(await again.start(START), { accepted: false, reason: 'This item already has a workspace: open it instead.' })
+  assert.equal(f.counts['workspace.create'], undefined)
+
+  // The workspace is removed in Orca: the link and the hiding end together.
+  rows = []
+  assert.deepEqual(await again.get(), { states: {}, hidden: [] })
+  assert.deepEqual(f.storage.get(keyOf(await oldId(), 'hidden')), [])
+  assert.deepEqual(posts.at(-1), { event: 'start.changed', payload: { key: 'DIOGEN-449', state: { kind: 'idle' }, hidden: false } })
+})

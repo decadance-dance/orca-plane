@@ -9,6 +9,7 @@ An [Orca](https://orca.dev) plugin that brings your [Plane](https://plane.so) wo
 - **Agent state:** an item you started shows what the agent in its workspace is doing: Working, Needs input or Done.
 - **Follow the workspace:** switching to a workspace started from an item shows that item in the panel, even after it left your list.
 - **Earlier starts:** the item detail lists the last 10 Starts of the item, newest first, with time, agent, project, workspace name and outcome, also after the workspace is removed. The log stays on this computer and is erased when you disconnect.
+- **No longer in your open items:** when the list is complete, a collapsible section below it lists the workspaces you started for items that left the list, so you can open them and remove them in Orca. Hide clears an entry; the item keeps its workspace, so it cannot be started a second time while that workspace exists.
 - **Readiness hints:** the Start confirmation warns when the description is empty or short, has no checklist, or has no code reference or link. The hints are local advice and never block Start.
 - **Status bar:** the count of your open items, and how many agents on them wait for you (`12 · 2 waiting`).
 

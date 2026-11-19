@@ -286,7 +286,7 @@ test('the token appears only in the secret record and the X-API-Key header to it
   results.push(await worker.request('item.get', { key: 'NOPE-1', projectId: 'x' }))
   results.push(await worker.request('orca.projects'))
   results.push(await worker.request('item.start', { key: 'DIOGEN-449', orcaProjectId: 'p1', hostId: 'local', agent: 'claude', prompt: 'p', name: NAME }))
-  await until(async () => (await worker.request('starts.get'))['DIOGEN-449']?.kind === 'created')
+  await until(async () => (await worker.request('starts.get')).states['DIOGEN-449']?.kind === 'created')
   results.push(await worker.request('starts.get'))
   results.push(await worker.request('workspace.open', { workspaceId: 'w1' }))
   results.push(await worker.request('connection.disconnect'))
@@ -451,7 +451,7 @@ test('disconnected: the status bar is hidden and no timer runs', async () => {
 
 // --- 5. Start ---
 
-const startOf = async (worker: Awaited<ReturnType<typeof mountWorker>>) => (await worker.request('starts.get'))['DIOGEN-449']
+const startOf = async (worker: Awaited<ReturnType<typeof mountWorker>>) => (await worker.request('starts.get')).states['DIOGEN-449']
 
 test('double press from two panels creates one workspace', async () => {
   plane()
@@ -637,7 +637,11 @@ test('the agent fails after the workspace exists: failed, linked to it', async (
   const worker = await connected(h)
   await worker.request('item.start', START)
   await until(async () => (await startOf(worker))?.kind === 'failed')
-  assert.deepEqual(await startOf(worker), { kind: 'failed', error: 'Agent claude failed to start in workspace w5', workspaceId: 'w5' })
+  assert.deepEqual(await startOf(worker), { kind: 'failed', error: 'Agent claude failed to start in workspace w5', workspaceId: 'w5', name: NAME })
+  assert.equal((await worker.request('item.start', START)).accepted, false)
+  // Hidden from the section of items no longer open, the link stays (closed-item-workspaces C2).
+  assert.deepEqual(await worker.request('start.hide', { key: 'DIOGEN-449' }), { ok: true })
+  assert.deepEqual((await worker.request('starts.get')).hidden, ['DIOGEN-449'])
   assert.equal((await worker.request('item.start', START)).accepted, false)
   await worker.deactivate()
 })
@@ -809,7 +813,7 @@ test("a link dropped by starts.get's reconcile: no badge, the count back in its 
   await worker.emit('agent.status.changed', agentEvent('w1', 'waiting'))
   assert.equal(lastBar(h).text, '2 · 1 waiting')
   rows = []
-  assert.deepEqual(await worker.request('starts.get'), {})
+  assert.deepEqual(await worker.request('starts.get'), { states: {}, hidden: [] })
   assert.deepEqual(lastLinks(worker), {})
   assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
   assert.deepEqual(lastBar(h), NORMAL)

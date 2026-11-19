@@ -54,7 +54,7 @@ const connected = (list: ItemsState, starts: Record<string, StartState> = {}) =>
   requests: {
     'connection.get': CONNECTED,
     'items.list': list,
-    'starts.get': starts,
+    'starts.get': { states: starts, hidden: [] },
     'item.get': { ok: true as const, item: DETAIL },
     'orca.projects': { projects: [{ id: 'p1', name: 'web-app', hostId: 'local' }] },
     'agents.installed': { agents: [{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }] }
@@ -67,6 +67,8 @@ export default defineCheck({
   disconnected: { requests: { 'connection.get': { connected: false } } },
   loading: connected(state({ items: [], completeness: null, fetchedAt: null, refreshing: true })),
   complete: connected(state({}), { 'WEB-9': { kind: 'created', workspaceId: 'w1', name: 'WEB-9-add-a-dark-mode-toggle', projectId: 'p1' } }),
+  // DOC-7 left the list; its workspace shows in the section of items no longer open.
+  leftovers: connected(state({}), { 'DOC-7': { kind: 'created', workspaceId: 'w7', name: 'DOC-7-update-the-api-guide', projectId: 'p1' } }),
   partial: connected(state({ completeness: 'partial', error: 'More than 1000 items: only the newest are shown.' })),
   stale: connected(state({ completeness: 'stale', error: 'Plane answered HTTP 502' })),
   empty: connected(state({ items: [] })),

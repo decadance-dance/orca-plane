@@ -30,7 +30,8 @@ export type StartState =
   | { kind: 'idle' }
   | { kind: 'pending'; name: string; projectId: string; startedAt: number }
   | { kind: 'created'; workspaceId: string; name: string; projectId: string }
-  | { kind: 'failed'; error: string; workspaceId?: string }
+  /** `name` is kept when the workspace exists (closed-item-workspaces C3); links saved earlier lack it. */
+  | { kind: 'failed'; error: string; workspaceId?: string; name?: string }
   | { kind: 'unknown'; name: string; projectId: string }
 
 /** One Start of an item as the history keeps it (design H1 of start-history); `id` is unique, `at` is its `startedAt`. */
@@ -79,8 +80,11 @@ declare module 'orca' {
     'items.list': { input: { force?: boolean } | undefined; output: ItemsState }
     /** `projectId` is the Plane project; without it the item is fetched by its key alone. */
     'item.get': { input: { key: string; projectId?: string }; output: Result<{ item: ItemDetail }> }
-    /** Every item's Start state that is not idle, reconciled with Orca's workspaces. */
-    'starts.get': { output: Record<string, StartState> }
+    /** Every item's Start state that is not idle, reconciled with Orca's workspaces, and the linked
+     *  keys hidden from the section of items no longer open. */
+    'starts.get': { output: { states: Record<string, StartState>; hidden: string[] } }
+    /** Hides a linked item from that section; its link stays. Open panels also hear it as `start.changed`. */
+    'start.hide': { input: { key: string }; output: { ok: true } }
     /** The item's earlier Starts, oldest first; empty when it has none or nothing is connected. */
     'history.get': { input: { key: string }; output: Attempt[] }
     /** Every linked item (key) with its workspace and agent state. */
@@ -99,7 +103,8 @@ declare module 'orca' {
   interface PluginPanelEvents {
     'connection.changed': ConnectionStatus
     'items.changed': ItemsState
-    'start.changed': { key: string; state: StartState }
+    /** `hidden`: the item is hidden from the section of items no longer open. */
+    'start.changed': { key: string; state: StartState; hidden: boolean }
     'links.changed': Record<string, LinkView>
     /** The focused Orca workspace now belongs to this item (null: to none). */
     'focus.changed': { key: string | null }
