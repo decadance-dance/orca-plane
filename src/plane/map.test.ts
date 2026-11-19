@@ -55,3 +55,15 @@ test('labels and description', () => {
   assert.deepEqual(detail?.labels, ['bug'])
   assert.equal(detail?.description, 'Hi & bye')
 })
+
+test('the expanded parent gives its title alone: Plane sends no project for it', () => {
+  // Plane's documented expanded parent: `{ id, name, sequence_id }`.
+  const parent = { id: '9f0c', name: 'Login rework', sequence_id: 12 }
+  assert.deepEqual(toDetail({ ...item, parent_id: parent.id, parent }, () => '')?.parent, { key: null, title: 'Login rework' })
+})
+
+test('a missing or unreadable parent is null', () => {
+  assert.equal(toDetail(item, () => '')?.parent, null)
+  assert.equal(toDetail({ ...item, parent_id: '9f0c', parent: '9f0c' }, () => '')?.parent, null)
+  assert.equal(toDetail({ ...item, parent: { id: '9f0c' } }, () => '')?.parent, null)
+})

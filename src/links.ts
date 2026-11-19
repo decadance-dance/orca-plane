@@ -1,9 +1,14 @@
 // Item <-> workspace links and the agent state of each linked workspace (design L1, L2, L4).
 // The links come from the Start states; agent states live in memory only, from Orca's events.
+// The hooks of agent-item-context (A1, A3, A4) read the item of a terminal or a launch from here.
 import type { PluginEvents } from 'orca'
+import type { OrcaWorkerApi } from 'orca/worker'
+import { browseUrl } from './plane/url'
 import type { AgentState, LinkView, StartState } from './protocol'
 
 type Agent = { state: AgentState; since: number }
+/** An item for the hooks: its key and Plane URL, never ticket text (A2). */
+export type ItemRef = { key: string; url: string }
 
 /** The workspace a Start state links its item to, if any. */
 export function linkedWorkspace(state: StartState): string | undefined {
@@ -25,6 +30,14 @@ export class Links {
   private terminals = new Map<string, string[]>()
   private lastFocus: { workspaceId: string | null; key: string | null } | null = null
   private snapshot = '{}'
+  /** The connection's app base and slug, for item URLs (A1). */
+  private base: { appBase: string; slug: string } | null = null
+  /** Another id form of a workspace -> the id `workspace.list` gives it (A4: the launch hook names only `<projectId>::<path>`). */
+  private aliases = new Map<string, string>()
+  /** Links handed over by `Starts` when `workspace.create` returns, until the Start state stores them (A4). */
+  private adopted = new Map<string, string>()
+  /** Linked workspaces whose terminals were listed once (A3). */
+  private seeded = new Set<string>()
 
   constructor(
     private readonly notify: {
@@ -42,6 +55,8 @@ export class Links {
       const workspaceId = linkedWorkspace(state)
       if (workspaceId) this.keys.set(workspaceId, key)
     }
+    // A handed-over link stays until its outcome is written; then the stored state decides.
+    for (const [workspaceId, key] of this.adopted) if (states[key]?.kind !== 'pending') this.adopted.delete(workspaceId)
     this.publish()
   }
 
@@ -51,13 +66,97 @@ export class Links {
    */
   clear(): void {
     if (this.lastFocus) this.lastFocus = { workspaceId: this.lastFocus.workspaceId, key: null }
+    this.adopted.clear()
     this.set({})
+  }
+
+  /** The connection whose links these are; set before its links, on every connection change. */
+  connection(conn: { appBase: string; slug: string } | null): void {
+    this.base = conn ? { appBase: conn.appBase, slug: conn.slug } : null
+  }
+
+  /**
+   * A4: a Start's `workspace.create` returned, under the current connection (the caller checks the
+   * generation). Hooks see the link at once; the panel waits for the stored outcome.
+   */
+  adopt(key: string, workspaceId: string, terminalId?: string): void {
+    this.adopted.set(workspaceId, key)
+    if (terminalId) this.remember(terminalId, [workspaceId])
+  }
+
+  /** `workspace.created` names the workspace by both ids; it never links anything by its name or branch. */
+  created(event: PluginEvents['workspace.created']): void {
+    this.pair(event)
+  }
+
+  /**
+   * A3: lists the terminals of each linked workspace not listed yet, and pairs `workspace.list` rows
+   * with their launch id form. Failures are ignored; never called from a hook.
+   */
+  async seed(host: OrcaWorkerApi['host']): Promise<void> {
+    const fresh = [...this.keys.keys(), ...this.adopted.keys()].filter((id) => !this.seeded.has(id))
+    if (fresh.length === 0) return
+    for (const id of fresh) this.seeded.add(id)
+    try {
+      const { workspaces } = await host.call('workspace.list')
+      for (const row of workspaces) {
+        // limit: Orca does not document the `<projectId>::<path>` form; the live probe
+        // (test/fixtures/orca-ids.json) pins it. Only an exact match on it is ever used.
+        if (row.projectId && row.path) this.aliases.set(`${row.projectId}::${row.path}`, row.id)
+      }
+    } catch {
+      // The events' id pairs still apply.
+    }
+    await Promise.all(
+      fresh.map(async (workspaceId) => {
+        try {
+          const { terminals } = await host.call('terminal.list', { workspaceId })
+          for (const terminal of terminals) this.remember(terminal.id, [workspaceId])
+        } catch {
+          this.seeded.delete(workspaceId)
+        }
+      })
+    )
+  }
+
+  /** The item linked to a terminal's workspace, from memory only (A1). */
+  itemOfTerminal(terminalId: string): ItemRef | null {
+    return this.item(this.terminals.get(terminalId) ?? [])
+  }
+
+  /** The item of an agent launch; also remembers its terminal (A3). From memory only (A1). */
+  launch(event: { workspaceId: string | null; terminalId?: string }): ItemRef | null {
+    if (event.terminalId && event.workspaceId) this.remember(event.terminalId, [event.workspaceId])
+    return this.item([...(event.workspaceId ? [event.workspaceId] : []), ...(event.terminalId ? (this.terminals.get(event.terminalId) ?? []) : [])])
+  }
+
+  private item(ids: string[]): ItemRef | null {
+    if (!this.base) return null
+    for (const id of ids) {
+      for (const candidate of [id, this.aliases.get(id)]) {
+        const key = candidate === undefined ? undefined : (this.keys.get(candidate) ?? this.adopted.get(candidate))
+        if (key) return { key, url: browseUrl(this.base.appBase, this.base.slug, key) }
+      }
+    }
+    return null
+  }
+
+  private remember(terminalId: string, ids: string[]): void {
+    this.terminals.set(terminalId, [...new Set([...(this.terminals.get(terminalId) ?? []), ...ids])])
+  }
+
+  /** Both ids of one workspace, as an event carries them: id to id only. */
+  private pair(event: { workspaceId?: string | null; workspaceListId?: string }): void {
+    if (event.workspaceId && event.workspaceListId && event.workspaceId !== event.workspaceListId) {
+      this.aliases.set(event.workspaceId, event.workspaceListId)
+    }
   }
 
   agent(event: PluginEvents['agent.status.changed']): void {
     const ids = idsOf(event)
     if (ids.length === 0) return
-    if (event.terminalId) this.terminals.set(event.terminalId, ids)
+    this.pair(event)
+    if (event.terminalId) this.remember(event.terminalId, ids)
     // The main agent wins: `state` can come from a sub-pane.
     const raw = event.mainAgent?.state ?? event.state
     const state: AgentState = raw === 'blocked' || raw === 'waiting' ? 'needs-input' : raw
@@ -70,7 +169,12 @@ export class Links {
   /** Forgets a removed workspace's agent state at once; Starts drops its link (design L3). */
   removed(event: PluginEvents['workspace.removed']): void {
     const ids = idsOf(event)
-    for (const id of ids) this.agents.delete(id)
+    for (const id of ids) {
+      this.agents.delete(id)
+      this.adopted.delete(id)
+      this.seeded.delete(id)
+    }
+    for (const [other, id] of this.aliases) if (ids.includes(other) || ids.includes(id)) this.aliases.delete(other)
     for (const [terminal, of] of this.terminals) if (of.some((id) => ids.includes(id))) this.terminals.delete(terminal)
     this.publish()
   }
@@ -78,6 +182,7 @@ export class Links {
   /** L4: posts only when the focused workspace changes to one of another item; the first event only sets it. */
   focus(event: PluginEvents['workspace.changed']): void {
     const workspaceId = event.context?.workspaceId || null
+    if (workspaceId) for (const terminal of event.context?.terminals ?? []) this.remember(terminal.id, [workspaceId])
     if (this.lastFocus && this.lastFocus.workspaceId === workspaceId) return
     const key = workspaceId ? this.keyOfWorkspace(workspaceId) : null
     const first = this.lastFocus === null

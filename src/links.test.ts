@@ -171,3 +171,122 @@ test("review 4: after an account switch, the same key linked to another workspac
   model.focus(context('wB'))
   assert.deepEqual(focus, ['DIOGEN-449', 'DIOGEN-449'])
 })
+
+// --- agent-item-context: the item of a terminal or a launch (A1, A3, A4) ---
+
+const CLOUD = { appBase: 'https://app.plane.so', slug: 'truelogic' }
+const url = (key: string) => `https://app.plane.so/truelogic/browse/${key}/`
+const records = probe.records as { source: string; payload: Record<string, unknown> }[]
+const record = (source: string) => records.find((entry) => entry.source === source)!.payload
+const launch = record('agent.launch.before') as { workspaceId: string; terminalId: string }
+
+/** A host whose terminal.list and workspace.list answer from `terminals` and `rows`. */
+function seedHost(terminals: Record<string, string[]>, rows: unknown[] = []) {
+  const calls: string[] = []
+  return {
+    calls,
+    host: {
+      call: async (method: string, params?: { workspaceId: string }) => {
+        calls.push(params ? `${method} ${params.workspaceId}` : method)
+        if (method === 'workspace.list') return { workspaces: rows, truncated: false }
+        if (!(params!.workspaceId in terminals)) throw new Error('no such workspace')
+        return { terminals: terminals[params!.workspaceId].map((id) => ({ id })), truncated: false }
+      }
+    } as never
+  }
+}
+
+test('each source maps a terminal to its workspace: status, launch, focus, terminal.list and the create handoff', async () => {
+  const { model } = links({ A: created('list-1'), B: created('list-2'), C: created('list-3') })
+  model.connection(CLOUD)
+  model.agent(status({ workspaceId: 'p1::/a', workspaceListId: 'list-1', terminalId: 't-status' }))
+  model.launch({ workspaceId: 'list-1', terminalId: 't-launch' })
+  model.focus({ context: { workspaceId: 'list-2', branch: 'b', displayName: 'b', terminals: [{ id: 't-focus' }] } })
+  const { host, calls } = seedHost({ 'list-1': [], 'list-2': [], 'list-3': ['t-listed'], 'list-4': [] })
+  await model.seed(host)
+  model.adopt('D', 'list-4', 't-created')
+  assert.deepEqual(
+    ['t-status', 't-launch', 't-focus', 't-listed', 't-created'].map((t) => model.itemOfTerminal(t)?.key),
+    ['A', 'A', 'B', 'C', 'D']
+  )
+  assert.deepEqual(model.itemOfTerminal('t-status'), { key: 'A', url: url('A') })
+  // Each linked workspace is listed once; a later seed lists only new ones (a failed list is retried).
+  assert.deepEqual(calls.filter((call) => call.startsWith('terminal.list')).sort(), ['terminal.list list-1', 'terminal.list list-2', 'terminal.list list-3'])
+  await model.seed(host)
+  assert.deepEqual(calls.slice(4), ['workspace.list', 'terminal.list list-4'])
+})
+
+test('a terminal never reported, an unlinked workspace, or no connection: no item', () => {
+  const { model } = links({ A: created('list-1') })
+  model.agent(status({ workspaceId: 'w9', terminalId: 't9' }))
+  assert.equal(model.itemOfTerminal('t9'), null)
+  model.agent(status({ workspaceId: 'list-1', terminalId: 't1' }))
+  assert.equal(model.itemOfTerminal('t1'), null, 'no connection yet: no URL to give')
+  model.connection(CLOUD)
+  assert.equal(model.itemOfTerminal('t-unseen'), null)
+  assert.equal(model.itemOfTerminal('t1')?.key, 'A')
+})
+
+test('no link by name: a created workspace with the item name and branch links nothing', () => {
+  const { model } = links({ A: { kind: 'pending', name: 'A-1-x', projectId: 'p1', startedAt: 1 } })
+  model.connection(CLOUD)
+  model.created({ workspaceId: 'p1::/A-1-x', workspaceListId: 'list-9', kind: 'worktree', path: '/A-1-x', branch: 'A-1-x' })
+  assert.equal(model.launch({ workspaceId: 'p1::/A-1-x', terminalId: 't1' }), null)
+  assert.equal(model.itemOfTerminal('t1'), null)
+})
+
+test('URLs keep a self-hosted path prefix', () => {
+  const { model } = links({ 'WEB-12': created('list-1') })
+  model.connection({ appBase: 'https://plane.example.org/tools/plane', slug: 'my team' })
+  assert.equal(model.launch({ workspaceId: 'list-1' })?.url, 'https://plane.example.org/tools/plane/my%20team/browse/WEB-12/')
+})
+
+test('the live probe: the launch hook resolves by the id pair of workspace.created', () => {
+  const { model } = links()
+  model.connection(CLOUD)
+  // In the probe the first launch comes before the create returns: no item yet.
+  assert.equal(model.launch(launch), null)
+  model.created(record('workspace.created') as never)
+  model.adopt('DIOGEN-449', probe.returnedId)
+  assert.equal(model.launch({ ...launch, terminalId: 'new-tab' })?.key, 'DIOGEN-449')
+  assert.equal(model.itemOfTerminal(launch.terminalId)?.key, 'DIOGEN-449')
+})
+
+test('the live probe: the launch hook resolves by a workspace.list row; a row without projectId or path adds nothing', async () => {
+  const row = (record('workspace.list.rows').rows as Record<string, unknown>[])[0]
+  for (const [rows, found] of [
+    [[row], 'DIOGEN-449'],
+    [[{ ...row, projectId: null }], undefined],
+    [[{ ...row, path: '' }], undefined],
+    [[{ ...row, path: `${row.path}-other` }], undefined]
+  ] as const) {
+    const { model } = links({ 'DIOGEN-449': created(probe.returnedId) })
+    model.connection(CLOUD)
+    await model.seed(seedHost({ [probe.returnedId]: [] }, [...rows]).host)
+    assert.equal(model.launch({ ...launch, terminalId: 'new-tab' })?.key, found)
+  }
+})
+
+test('a handed-over link lasts while the Start is pending, then the stored state decides', () => {
+  const pending: StartState = { kind: 'pending', name: 'n', projectId: 'p1', startedAt: 1 }
+  const { model } = links({ A: pending })
+  model.connection(CLOUD)
+  model.adopt('A', 'list-1', 't1')
+  model.set({ A: pending })
+  assert.equal(model.itemOfTerminal('t1')?.key, 'A')
+  model.set({ A: { kind: 'unknown', name: 'n', projectId: 'p1' } })
+  assert.equal(model.itemOfTerminal('t1'), null)
+  model.adopt('A', 'list-1', 't1')
+  model.clear()
+  assert.equal(model.itemOfTerminal('t1'), null)
+})
+
+test('a removed workspace drops its id pair, its terminals and a handed-over link', () => {
+  const { model } = links()
+  model.connection(CLOUD)
+  model.created({ workspaceId: 'p1::/a', workspaceListId: 'list-1', kind: 'worktree', path: '/a', branch: 'a' })
+  model.adopt('A', 'list-1', 't1')
+  model.removed({ workspaceId: 'p1::/a', workspaceListId: 'list-1', kind: 'worktree', path: '/a' })
+  assert.equal(model.launch({ workspaceId: 'p1::/a', terminalId: 't2' }), null)
+  assert.equal(model.itemOfTerminal('t1'), null)
+})
