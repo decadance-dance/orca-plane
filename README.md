@@ -4,6 +4,7 @@ An [Orca](https://orca.dev) plugin that brings your [Plane](https://plane.so) wo
 
 - **My open items:** the work items assigned to you that are in backlog, unstarted or started, across the workspace. The list says whether it is complete, partial or stale.
 - **Item detail:** state, priority, assignees, labels and the description, with a link to open the item in Plane.
+- **Open by key or URL:** the field above the list opens any item of the workspace by its key (`DIOGEN-12`, any case) or a pasted Plane URL of the connected workspace, also one assigned to someone else or closed. An open item found this way can be started; Start reads it from Plane again first.
 - **Start:** creates an Orca workspace named `<KEY-N>-<title>` in a project you pick and starts an agent there. The agent gets the item as context; the ticket text is marked as data, not instructions.
 - **Branch named after the item:** Start asks Orca for the Git branch `<KEY-N>-<title>`, the name the confirmation shows, and asks the agent to put the key in the title of any pull request it opens, so Plane's Git integration links the branch and the pull request to the item. If a worktree of the same name is made by hand at the same moment, Orca gives the later one `-2`; an existing branch of that name is reused when no worktree uses it.
 - **Agent state:** an item you started shows what the agent in its workspace is doing: Working, Needs input or Done.
@@ -21,6 +22,17 @@ It works with Plane Cloud and with self-hosted Plane servers that serve API v2, 
 2. Open the Plane panel in Orca's right sidebar. Enter the server (Plane Cloud, or your server's URL), the workspace slug (the part after the host in Plane's URLs, such as `acme` in `https://app.plane.so/acme/`), and the token.
 
 The token is stored in Orca's encrypted plugin secrets, which are protected by the OS key store. It is sent only to the server you connected to. If Orca reports that no OS key store is available, the plugin refuses to store the token. To switch server, workspace or account, disconnect and connect again.
+
+## Commands and shortcuts
+
+| Command palette | Default shortcut |
+| --- | --- |
+| Plane: go to an agent that waits for you (the one that has waited longest) | `Mod+Alt+J` |
+| Plane: toggle the right sidebar | `Mod+Alt+L` |
+| Plane: open the workspace of the item shown in the panel | none |
+| Plane: refresh my work items | none |
+
+`Mod` is Cmd on macOS and Ctrl elsewhere. You can rebind them in Orca.
 
 ## Develop
 

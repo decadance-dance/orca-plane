@@ -97,7 +97,7 @@
     ],
     "keybindings": [
       { "command": "plane.nextWaiting", "key": "Mod+Alt+J" },
-      { "command": "plane.toggleSidebar", "key": "Mod+Alt+P" }
+      { "command": "plane.toggleSidebar", "key": "Mod+Alt+L" }
     ]
   },
   "capabilities": [
