@@ -130,8 +130,14 @@ export default defineCheck({
     ),
     ...onDetail
   },
+  // The worker writes the pending attempt before it publishes the pending state; both carry the same time.
   'start-pending': {
-    ...connected(state({}), { 'WEB-12': { kind: 'pending', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1', startedAt: now } }),
+    ...connected(
+      state({}),
+      { 'WEB-12': { kind: 'pending', name: 'WEB-12-fix-the-login-redirect', projectId: 'p1', startedAt: now } },
+      {},
+      [attempt('a1', 'claude', 'pending', 0)]
+    ),
     ...onDetail
   },
   // A create whose outcome Orca has not shown yet: its attempt is not confirmed.
