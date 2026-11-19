@@ -22,7 +22,7 @@
 ## 5. Agent state in the panel
 
 - [x] 5.1 Load `links.get` in `loadConnected` and listen to `links.changed`; `ItemRow` and the detail show a Badge: Working (neutral), Needs input (warning), Done (success), nothing when null. Verify: `src/panel.test.tsx` covers the four "Show the agent state of a linked item" scenarios; `bin/check` exits 0.
-- [ ] 5.2 Update the README feature list, then check by hand in Orca: start an item, let the agent ask a question, and see the badge and the status bar change; switch workspaces and see the panel follow. Verify: a screenshot from `orca plugin dev watch . --check` is attached to the PR.
+- [x] 5.2 Update the README feature list, then check by hand in Orca: start an item, let the agent ask a question, and see the badge and the status bar change; switch workspaces and see the panel follow. Verify: a screenshot from `orca plugin dev watch . --check` is attached to the PR. Done: checked live in Orca; the screenshots are on PR #46.
 
 ## Workflow follow-up
 
