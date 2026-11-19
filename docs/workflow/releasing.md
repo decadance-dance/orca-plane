@@ -1,6 +1,6 @@
 # Releases and hotfixes
 Read when: cutting a release, shipping a hotfix, bumping the version, or tagging `main`.
-TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off `main`. Each gets its own release issue, a PR into `main`, a plain `X.Y.Z` annotated tag on `main`, a GitHub Release with the notes, and a PR back into `develop`. Every release and hotfix bumps `version` in `orca-plugin.json`. Branch basics and the task-branch rules: [git-flow.md](git-flow.md). A closed issue stays closed after a release: new work gets a new issue.
+TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off `main`. Each gets its own release issue, a PR into `main`, a plain `X.Y.Z` annotated tag on `main` (plus `vX.Y.Z` on the same commit for Orca's plugin catalog), a GitHub Release with the notes, and a PR back into `develop`. Every release and hotfix bumps `version` in `orca-plugin.json`. Branch basics and the task-branch rules: [git-flow.md](git-flow.md). A closed issue stays closed after a release: new work gets a new issue.
 
 ## Release branch (`release-*`)
 ### Do
@@ -10,21 +10,22 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 - Mark the shipped issues: every issue closed as completed since the last release, and the release issue itself, get the milestone `<ver>` (`gh issue edit <n> --milestone 1.2.0`; create it once with `gh api repos/decadance-dance/orca-plane/milestones -f title=1.2.0`). Issues closed as not planned are never marked: they did not ship. Their titles and the PRs that closed them are the notes' input.
 - Draft the release notes: write the whole body into a local file, `RELEASE-<ver>.md`, by the template in [release-notes.md](release-notes.md). The maintainer edits it. Never commit it: keep it outside the repo.
 - Open a draft PR into `main` (`gh pr create --draft --base main --title "Release 1.2.0" --label chore --body "Refs #<release issue>"`). When `ci-ok` is green, tick the last item and mark it ready (`gh pr ready`).
-- After that PR merges, the maintainer tags `main`, pushes the tag and publishes the GitHub Release. Its title is the bare version (`1.2.0`, not `Orca Plane 1.2.0`):
+- After that PR merges, the maintainer tags `main` twice (`X.Y.Z`, and `vX.Y.Z` on the same commit because the catalog reads only `v` tags), pushes both and publishes the GitHub Release. Its title is the bare version (`1.2.0`, not `Orca Plane 1.2.0`):
   ```
   git checkout main && git pull
   git tag -a 1.2.0 -m "Orca Plane 1.2.0"
-  git push origin 1.2.0
+  git tag -a v1.2.0 -m "Orca Plane 1.2.0" '1.2.0^{}'
+  git push origin 1.2.0 v1.2.0
   gh release create 1.2.0 --verify-tag --title "1.2.0" --notes-file RELEASE-1.2.0.md
   ```
-- Once the plugin is listed in the Orca community catalog, run `orca plugin release-entry .` on the tagged `main` and add the printed entry to the catalog by its own PR.
+- Orca's community catalog lists the newest `vX.Y.Z` tag of a repository with the `orca-plugin` topic by itself, usually within an hour; there is no catalog PR. Check the listing at https://orca.dev/plugins/decadance-dance/orca-plane. A listed version never changes: tag only what should ship.
 - Then open a PR from the same branch into `develop` (`gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<release issue>"`). If it conflicts, branch `merge/1.2.0` off `develop`, merge `release-1.2.0` into it, resolve, and PR `merge/1.2.0` into `develop` with the same title.
 - Delete the release branch after both PRs have merged.
 
 ### Don't
 - Don't add new features in a release branch.
 - Don't skip the PR back into `develop`, or the fixes made during the release are lost in the next one.
-- Don't tag with a `v` prefix, a suffix (`1.2.0-rc.1`) or a lightweight tag: plain annotated `X.Y.Z` tags only.
+- Don't tag with a suffix (`1.2.0-rc.1`) or a lightweight tag: annotated `X.Y.Z` tags, plus the `vX.Y.Z` tag on the same commit for the catalog, never a `v` tag alone.
 - Don't pass `--generate-notes` to `gh release create`: it would append a second, ungrouped PR list.
 
 ## Hotfix branch (`hotfix-*`)
@@ -56,7 +57,7 @@ git push -u origin release-1.2.0 && gh pr create --draft --base main --title "Re
 # ci-ok green: tick the checklist, then gh pr ready
 # maintainer:
 gh pr merge --merge
-git checkout main && git pull && git tag -a 1.2.0 -m "Orca Plane 1.2.0" && git push origin 1.2.0
+git checkout main && git pull && git tag -a 1.2.0 -m "Orca Plane 1.2.0" && git tag -a v1.2.0 -m "Orca Plane 1.2.0" '1.2.0^{}' && git push origin 1.2.0 v1.2.0
 gh release create 1.2.0 --verify-tag --title "1.2.0" --notes-file RELEASE-1.2.0.md
 gh pr create --base develop --head release-1.2.0 --title "Release 1.2.0 into develop" --label chore --body "Closes #<r>"   # then merge it
 git push origin --delete release-1.2.0 && git branch -d release-1.2.0
