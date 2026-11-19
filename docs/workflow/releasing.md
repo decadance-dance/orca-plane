@@ -10,11 +10,11 @@ TL;DR: A `release-<ver>` branch comes off `develop`, a `hotfix-<ver>` branch off
 - Mark the shipped issues: every issue closed as completed since the last release, and the release issue itself, get the milestone `<ver>` (`gh issue edit <n> --milestone 1.2.0`; create it once with `gh api repos/decadance-dance/orca-plane/milestones -f title=1.2.0`). Issues closed as not planned are never marked: they did not ship. Their titles and the PRs that closed them are the notes' input.
 - Draft the release notes: write the whole body into a local file, `RELEASE-<ver>.md`, by the template in [release-notes.md](release-notes.md). The maintainer edits it. Never commit it: keep it outside the repo.
 - Open a draft PR into `main` (`gh pr create --draft --base main --title "Release 1.2.0" --label chore --body "Refs #<release issue>"`). When `ci-ok` is green, tick the last item and mark it ready (`gh pr ready`).
-- After that PR merges, the maintainer tags `main`, pushes the tag and publishes the GitHub Release:
+- After that PR merges, the maintainer tags `main` twice (`X.Y.Z`, and `vX.Y.Z` on the same commit because the catalog reads only `v` tags), pushes both and publishes the GitHub Release:
   ```
   git checkout main && git pull
   git tag -a 1.2.0 -m "Orca Plane 1.2.0"
-  git tag -a v1.2.0 -m "Orca Plane 1.2.0" '1.2.0^{}'   # the catalog reads only vX.Y.Z tags
+  git tag -a v1.2.0 -m "Orca Plane 1.2.0" '1.2.0^{}'
   git push origin 1.2.0 v1.2.0
   gh release create 1.2.0 --verify-tag --title "Orca Plane 1.2.0" --notes-file RELEASE-1.2.0.md
   ```
