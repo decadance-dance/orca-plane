@@ -29,4 +29,5 @@ Out of scope: desktop notifications when an agent changes state (#18, which buil
 - `src/plane/api.ts`: `getItemByKey` (Plane v2 get a work item by identifier).
 - `src/worker.ts`, `src/protocol.ts`: a `links.get` request, `item.get` with an optional `projectId`, and the panel events `links.changed` and `focus.changed`.
 - `src/panel.tsx`: agent badges on rows and in the detail; following the focused workspace.
-- Tests: `src/links.test.ts` (new), `src/worker.test.ts`, `src/panel.test.tsx`.
+- `README.md`: the feature list names the agent state, following the workspace and the waiting count.
+- Tests: `src/links.test.ts` (new), `src/worker.test.ts`, `src/panel.test.tsx`, `src/plane/api.test.ts`; the live id probe pinned in `test/fixtures/orca-ids.json` (new).

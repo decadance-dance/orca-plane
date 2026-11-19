@@ -5,8 +5,10 @@ An [Orca](https://orca.dev) plugin that brings your [Plane](https://plane.so) wo
 - **My open items:** the work items assigned to you that are in backlog, unstarted or started, across the workspace. The list says whether it is complete, partial or stale.
 - **Item detail:** state, priority, assignees, labels and the description, with a link to open the item in Plane.
 - **Start:** creates an Orca workspace named `<KEY-N>-<title>` in a project you pick and starts an agent there. The agent gets the item as context; the ticket text is marked as data, not instructions.
+- **Agent state:** an item you started shows what the agent in its workspace is doing: Working, Needs input or Done.
+- **Follow the workspace:** switching to a workspace started from an item shows that item in the panel, even after it left your list.
 - **Readiness hints:** the Start confirmation warns when the description is empty or short, has no checklist, or has no code reference or link. The hints are local advice and never block Start.
-- **Status bar:** the count of your open items.
+- **Status bar:** the count of your open items, and how many agents on them wait for you (`12 · 2 waiting`).
 
 It works with Plane Cloud and with self-hosted Plane servers that serve API v2, and needs Orca 1.4.259 or newer. It only reads from Plane; it never changes your work items.
 

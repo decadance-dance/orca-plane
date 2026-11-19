@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { getItem, listMyOpenItems, me } from './api'
+import { getItem, getItemByKey, listMyOpenItems, me } from './api'
 import { type FakeAnswer, fakeFetch } from './fake-fetch'
 import { PlaneError } from './http'
 
@@ -103,4 +103,14 @@ test('getItem asks for one item by key in its project', async () => {
   const url = new URL(fake.calls[0].url)
   assert.equal(url.pathname, '/api/v2/workspaces/truelogic/projects/p-1/work-items/DIOGEN-449/')
   assert.equal(url.searchParams.get('expand'), 'state,assignees,labels')
+})
+
+test('getItemByKey asks for one item by key alone; a 404 is not_found', async () => {
+  const fake = fakeFetch(() => ({ json: { id: 'x' } }))
+  await getItemByKey(conn, 'truelogic', 'DIOGEN-449')
+  const url = new URL(fake.calls[0].url)
+  assert.equal(url.pathname, '/api/v2/workspaces/truelogic/work-items/DIOGEN-449/')
+  assert.equal(url.searchParams.get('expand'), 'state,assignees,labels')
+  fakeFetch(() => ({ status: 404, json: { error: 'The requested resource was not found.' } }))
+  await assert.rejects(getItemByKey(conn, 'truelogic', 'DIOGEN-1'), (e: unknown) => e instanceof PlaneError && e.kind === 'not_found')
 })

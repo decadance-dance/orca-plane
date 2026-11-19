@@ -33,6 +33,12 @@ export type StartState =
   | { kind: 'failed'; error: string; workspaceId?: string }
   | { kind: 'unknown'; name: string; projectId: string }
 
+/** The agent state of a linked workspace: Orca's blocked and waiting are both `needs-input`. */
+export type AgentState = 'working' | 'needs-input' | 'done'
+
+/** A linked item's workspace and its agent's latest state; null when none was reported since the worker started. */
+export type LinkView = { workspaceId: string; agent: AgentState | null }
+
 export type OrcaProject = { id: string; name: string; hostId: string | null }
 
 export type AgentChoice = { value: string; label: string }
@@ -60,10 +66,12 @@ declare module 'orca' {
     'connection.disconnect': { output: ConnectionStatus }
     /** Answers from the cache at once; refreshes in the background when old or `force`. */
     'items.list': { input: { force?: boolean } | undefined; output: ItemsState }
-    /** `projectId` is the Plane project. */
-    'item.get': { input: { key: string; projectId: string }; output: Result<{ item: ItemDetail }> }
+    /** `projectId` is the Plane project; without it the item is fetched by its key alone. */
+    'item.get': { input: { key: string; projectId?: string }; output: Result<{ item: ItemDetail }> }
     /** Every item's Start state that is not idle, reconciled with Orca's workspaces. */
     'starts.get': { output: Record<string, StartState> }
+    /** Every linked item (key) with its workspace and agent state. */
+    'links.get': { output: Record<string, LinkView> }
     /** Answers at once; the outcome arrives as `start.changed`. `agent` null starts no agent. */
     'item.start': {
       input: { key: string; orcaProjectId: string; hostId: string | null; agent: string | null; prompt: string }
@@ -79,5 +87,8 @@ declare module 'orca' {
     'connection.changed': ConnectionStatus
     'items.changed': ItemsState
     'start.changed': { key: string; state: StartState }
+    'links.changed': Record<string, LinkView>
+    /** The focused Orca workspace now belongs to this item (null: to none). */
+    'focus.changed': { key: string | null }
   }
 }

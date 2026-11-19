@@ -90,3 +90,9 @@ export async function getItem(
     `/work-items/${encodeURIComponent(key)}/`
   return planeGet(conn, path, { query: { expand: LIST_FILTERS.expand }, signal })
 }
+
+/** A work item by its key alone (`KEY-N`), from any project: Plane v2 get by identifier. */
+export async function getItemByKey(conn: Conn, slug: string, key: string, signal?: AbortSignal): Promise<unknown> {
+  const path = `/api/v2/workspaces/${encodeURIComponent(slug)}/work-items/${encodeURIComponent(key)}/`
+  return planeGet(conn, path, { query: { expand: LIST_FILTERS.expand }, signal })
+}
