@@ -1,0 +1,55 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Orca CLI for Linux from the desktop AppImage: the headless orca-server tarball lacks the plugin
+  # test kit that `orca plugin check` and `orca plugin test` load. Bump the version and its sha256
+  # (GitHub's asset digest) together.
+  ORCA_VERSION: 1.4.261
+  ORCA_SHA256: ff7de4900856af80785e5ab1fe301a3d0df09a2d02300fd04e12094e871aac47
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the Orca CLI
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o orca.AppImage "https://github.com/stablyai/orca/releases/download/v$ORCA_VERSION/orca-linux.AppImage"
+          echo "$ORCA_SHA256  orca.AppImage" | sha256sum -c -
+          # Unpacks without FUSE; the CLI runs Electron in Node mode, so no display is needed.
+          chmod +x orca.AppImage && ./orca.AppImage --appimage-extract >/dev/null && rm orca.AppImage
+          mkdir -p "$RUNNER_TEMP/bin" && ln -s "$RUNNER_TEMP/squashfs-root/resources/bin/orca-ide" "$RUNNER_TEMP/bin/orca"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: orca plugin check --help >/dev/null
+      - run: bin/check
+
+  openspec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPENSPEC_TELEMETRY: "0"
+      npm_config_ignore_scripts: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npx --yes @fission-ai/openspec@1.14.2 validate --all --no-interactive
+
+  ci-ok:
+    if: always()
+    needs: [check, openspec]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: test "${{ needs.check.result }}" = success && test "${{ needs.openspec.result }}" = success

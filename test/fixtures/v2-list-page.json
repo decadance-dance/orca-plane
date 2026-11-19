@@ -1,0 +1,99 @@
+{
+  "data": [
+    {
+      "id": "4b448b4c-94bc-4f47-ba5d-4aec0fe69d2b",
+      "name": "<name>",
+      "identifier": "DIOGEN-449",
+      "sequence_id": 449,
+      "priority": "low",
+      "project_id": "fb30c91e-7aec-4d3e-a3c3-41b7c7cd237c",
+      "state_id": "cbad6ec9-597f-4aa4-9b47-38ee6e7848ce",
+      "type_id": null,
+      "assignee_ids": [
+        "d9371857-5d13-4306-abe9-f3aefb05f40e"
+      ],
+      "label_ids": [],
+      "cycle_id": null,
+      "module_ids": [],
+      "parent_id": null,
+      "estimate_point_id": null,
+      "start_date": "2026-11-16",
+      "target_date": null,
+      "is_draft": false,
+      "sort_order": 2365535.0,
+      "completed_at": null,
+      "archived_at": null,
+      "external_id": null,
+      "external_source": null,
+      "created_at": "2026-11-16T16:13:47.858384Z",
+      "updated_at": "2026-11-16T18:20:38.353144Z",
+      "created_by_id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+      "updated_by_id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+      "state": {
+        "id": "cbad6ec9-597f-4aa4-9b47-38ee6e7848ce",
+        "name": "<name>",
+        "color": "#F59E0B",
+        "group": "started"
+      },
+      "assignees": [
+        {
+          "id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+          "display_name": "<display_name>",
+          "avatar_url": null,
+          "email": "<email>"
+        }
+      ],
+      "labels": []
+    },
+    {
+      "id": "5959f5af-d79e-45a2-b16c-01325505e387",
+      "name": "<name>",
+      "identifier": "ENGAUTUMNS-96",
+      "sequence_id": 96,
+      "priority": "high",
+      "project_id": "8a752187-aafc-4fba-a681-219d89f4679c",
+      "state_id": "6a9667e2-e105-4cc2-a570-b7e23be29683",
+      "type_id": null,
+      "assignee_ids": [
+        "d9371857-5d13-4306-abe9-f3aefb05f40e"
+      ],
+      "label_ids": [],
+      "cycle_id": null,
+      "module_ids": [],
+      "parent_id": "d30c0ba0-9d17-4f50-8fa3-b52a78a635e8",
+      "estimate_point_id": null,
+      "start_date": null,
+      "target_date": null,
+      "is_draft": false,
+      "sort_order": 585535.0,
+      "completed_at": null,
+      "archived_at": null,
+      "external_id": null,
+      "external_source": null,
+      "created_at": "2026-11-16T13:35:07.450751Z",
+      "updated_at": "2026-11-16T13:35:07.450764Z",
+      "created_by_id": "a723f0ae-1297-4034-be45-b7fc607fe91c",
+      "updated_by_id": null,
+      "state": {
+        "id": "6a9667e2-e105-4cc2-a570-b7e23be29683",
+        "name": "<name>",
+        "color": "#60646C",
+        "group": "unstarted"
+      },
+      "assignees": [
+        {
+          "id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+          "display_name": "<display_name>",
+          "avatar_url": null,
+          "email": "<email>"
+        }
+      ],
+      "labels": []
+    }
+  ],
+  "next_cursor": "cD0yMDI2LTExLTE2KzEzJTNBMzUlM0EwNy40NTA3NjQlMkIwMCUzQTAw",
+  "has_more": true,
+  "pagination": {
+    "style": "cursor"
+  }
+}

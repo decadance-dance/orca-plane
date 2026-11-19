@@ -1,0 +1,47 @@
+{
+  "id": "4b448b4c-94bc-4f47-ba5d-4aec0fe69d2b",
+  "name": "<name>",
+  "description_html": "<description_html>",
+  "identifier": "DIOGEN-449",
+  "sequence_id": 449,
+  "priority": "low",
+  "project_id": "fb30c91e-7aec-4d3e-a3c3-41b7c7cd237c",
+  "state_id": "cbad6ec9-597f-4aa4-9b47-38ee6e7848ce",
+  "type_id": null,
+  "assignee_ids": [
+    "d9371857-5d13-4306-abe9-f3aefb05f40e"
+  ],
+  "label_ids": [],
+  "cycle_id": null,
+  "module_ids": [],
+  "parent_id": null,
+  "estimate_point_id": null,
+  "start_date": "2026-11-16",
+  "target_date": null,
+  "is_draft": false,
+  "sort_order": 2365535.0,
+  "completed_at": null,
+  "archived_at": null,
+  "external_id": null,
+  "external_source": null,
+  "created_at": "2026-11-16T16:13:47.858384Z",
+  "updated_at": "2026-11-16T18:20:38.353144Z",
+  "created_by_id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+  "updated_by_id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+  "custom_fields": {},
+  "state": {
+    "id": "cbad6ec9-597f-4aa4-9b47-38ee6e7848ce",
+    "name": "<name>",
+    "color": "#F59E0B",
+    "group": "started"
+  },
+  "assignees": [
+    {
+      "id": "d9371857-5d13-4306-abe9-f3aefb05f40e",
+      "display_name": "<display_name>",
+      "avatar_url": null,
+      "email": "<email>"
+    }
+  ],
+  "labels": []
+}

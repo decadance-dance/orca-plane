@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The project's check: the plugin's own tests through Orca's runner (`orca` must be on PATH).
+# The project's check: validate the plugin and render its panels, then its tests (`orca` must be on PATH).
 cd "$(dirname "$0")/.." || exit 1
 [ -f orca-plugin.json ] || { echo "bin/check: no orca-plugin.json yet, nothing to check"; exit 0; }
-orca plugin test .
+orca plugin check .; r=$?
+orca plugin test .; exit $((r | $?))
