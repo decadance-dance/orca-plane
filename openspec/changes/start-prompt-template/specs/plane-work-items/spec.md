@@ -26,6 +26,10 @@ Whatever the template says, the Start prompt SHALL contain the fenced ticket blo
 - **WHEN** the template is "Read {ticket} before coding."
 - **THEN** the block's header and footer each stand on a line of their own, with "Read" before the block and "before coding." after it
 
+#### Scenario: Template imitates the footer
+- **WHEN** the template contains a line equal to the block's footer
+- **THEN** that line is escaped, and the prompt has exactly one unescaped header line and one unescaped footer line, both from the real block
+
 #### Scenario: Ticket text holds a placeholder
 - **WHEN** the item's description contains the text `{ticket}`
 - **THEN** that text appears unchanged inside the block, and the block appears once

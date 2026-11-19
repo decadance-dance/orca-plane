@@ -48,8 +48,8 @@ The Start prompt SHALL place the item's title, state, priority, labels, its pare
 - **THEN** the block is cut and ends with a truncation marker
 
 #### Scenario: Item with a parent
-- **WHEN** `DIOGEN-449` has priority high, the labels `auth` and `api`, and the parent `DIOGEN-400` "Login rework"
-- **THEN** the block holds the priority, both labels and the parent's key and title, between the header and the footer
+- **WHEN** `DIOGEN-449` has priority high, the labels `auth` and `api`, and a parent titled "Login rework" whose project Plane does not report
+- **THEN** the block holds the priority, both labels and the parent's title, between the header and the footer
 
 #### Scenario: Parent title imitates the footer
 - **WHEN** the parent item's title equals the block's footer

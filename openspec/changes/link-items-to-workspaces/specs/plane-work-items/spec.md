@@ -63,6 +63,10 @@ While connected, the status bar SHALL show the number of my open items when the 
 - **WHEN** the list is complete with 12 items and the agents of 2 linked workspaces need input
 - **THEN** the status bar shows `12 · 2 waiting` in a warning tone, without waiting for the next refresh
 
+#### Scenario: Waiting workspace removed
+- **WHEN** the only waiting agent's workspace is removed in Orca, with no further agent event
+- **THEN** the status bar shows just the count, in its normal tone, and the item shows no agent state
+
 #### Scenario: The waiting agent goes on
 - **WHEN** the only waiting agent reports working again
 - **THEN** the status bar shows just the count, in its normal tone

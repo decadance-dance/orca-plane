@@ -27,12 +27,16 @@ Connection changes: the listener calls `links.clear()` synchronously and schedul
 Alternative: a second stored map. Rejected: the Start states are already the reconciled source of truth, and a copy could drift.
 
 ### L2. Matching events to links: ids only
-An event's workspace is `workspaceListId ?? workspaceId`. A link matches when that id equals the stored id. Task 1.1 records in a test fixture which of the two ids `workspace.create` returns. If they differ, `Links` also keeps the other id, learned from `workspace.list` (a row's `id` is the list id) during the rebuild. Events with neither id are ignored. Branch and name are never used to match, because two repositories can share a branch name such as `main`.
+A link matches an event when any id the event carries (`workspaceId`, `workspaceListId`, or a focus context's `workspaceId`) equals the stored id. Events with no id are ignored. Branch and name are never used to match, because two repositories can share a branch name such as `main`.
+
+Task 1.1 is a probe with a defined result. In a live Orca it records, for one Start, the id `workspace.create` returns, the `workspace.list` row id, and the ids that `agent.status.changed`, `workspace.changed`, `workspace.removed` and `agent.launch.before` carry. The results are pinned in a fixture. If every payload carries the returned id in one of its fields, the rule above is complete. If a payload carries only an id that cannot be correlated with the returned one, that path has no link: the case gets a `// limit:` comment and a test, and the PR states it, because no mapping can be made up.
 
 For each event, `mainAgent.state` wins when present: it is the session's main agent, while `state` can come from a sub-pane. `blocked` and `waiting` both map to `needs-input`. `since` is `mainAgent.stateStartedAt` when present, otherwise the `receivedAt` of the first event of an unbroken needs-input run; a repeated waiting event keeps the earlier `since`. Every event with a `terminalId` records `terminalId → workspace`.
 
 ### L3. The worker subscribes; the panel asks and listens
-The worker subscribes to `agent.status.changed` and `workspace.changed` (2 of the 5 events Orca 1.4.262 allows). It posts `links.changed` with `Record<itemKey, { workspaceId, agent: 'working' | 'needs-input' | 'done' | null }>`, and the panel gets the first value with `links.get`.
+The worker subscribes to `agent.status.changed`, `workspace.changed` and `workspace.removed` (3 of the 5 events Orca 1.4.262 allows; `agent-item-context` adds none).
+
+Links follow the Start states in one lifecycle. `Starts` notifies `Links` whenever a write changes the set of links: an outcome, or a `reconcile` that drops a link (also when it runs inside `starts.get`). `workspace.removed` for a linked id runs `reconcile` for that key, and `Links` drops the workspace's agent state at once, so the badge, the waiting order and the count never point at a deleted workspace, even when no other event follows. It posts `links.changed` with `Record<itemKey, { workspaceId, agent: 'working' | 'needs-input' | 'done' | null }>`, and the panel gets the first value with `links.get`.
 
 Alternative: the components panel subscribes itself. Rejected: the status bar needs the counts while the panel is closed, and two subscribers would compute the same map twice.
 

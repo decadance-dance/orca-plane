@@ -24,7 +24,7 @@ The list SHALL offer a field that takes an item key (`KEY-N`, any case) or a Pla
 - **THEN** the panel says that no item has that key
 
 ### Requirement: Start a looked-up item
-An item opened by key or URL whose state group is backlog, unstarted or started SHALL offer Start like a listed item, with the same confirmation and the same duplicate protection. Before it creates anything for an item that is not in my list, the plugin SHALL read the item from Plane again, under the current connection, and refuse when it is not open. An item in another state group SHALL NOT offer Start.
+An item opened by key or URL whose state group is backlog, unstarted or started SHALL offer Start like a listed item, with the same confirmation and the same duplicate protection. Before it creates anything for an item that is not in my list, the plugin SHALL read the item from Plane again, under the current connection, and refuse when it is not open. An item that is in my list SHALL be started from the list as today, until the next refresh. An item in another state group SHALL NOT offer Start.
 
 #### Scenario: Start an item from another person's list
 - **WHEN** the user opens the open item `DIOGEN-12` by key and presses Start
@@ -35,8 +35,12 @@ An item opened by key or URL whose state group is backlog, unstarted or started 
 - **THEN** its detail shows no Start
 
 #### Scenario: Closed between lookup and Start
-- **WHEN** the user opens the open item `DIOGEN-12` by key, it is completed in Plane, and the user then confirms Start
+- **WHEN** the user opens the open item `DIOGEN-12`, which is not in my list, by key; it is completed in Plane; and the user then confirms Start
 - **THEN** Start is refused with a message that the item is not open, and no workspace is created
+
+#### Scenario: Listed item closed before the next refresh
+- **WHEN** `DIOGEN-449` is in my list, the user opens it by key, it is completed in Plane, and the user confirms Start before the list refreshes
+- **THEN** Start proceeds from the list row, as for any listed item
 
 #### Scenario: Account switched after a lookup
 - **WHEN** the user looks up an item, disconnects, connects as another Plane user and confirms a Start of that key

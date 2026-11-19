@@ -22,7 +22,7 @@ Out of scope: desktop notifications when an agent changes state (#18, which buil
 
 ## Impact
 
-- `orca-plugin.json`: capability `agent:read`; `contributes.events` for `agent.status.changed` and `workspace.changed`.
+- `orca-plugin.json`: capability `agent:read`; `contributes.events` for `agent.status.changed`, `workspace.changed` and `workspace.removed`.
 - `src/links.ts` (new): the in-memory agent state per linked workspace and the lookup from the focused workspace to its item.
 - `src/starts.ts`: exposes the current links (item key → workspace id); how they are stored does not change.
 - `src/items.ts`: `showCount` also takes the number of agents that need input; `detail` can fetch by key alone.

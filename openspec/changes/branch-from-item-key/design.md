@@ -13,9 +13,9 @@
 ### B1. A narrow `workspace.create.before` hook, gated by a live probe
 `Starts` keeps an in-memory map `pending: (projectId, name) → branch`. An entry is added right before `workspace.create` is called and removed when the call settles. The hook changes `branch` to the pending name only when `kind === 'worktree'` and `(projectId, name)` is in that map. It decides from memory (no awaited call), so it finishes well within 2 s, and a throw passes the create unchanged.
 
-The hook cannot tell a Start's create from a manual create with the same name in the same project during the seconds a Start is pending. The spec accepts this: such a create is a workspace named exactly like the item's, made while that item is being started, and giving it the item's branch is the intended result.
+The hook cannot tell a Start's create from a manual create with the same name in the same project during the seconds a Start is pending. Both get the same branch, and Git refuses a second worktree on an existing branch, so whichever create comes second fails with Orca's error. The spec states this outcome. A failed Start is shown and reconciled as today; no workspace ends up on an unexpected branch.
 
-Task 1.1 is a gate. In a live Orca it proves (a) that the branch set by the hook is the final ref (Orca adds no prefix afterwards), and (b) that a concurrent manual create with a different name keeps Orca's branch. If (a) fails, the executor stops, reports on #16 with the observed branch, and asks the maintainer whether to drop the change or relax the requirement to "contains the key". The executor does not ship a partial exact-branch requirement.
+Task 1.1 is a gate. In a live Orca it proves (a) that the branch set by the hook is the final ref (Orca adds no prefix afterwards), (b) that a concurrent manual create with a different name keeps Orca's branch, and (c) that a concurrent manual create with the same name makes exactly one of the two fail. If (a) fails, the executor stops, reports on #16 with the observed branch, and asks the maintainer whether to drop the change or relax the requirement to "contains the key". The executor does not ship a partial exact-branch requirement.
 
 Alternative: a hook that rewrites every create whose name looks like `KEY-N-…`. Rejected: it would touch workspaces the user made by hand.
 

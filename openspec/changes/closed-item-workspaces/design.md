@@ -16,7 +16,7 @@ Leftovers = keys of `starts` with a `workspaceId` that are not in `items.items` 
 Alternative: the worker computes it and posts it. Rejected: the inputs are already in the panel, and the rule is one filter.
 
 ### C2. Hide, not forget
-`Starts.hide(key)` adds the key to a hidden set stored in `keyOf(conn.id, 'hidden')` under the same lock, and posts `start.changed`. The Start state is untouched, so duplicate protection holds. When `reconcile` deletes a link (its workspace is gone), it also removes the key from the hidden set, so a later link starts visible. `starts.get` returns `{ states, hidden }`. The panel's existing reader adapts.
+`Starts.hide(key)` adds the key to a hidden set stored in `keyOf(conn.id, 'hidden')` under the same lock, and posts `start.changed`. The Start state is untouched, so duplicate protection holds. When `reconcile` deletes a link (its workspace is gone), it also removes the key from the hidden set, so a later link starts visible. `Starts.all()` keeps returning the bare states map, which other worker code (`Links`) consumes. Only the panel request `starts.get` changes shape to `{ states, hidden }`, assembled in `src/worker.ts`. Its consumers (the panel's reader, the render fixture in `src/panel.check.ts`, and the worker and panel tests) change in the same task.
 
 Alternative: delete the Start state ("Forget"). Rejected in review: with the workspace still alive, the item could be started again into a second workspace, against the current requirement.
 
