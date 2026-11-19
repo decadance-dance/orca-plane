@@ -38,6 +38,7 @@ import type { Item, ItemDetail } from './plane/map'
 import { preview } from './plane/markdown'
 import {
   type AgentChoice,
+  type Attempt,
   type ConnectionStatus,
   type ItemsState,
   KNOWN_AGENTS,
@@ -60,6 +61,13 @@ const AGENT_BADGE = {
   working: { tone: 'neutral', label: 'Working' },
   'needs-input': { tone: 'warning', label: 'Needs input' },
   done: { tone: 'success', label: 'Done' }
+} as const
+/** A pending or unknown attempt is shown as not confirmed (design H4 of start-history). */
+const OUTCOME = {
+  created: { tone: 'success', label: 'created' },
+  failed: { tone: 'danger', label: 'failed' },
+  pending: { tone: 'warning', label: 'not confirmed' },
+  unknown: { tone: 'warning', label: 'not confirmed' }
 } as const
 const COMPLETENESS = {
   complete: { tone: 'success', label: 'Complete' },
@@ -99,6 +107,8 @@ const tab = atom<string | null>('plane.tab', null, { persist: 'plugin' })
 /** The open item; persisted, so reopening the panel returns to it. */
 const opened = atom<ItemRef | null>('plane.open', null, { persist: 'plugin' })
 const detail = atom<Loaded | null>(null)
+/** The open item's earlier Starts, oldest first. */
+const history = atom<Attempt[]>([])
 /** The detail shows the whole description; each opened item starts collapsed. */
 const descriptionOpen = atom(false)
 /** The Start waiting for confirmation; persisted like the open item. */
@@ -118,6 +128,12 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 function closeItem(): void {
   set(opened, null)
   set(detail, null)
+  set(history, [])
+}
+
+async function loadHistory(key: string): Promise<void> {
+  const attempts = await plugin.request('history.get', { key }).catch(() => [] as Attempt[])
+  if (read(opened)?.key === key) set(history, attempts)
 }
 
 /** The detail's back button: a Start confirmation opened there closes with it. */
@@ -186,6 +202,7 @@ export function setup(ctx: PanelContext): void {
     plugin.on('start.changed', ({ key, state }) => {
       if (heard) heard.starts[key] = state
       update(starts, (all) => ({ ...all, [key]: state }))
+      if (read(opened)?.key === key) void loadHistory(key)
     }),
     plugin.on('links.changed', (next) => {
       if (heard) heard.links = next
@@ -253,6 +270,8 @@ async function openItem(ref: ItemRef): Promise<void> {
   set(detail, { ...refOf(ref), item: null, error: null })
   set(openError, null)
   set(descriptionOpen, false)
+  set(history, [])
+  void loadHistory(ref.key)
   const loaded = await fetchDetail(ref)
   if (read(detail)?.key === ref.key) set(detail, loaded)
 }
@@ -668,6 +687,37 @@ function Description({ text }: { text: string }) {
   )
 }
 
+/** The item's earlier Starts, newest first; nothing when it was never started. */
+function EarlierStarts() {
+  const attempts = read(history)
+  if (attempts.length === 0) return null
+  return (
+    <Stack gap="xs">
+      <Heading level={3}>Earlier starts</Heading>
+      <List label="Earlier starts">
+        {[...attempts].reverse().map((attempt) => {
+          const agentLabel = attempt.agent
+            ? KNOWN_AGENTS.find((known) => known.value === attempt.agent)?.label ?? attempt.agent
+            : 'Terminal only'
+          const outcome = OUTCOME[attempt.outcome]
+          return (
+            <ListItem key={attempt.id}>
+              <Row gap="xs">
+                <Text size="sm">{`${agentLabel} · ${attempt.project}`}</Text>
+                <Badge tone={outcome.tone}>{outcome.label}</Badge>
+              </Row>
+              <Text muted size="xs">
+                {`${attempt.workspace} · `}
+                <RelativeTime at={attempt.at} />
+              </Text>
+            </ListItem>
+          )
+        })}
+      </List>
+    </Stack>
+  )
+}
+
 function DetailView({ current }: { current: Loaded }) {
   const item = current.item
   const state = read(starts)[current.key]
@@ -718,6 +768,7 @@ function DetailView({ current }: { current: Loaded }) {
               <StartButton key={`start:${item.key}`} item={item} />
             </Row>
           )}
+          <EarlierStarts />
         </Stack>
       ) : null}
     </Stack>
