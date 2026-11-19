@@ -101,6 +101,8 @@ declare module 'orca' {
     /** Orca's Git projects, the only ones Start can use. */
     'orca.projects': { output: { projects: OrcaProject[] } }
     'workspace.open': { input: { workspaceId: string }; output: Result<{}> }
+    /** The item whose detail the panel shows now (null: none), for "open the workspace of the item shown". */
+    'panel.shown': { input: { key: string | null }; output: { ok: true } }
   }
   interface PluginPanelEvents {
     'connection.changed': ConnectionStatus

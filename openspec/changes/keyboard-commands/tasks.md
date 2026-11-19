@@ -15,7 +15,7 @@ Requires `link-items-to-workspaces` merged into `develop`.
 
 ## 3. Commands
 
-- [ ] 3.1 Add `plane.nextWaiting`, `plane.openShown`, `plane.refresh` and the two keybindings to `orca-plugin.json`; register the handlers in `src/worker.ts`; the panel sends `panel.shown` (K4). Verify: `src/worker.test.ts` covers two waiting agents (the earliest wait opens, also after the other reports again), none waiting (message, no `workspace.open`), shown item with and without a workspace, no shown item, and refresh; `orca plugin validate .` passes.
+- [x] 3.1 Add `plane.nextWaiting`, `plane.openShown`, `plane.refresh` and the two keybindings to `orca-plugin.json`; register the handlers in `src/worker.ts`; the panel sends `panel.shown` (K4). Verify: `src/worker.test.ts` covers two waiting agents (the earliest wait opens, also after the other reports again), none waiting (message, no `workspace.open`), shown item with and without a workspace, no shown item, and refresh; `orca plugin validate .` passes.
 - [ ] 3.2 Live check in Orca: both shortcuts work and neither chord clashes with Orca's own; README lists the commands and shortcuts. Verify: noted in the PR; `bin/check` exits 0.
 
 ## Workflow follow-up

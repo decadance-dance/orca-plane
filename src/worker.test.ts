@@ -929,3 +929,52 @@ test('item.lookup: a project-issue URL reads the item by its UUID in its project
   assert.equal(new URL(fake.calls.at(-1)!.url).pathname, `/api/v2/workspaces/truelogic/projects/${project}/work-items/${id}/`)
   await worker.deactivate()
 })
+
+test('plane.nextWaiting opens the agent that began to wait first, also after the other reports again', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1'), [KEY2]: linked('w2') }, () => [ROW, ROW2], { 'workspace.open': { opened: true } })
+  await worker.emit('agent.status.changed', agentEvent('w2', 'waiting', 1000))
+  await worker.emit('agent.status.changed', agentEvent('w1', 'waiting', 2000))
+  assert.equal(await worker.command('plane.nextWaiting'), undefined)
+  // w2 reports waiting again later: its wait still began first.
+  await worker.emit('agent.status.changed', agentEvent('w2', 'waiting', 3000))
+  await worker.command('plane.nextWaiting')
+  assert.deepEqual(h.callsOf('workspace.open'), [{ workspaceId: 'w2' }, { workspaceId: 'w2' }])
+  await worker.deactivate()
+})
+
+test('plane.nextWaiting with nobody waiting says so and opens nothing', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW], { 'workspace.open': { opened: true } })
+  await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
+  assert.equal(await worker.command('plane.nextWaiting'), 'No agent on a Plane item waits for you.')
+  assert.deepEqual(h.callsOf('workspace.open'), [])
+  await worker.deactivate()
+})
+
+test('plane.openShown opens the workspace of the shown item; says so with no shown item or no workspace', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW], { 'workspace.open': { opened: true } })
+  assert.equal(await worker.command('plane.openShown'), 'The panel shows no item.')
+  await worker.request('panel.shown', { key: 'DIOGEN-449' })
+  assert.equal(await worker.command('plane.openShown'), undefined)
+  assert.deepEqual(h.callsOf('workspace.open'), [{ workspaceId: 'w1' }])
+  await worker.request('panel.shown', { key: KEY2 })
+  assert.equal(await worker.command('plane.openShown'), `${KEY2} has no workspace.`)
+  await worker.request('panel.shown', { key: null })
+  assert.equal(await worker.command('plane.openShown'), 'The panel shows no item.')
+  assert.equal(h.callsOf('workspace.open').length, 1)
+  await worker.deactivate()
+})
+
+test('plane.refresh refreshes the list from Plane; disconnected it says so', async () => {
+  const fake = plane()
+  const worker = await connected()
+  const lists = () => fake.calls.filter((call) => new URL(call.url).pathname.endsWith('/work-items/')).length
+  const before = lists()
+  assert.equal(await worker.command('plane.refresh'), undefined)
+  await until(() => lists() === before + 1, 'refresh')
+  await worker.request('connection.disconnect')
+  assert.equal(await worker.command('plane.refresh'), 'Not connected to Plane.')
+  await worker.deactivate()
+})

@@ -138,7 +138,11 @@ const refOf = ({ key, projectId }: ItemRef): ItemRef => (projectId ? { key, proj
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+/** Tells the worker which item the detail shows, for the "open the workspace of the item shown" command. */
+const tellShown = (key: string | null) => void plugin.request('panel.shown', { key }).catch(() => undefined)
+
 function closeItem(): void {
+  if (read(opened)) tellShown(null)
   set(opened, null)
   set(detail, null)
   set(history, [])
@@ -319,6 +323,7 @@ async function openItem(ref: ItemRef, found?: ItemDetail): Promise<void> {
   set(descriptionOpen, false)
   set(history, [])
   void loadHistory(ref.key)
+  tellShown(ref.key)
   if (found) return
   const ask = loadAsk
   const loaded = await fetchDetail(ref)

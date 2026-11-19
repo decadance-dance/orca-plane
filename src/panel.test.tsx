@@ -1078,3 +1078,19 @@ test('an open item opened by key offers Start with the same confirmation', async
   assert.equal((started[0] as { key: string }).key, 'DIOGEN-12')
   await view.unmount()
 })
+
+test('the panel tells the worker which item its detail shows, and when it shows none', async () => {
+  const shown: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'panel.shown': (input: unknown) => {
+        shown.push(input)
+        return { ok: true }
+      }
+    })
+  })
+  await view.press({ testId: 'WEB-1' })
+  await view.press({ text: '← All items' })
+  assert.deepEqual(shown, [{ key: 'WEB-1' }, { key: null }])
+  await view.unmount()
+})

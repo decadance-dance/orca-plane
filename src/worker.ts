@@ -90,13 +90,40 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
   })
 
-  orca.panels.handle('workspace.open', async ({ workspaceId }) => {
+  const openWorkspace = async (workspaceId: string): Promise<Result<{}>> => {
     try {
       await orca.host.call('workspace.open', { workspaceId })
       return { ok: true as const }
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Could not open the workspace.' }
     }
+  }
+  orca.panels.handle('workspace.open', ({ workspaceId }) => openWorkspace(workspaceId))
+
+  // Palette commands (design K4 of keyboard-commands); a string result is what Orca shows.
+  const run = async (workspaceId: string) => {
+    const opened = await openWorkspace(workspaceId)
+    return opened.ok ? undefined : opened.error
+  }
+  // In memory only: the last panel to open or close a detail wins.
+  let shown: string | null = null
+  orca.panels.handle('panel.shown', ({ key }) => {
+    shown = key
+    return { ok: true as const }
+  })
+  orca.commands.register('plane.nextWaiting', () => {
+    const first = links.waiting()[0]
+    return first ? run(first.workspaceId) : 'No agent on a Plane item waits for you.'
+  })
+  orca.commands.register('plane.openShown', () => {
+    if (!shown) return 'The panel shows no item.'
+    const link = links.byKey()[shown]
+    return link ? run(link.workspaceId) : `${shown} has no workspace.`
+  })
+  orca.commands.register('plane.refresh', async () => {
+    if (!(await conns.current())) return 'Not connected to Plane.'
+    void items.refresh()
+    return undefined
   })
 }
 

@@ -81,7 +81,23 @@
         "id": "plane.toggleSidebar",
         "title": "Plane: toggle the right sidebar",
         "action": "sidebar.right.toggle"
+      },
+      {
+        "id": "plane.nextWaiting",
+        "title": "Plane: go to an agent that waits for you"
+      },
+      {
+        "id": "plane.openShown",
+        "title": "Plane: open the workspace of the item shown in the panel"
+      },
+      {
+        "id": "plane.refresh",
+        "title": "Plane: refresh my work items"
       }
+    ],
+    "keybindings": [
+      { "command": "plane.nextWaiting", "key": "Mod+Alt+J" },
+      { "command": "plane.toggleSidebar", "key": "Mod+Alt+P" }
     ]
   },
   "capabilities": [
