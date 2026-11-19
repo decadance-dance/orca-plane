@@ -14,15 +14,25 @@ type History = Record<string, Attempt[]>
 type Outcome = Extract<StartState, { kind: 'created' | 'failed' | 'unknown' }>
 
 const KEEP_PER_ITEM = 10
-const KEEP_ITEMS = 500
+const KEEP_ITEMS = 50
+/** Orca refuses a storage value over 256 KiB; the history stays well under it. */
+const MAX_BYTES = 200 * 1024
 
-/** Appends an attempt, keeping the item's last 10 and the 500 items started most recently (H4). Changes `history`. */
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length
+
+/**
+ * Appends an attempt, keeping the item's last 10 and the 50 items started most recently, then drops
+ * the oldest items while the value is over 200 KiB, never the newest (H4). Changes `history`.
+ */
 export function append(history: History, key: string, attempt: Attempt): void {
   history[key] = [...(history[key] ?? []), attempt].slice(-KEEP_PER_ITEM)
-  const keys = Object.keys(history)
-  if (keys.length <= KEEP_ITEMS) return
   const newest = (item: string) => history[item].at(-1)?.at ?? 0
-  for (const item of keys.sort((a, b) => newest(b) - newest(a)).slice(KEEP_ITEMS)) delete history[item]
+  // The item just appended counts as the newest, whatever its clock says.
+  const older = Object.keys(history)
+    .filter((item) => item !== key)
+    .sort((a, b) => newest(b) - newest(a))
+  for (const item of older.splice(KEEP_ITEMS - 1)) delete history[item]
+  while (older.length > 0 && bytes(history) > MAX_BYTES) delete history[older.pop()!]
 }
 
 /** Sets the outcome of the item's attempt `id`; a no-op when it has it already or was dropped. Changes `history`. */
