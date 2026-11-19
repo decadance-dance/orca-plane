@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
   <title id="title">Plane for Orca: your Plane work items in Orca's sidebar</title>
-  <desc id="desc">The Plane panel in Orca's sidebar lists the work items assigned to you by project tab and state: WEB-12 Fix the login redirect, In Progress, high priority, its agent done; WEB-9 Add a dark mode toggle, Todo, its agent needs input. Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data. The status bar reads 12 · 2 waiting.</desc>
+  <desc id="desc">The Plane panel in Orca's sidebar lists the work items assigned to you by project and state: WEB-12 Fix the login redirect, In Progress, high priority, its agent done; WEB-9 Add a dark mode toggle, Todo, its agent needs input. Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data. The status bar reads 12 · 2 waiting.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0.35">
       <stop offset="0" stop-color="#07111f"/><stop offset="0.5" stop-color="#0b0b10"/><stop offset="1" stop-color="#0f0b1c"/>
