@@ -73,6 +73,8 @@ const items = atom<ItemsState | null>(null)
 const starts = atom<Record<string, StartState>>({})
 /** Linked items with their agent state, from the worker (design L3). */
 const links = atom<Record<string, LinkView>>({})
+/** Counts `links.changed` posts, so a `links.get` answer older than one of them is dropped. */
+let linkPosts = 0
 const projects = atom<OrcaProject[] | null>(null)
 /** Installed agents, then terminal only (design D8). */
 const agents = atom<AgentChoice[]>([])
@@ -147,6 +149,7 @@ async function loadPickers(): Promise<void> {
 }
 
 async function loadConnected(): Promise<void> {
+  const posts = linkPosts
   const [list, known, linked] = await Promise.all([
     plugin.request('items.list', undefined),
     plugin.request('starts.get'),
@@ -155,7 +158,7 @@ async function loadConnected(): Promise<void> {
   ])
   set(items, list)
   set(starts, known)
-  set(links, linked)
+  if (posts === linkPosts) set(links, linked)
   const open = read(opened)
   const asked = read(confirming)
   await Promise.all([open ? openItem(open) : null, asked ? askStart(asked) : null])
@@ -175,7 +178,10 @@ export function setup(ctx: PanelContext): void {
     }),
     plugin.on('items.changed', (next) => set(items, next)),
     plugin.on('start.changed', ({ key, state }) => update(starts, (all) => ({ ...all, [key]: state }))),
-    plugin.on('links.changed', (next) => set(links, next)),
+    plugin.on('links.changed', (next) => {
+      linkPosts++
+      set(links, next)
+    }),
     plugin.on('focus.changed', ({ key }) => followFocus(key))
   )
   void load()

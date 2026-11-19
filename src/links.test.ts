@@ -131,15 +131,14 @@ test('terminals map to their workspace, the linked id first', () => {
   assert.equal(model.workspaceOfTerminal('t3'), null)
 })
 
-test('a removed workspace loses its agent state at once and names the key to reconcile', () => {
+test('a removed workspace loses its agent state at once', () => {
   const { model, changes } = links({ A: created('list-1') })
   model.agent(status({ workspaceId: 'p1::/a', workspaceListId: 'list-1', state: 'waiting', terminalId: 't1' }))
   assert.equal(changes.at(-1)?.waiting, 1)
-  assert.equal(model.removed({ workspaceId: 'p1::/a', workspaceListId: 'list-1', kind: 'worktree', path: '/a' }), 'A')
+  model.removed({ workspaceId: 'p1::/a', workspaceListId: 'list-1', kind: 'worktree', path: '/a' })
   assert.deepEqual(model.byKey(), { A: { workspaceId: 'list-1', agent: null } })
   assert.equal(changes.at(-1)?.waiting, 0)
   assert.equal(model.workspaceOfTerminal('t1'), null)
-  assert.equal(model.removed({ workspaceId: 'w9', kind: 'worktree', path: '/b' }), null)
 })
 
 test('focus: the first event only sets it; then a linked id, an unlinked id, no id, and a repeat', () => {
@@ -157,4 +156,18 @@ test('focus: the first event only sets it; then a linked id, an unlinked id, no 
   model.focus(context(undefined))
   model.focus({ context: null })
   assert.deepEqual(focus, ['B', null, 'A', null])
+})
+
+test("review 4: after an account switch, the same key linked to another workspace is followed", () => {
+  const { model, focus } = links({ 'DIOGEN-449': created('wA') })
+  model.focus(context('w0'))
+  model.focus(context('wA'))
+  assert.deepEqual(focus, ['DIOGEN-449'])
+  model.clear()
+  model.set({ 'DIOGEN-449': created('wB') })
+  model.focus(context('wB'))
+  assert.deepEqual(focus, ['DIOGEN-449', 'DIOGEN-449'])
+  // The same-workspace guard still holds.
+  model.focus(context('wB'))
+  assert.deepEqual(focus, ['DIOGEN-449', 'DIOGEN-449'])
 })

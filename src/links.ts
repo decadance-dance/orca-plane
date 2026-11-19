@@ -12,7 +12,7 @@ export function linkedWorkspace(state: StartState): string | undefined {
 
 /** Every id an event names a workspace by. The live probe (test/fixtures/orca-ids.json) shows
  *  `workspaceListId` equal to the id `workspace.create` returns, and `workspaceId` a different form. */
-function idsOf(event: { workspaceId?: string | null; workspaceListId?: string }): string[] {
+export function idsOf(event: { workspaceId?: string | null; workspaceListId?: string }): string[] {
   return [event.workspaceListId, event.workspaceId].filter((id): id is string => typeof id === 'string' && id !== '')
 }
 
@@ -45,8 +45,12 @@ export class Links {
     this.publish()
   }
 
-  /** On a connection change: the old account's links go at once; agent states belong to Orca and stay. */
+  /**
+   * On a connection change: the old account's links go at once; agent states belong to Orca and stay.
+   * The focused workspace is kept but its key is not: the new account may link the same key elsewhere.
+   */
   clear(): void {
+    if (this.lastFocus) this.lastFocus = { workspaceId: this.lastFocus.workspaceId, key: null }
     this.set({})
   }
 
@@ -63,14 +67,12 @@ export class Links {
     this.publish()
   }
 
-  /** Forgets a removed workspace's agent state at once; returns the key whose link should be reconciled. */
-  removed(event: PluginEvents['workspace.removed']): string | null {
+  /** Forgets a removed workspace's agent state at once; Starts drops its link (design L3). */
+  removed(event: PluginEvents['workspace.removed']): void {
     const ids = idsOf(event)
     for (const id of ids) this.agents.delete(id)
     for (const [terminal, of] of this.terminals) if (of.some((id) => ids.includes(id))) this.terminals.delete(terminal)
-    const key = ids.map((id) => this.keys.get(id)).find((found) => found !== undefined) ?? null
     this.publish()
-    return key
   }
 
   /** L4: posts only when the focused workspace changes to one of another item; the first event only sets it. */

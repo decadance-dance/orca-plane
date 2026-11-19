@@ -4,7 +4,7 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import { agentFinder } from './agents'
 import { Connections } from './connection'
 import { Items } from './items'
-import { Links } from './links'
+import { idsOf, Links } from './links'
 import { Starts } from './starts'
 
 // Timers to stop on deactivate; a set, since tests mount the worker more than once per module.
@@ -46,8 +46,9 @@ export default function activate(orca: OrcaWorkerApi): void {
   subscribe(() => orca.events.on('workspace.changed', (event) => links.focus(event)))
   subscribe(() =>
     orca.events.on('workspace.removed', async (event) => {
-      const key = links.removed(event)
-      if (key) await starts.reconcileKey(key)
+      links.removed(event)
+      // Also when Links does not know the link yet (a rebuild in flight): the event names the workspace.
+      await starts.dropWorkspace(idsOf(event))
     })
   )
 

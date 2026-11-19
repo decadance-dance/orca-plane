@@ -602,3 +602,39 @@ test('an open Start confirmation stays open when a linked workspace is focused',
   assert.equal(view.find({ text: 'WEB-1 Fix login' }), null)
   await view.unmount()
 })
+
+test('review 1: a links.changed that arrives while the panel loads is not overwritten by the older snapshot', async () => {
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost({
+      'connection.get': { connected: false },
+      'connection.connect': { ok: true, status: CONNECTED },
+      'links.get': { 'WEB-1': { workspaceId: 'w1', agent: null } },
+      'orca.projects': async () => {
+        await held
+        return { projects: [{ id: 'p1', name: 'repo', hostId: 'local' }] }
+      }
+    })
+  })
+  // Connecting loads the list, the Start states, the links and the pickers; the pickers are held.
+  const connecting = view.press({ text: 'Connect' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  // The post lands while the pickers are held; they answer just after it.
+  setTimeout(release, 50)
+  await view.post('links.changed', { 'WEB-1': { workspaceId: 'w1', agent: 'needs-input' } })
+  await connecting
+  await view.settled()
+  assert.ok(view.find({ type: 'Badge', text: 'Needs input' }))
+  await view.unmount()
+})
+
+test('review 2: a Start state the worker reports idle (its workspace was deleted) offers Start again', async () => {
+  const view = await mount(panel, {
+    host: connectedHost({}, { 'WEB-1': { kind: 'created', workspaceId: 'w1', name: 'n', projectId: 'p1' } })
+  })
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Open workspace')
+  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Start')
+  await view.unmount()
+})

@@ -664,6 +664,9 @@ const agentEvent = (workspaceListId: string, state: 'working' | 'blocked' | 'wai
 const lastLinks = (worker: { posts: readonly { event: string; payload?: unknown }[] }) =>
   worker.posts.filter((post) => post.event === 'links.changed').at(-1)?.payload as Record<string, { agent: string | null }> | undefined
 
+const startPosts = (worker: { posts: readonly { event: string; payload?: unknown }[] }) =>
+  worker.posts.filter((post) => post.event === 'start.changed').map((post) => post.payload as { key: string; state: { kind: string } })
+
 const lastBar = (h: MockHost) => h.callsOf('statusBar.update').at(-1) as { text?: string; tone?: string; tooltip?: string; visible?: boolean }
 const NORMAL = { id: 'count', visible: true, text: '2', tone: 'neutral', tooltip: 'Plane: open work items assigned to you' }
 
@@ -707,6 +710,8 @@ test('a waiting workspace removed with no further agent event: no badge, the cou
   assert.deepEqual(lastBar(h), NORMAL)
   await until(() => !('DIOGEN-449' in (h.data().storage[`c:${id}:starts`] as object)), 'reconciled')
   assert.deepEqual(lastLinks(worker), { [KEY2]: { workspaceId: 'w2', agent: null } })
+  // Review 2: an open panel hears that the Start state is gone, so it offers Start again.
+  assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
   await worker.deactivate()
 })
 
@@ -719,6 +724,7 @@ test("a link dropped by starts.get's reconcile: no badge, the count back in its 
   rows = []
   assert.deepEqual(await worker.request('starts.get'), {})
   assert.deepEqual(lastLinks(worker), {})
+  assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
   assert.deepEqual(lastBar(h), NORMAL)
   await worker.deactivate()
 })
@@ -789,5 +795,18 @@ test('focus: the context Orca sends on subscribe posts nothing; a linked workspa
   await worker.emit('workspace.changed', context('w1'))
   await worker.emit('workspace.changed', context('w9'))
   assert.deepEqual(focus(), [{ key: 'DIOGEN-449' }, { key: null }])
+  await worker.deactivate()
+})
+
+test('review 3: an explicit removal drops the link even when the workspace list is truncated', async () => {
+  plane()
+  let truncated = false
+  const { worker } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW], {
+    'workspace.list': () => ({ workspaces: truncated ? [] : [ROW], truncated })
+  })
+  truncated = true
+  await worker.emit('workspace.removed', { workspaceId: 'p1::/w1', workspaceListId: 'w1', kind: 'worktree', path: '/w' })
+  await until(async () => Object.keys(await worker.request('links.get')).length === 0, 'link dropped')
+  assert.ok(startPosts(worker).some((post) => post.key === 'DIOGEN-449' && post.state.kind === 'idle'))
   await worker.deactivate()
 })

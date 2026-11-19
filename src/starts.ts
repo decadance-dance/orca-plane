@@ -3,6 +3,7 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import { type Connections, keyOf } from './connection'
 import type { Items } from './items'
+import { linkedWorkspace } from './links'
 import type { StartState } from './protocol'
 import { workspaceName } from './start'
 import { env } from './plane/http'
@@ -57,9 +58,15 @@ export class Starts {
       if (!conn || (since !== undefined && since !== generation)) return null
       const saved = await this.orca.storage.get(keyOf(conn.id, 'starts'))
       const states: States = saved && typeof saved === 'object' ? { ...(saved as States) } : {}
+      const before = { ...states }
       const result = await change(states)
       await this.conns.whileCurrent(generation, async () => {
         await this.orca.storage.set(keyOf(conn.id, 'starts'), states)
+        // Every state a write changed or dropped (idle) reaches open panels, reconciles included.
+        for (const key of new Set([...Object.keys(before), ...Object.keys(states)])) {
+          const state = states[key] ?? { kind: 'idle' }
+          if (JSON.stringify(state) !== JSON.stringify(before[key] ?? { kind: 'idle' })) this.changed(key, state)
+        }
         for (const listener of this.listeners) listener({ ...states })
       })
       return result
@@ -127,9 +134,14 @@ export class Starts {
     })) ?? {}
   }
 
-  /** Drops `key`'s link if its workspace is gone (after Orca reports a workspace removed). */
-  async reconcileKey(key: string): Promise<void> {
-    await this.mutate((states) => this.reconcile(states, key))
+  /** Orca removed this workspace: drop every link to it, which needs no (possibly truncated) list. */
+  async dropWorkspace(ids: string[]): Promise<void> {
+    await this.mutate((states) => {
+      for (const [key, state] of Object.entries(states)) {
+        const workspaceId = linkedWorkspace(state)
+        if (workspaceId && ids.includes(workspaceId)) delete states[key]
+      }
+    })
   }
 
   async start(input: StartInput): Promise<{ accepted: true } | { accepted: false; reason: string }> {
@@ -148,9 +160,7 @@ export class Starts {
       if (state?.kind === 'created' || (state?.kind === 'failed' && state.workspaceId)) {
         return { reason: 'This item already has a workspace: open it instead.' }
       }
-      const pending: StartState = { kind: 'pending', name, projectId: input.orcaProjectId, startedAt: env.now() }
-      states[input.key] = pending
-      this.changed(input.key, pending)
+      states[input.key] = { kind: 'pending', name, projectId: input.orcaProjectId, startedAt: env.now() }
       return { reason: null }
     }, generation)
     if (!verdict || generation !== this.conns.generation) return { accepted: false, reason: 'Not connected to Plane.' }
@@ -179,10 +189,8 @@ export class Starts {
       else if (list && !list.truncated && typeof code === 'string' && REFUSED.has(code)) outcome = { kind: 'failed', error: message }
       else outcome = { kind: 'unknown', name, projectId: input.orcaProjectId }
     }
-    const written = await this.mutate((states) => {
+    await this.mutate((states) => {
       states[input.key] = outcome
-      return true
     }, generation)
-    if (written && generation === this.conns.generation) this.changed(input.key, outcome)
   }
 }
