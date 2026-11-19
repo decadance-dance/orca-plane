@@ -1132,3 +1132,35 @@ test('review 1: a lookup reply that comes after the user opened another item doe
   assert.deepEqual(shown, [{ key: 'WEB-1' }])
   await view.unmount()
 })
+
+test('review 2: a lookup reply that comes after the user opened a Start confirmation does not hide it', async () => {
+  const log: string[] = []
+  const late: ItemDetail = { ...DETAIL, key: 'WEB-8', title: 'Late' }
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.lookup': async () => {
+        log.push('lookup asked')
+        await held
+        log.push('lookup answers')
+        return { ok: true, item: late }
+      },
+      'item.get': () => {
+        log.push('item.get')
+        return { ok: true, item: DETAIL }
+      }
+    })
+  })
+  // The user submits WEB-8, then presses Start on the WEB-1 row before the lookup answers.
+  const typed = view.type({ label: 'Open by key or URL' }, 'WEB-8', { submit: true })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  const pressed = view.press({ testId: 'start:WEB-1' })
+  setTimeout(release, 200)
+  await Promise.all([typed, pressed])
+  await view.settled()
+  assert.deepEqual(log, ['lookup asked', 'item.get', 'lookup answers'])
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-1' }))
+  assert.equal(view.find({ text: 'WEB-8 Late' }), null)
+  await view.unmount()
+})

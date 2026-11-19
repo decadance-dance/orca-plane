@@ -360,6 +360,8 @@ function followFocus(key: string | null): void {
 
 /** Shows the confirmation for a Start, with the prompt built from the item's detail. */
 async function askStart(ref: ItemRef): Promise<void> {
+  // A Start confirmation supersedes a pending lookup, as an Open does.
+  lookupAsk++
   set(confirming, refOf(ref))
   set(confirmation, { ...refOf(ref), item: null, error: null })
   set(startError, null)
