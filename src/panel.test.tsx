@@ -47,7 +47,7 @@ function connectedHost(extra: Record<string, unknown> = {}, starts: Record<strin
     requests: {
       'connection.get': CONNECTED,
       'items.list': list(),
-      'starts.get': starts,
+      'starts.get': { states: starts, hidden: [] },
       'item.get': { ok: true, item: DETAIL },
       'orca.projects': { projects: [{ id: 'p1', name: 'repo', hostId: 'local' }] },
       'agents.installed': { agents: [{ value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex' }] },
@@ -70,7 +70,7 @@ test('connect submits the form, clears the token field and shows the list', asyn
         return { ok: true, status: CONNECTED }
       },
       'items.list': () => list(),
-      'starts.get': {}
+      'starts.get': { states: {}, hidden: [] }
     }
   })
   const view = await mount(panel, { host })
@@ -823,5 +823,103 @@ test('review 2: a direct switch to another connection drops the shown history an
   await view.post('connection.changed', { ...CONNECTED, slug: 'other' })
   assert.equal(view.find({ type: 'Heading', text: 'Earlier starts' }), null)
   assert.deepEqual(asked, [{ key: 'WEB-1' }, { key: 'WEB-1' }])
+  await view.unmount()
+})
+
+// --- closed-item-workspaces: the section of items no longer open (task 2.1) ---
+
+const LEFTOVER = 'No longer in your open items (1)'
+const created = (workspaceId: string, name: string): StartState => ({ kind: 'created', workspaceId, name, projectId: 'p1' })
+
+test('an item finished in Plane leaves its tab and shows in the section with its workspace name', async () => {
+  const opened: unknown[] = []
+  const host = connectedHost(
+    {
+      'workspace.open': (input: unknown) => {
+        opened.push(input)
+        return { ok: true }
+      }
+    },
+    { 'WEB-3': created('w3', 'WEB-3-title-web-3') }
+  )
+  const view = await mount(panel, { host })
+  assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null)
+  await view.post('items.changed', list({ items: [item('WEB-1', 'started'), item('WEB-2', 'unstarted')] }))
+  assert.equal(view.find({ testId: 'WEB-3' }), null)
+  const section = view.find({ type: 'Collapsible', label: LEFTOVER })
+  assert.ok(section)
+  assert.equal(section.props.defaultOpen, undefined)
+  await view.toggle({ type: 'Collapsible', label: LEFTOVER })
+  assert.ok(view.find({ text: 'WEB-3-title-web-3' }))
+  // Open the leftover workspace.
+  await view.press({ testId: 'leftover-open:WEB-3' })
+  assert.deepEqual(opened, [{ workspaceId: 'w3' }])
+  await view.unmount()
+})
+
+test('the section names the workspace of a failed agent, and shows the key alone for a link saved without a name', async () => {
+  const host = connectedHost({}, {
+    'OLD-1': { kind: 'failed', error: 'agent crashed', workspaceId: 'w1', name: 'OLD-1-fix-login-timeout' },
+    'OLD-2': { kind: 'failed', error: 'agent crashed', workspaceId: 'w2' },
+    // No workspace: nothing to show.
+    'OLD-3': { kind: 'failed', error: 'refused' }
+  })
+  const view = await mount(panel, { host })
+  await view.toggle({ type: 'Collapsible', label: 'No longer in your open items (2)' })
+  assert.ok(view.find({ text: 'OLD-1-fix-login-timeout' }))
+  assert.ok(view.find({ text: 'OLD-2' }))
+  assert.ok(view.find({ testId: 'leftover-open:OLD-2' }))
+  assert.equal(view.find({ testId: 'leftover-open:OLD-3' }), null)
+  await view.unmount()
+})
+
+test('a partial, stale or failed list shows no section', async () => {
+  for (const completeness of ['partial', 'stale', 'error'] as const) {
+    const host = connectedHost({ 'items.list': list({ completeness, error: 'x' }) }, { 'OLD-1': created('w1', 'OLD-1-x') })
+    const view = await mount(panel, { host })
+    assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null, completeness)
+    await view.unmount()
+  }
+})
+
+test('Hide removes the entry and keeps the link; the hiding holds for a new panel', async () => {
+  const asked: unknown[] = []
+  let hidden: string[] = []
+  const host = connectedHost({
+    'starts.get': () => ({ states: { 'OLD-1': created('w1', 'OLD-1-x') }, hidden }),
+    'start.hide': (input: { key: string }) => {
+      asked.push(input)
+      hidden = [input.key]
+      return { ok: true }
+    }
+  })
+  const view = await mount(panel, { host })
+  await view.toggle({ type: 'Collapsible', label: LEFTOVER })
+  await view.press({ testId: 'leftover-hide:OLD-1' })
+  assert.deepEqual(asked, [{ key: 'OLD-1' }])
+  assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null)
+  assert.equal(host.callsOf('workspace.remove').length, 0)
+  await view.unmount()
+  const again = await mount(panel, { host })
+  assert.equal(again.find({ type: 'Collapsible', label: LEFTOVER }), null)
+  await again.unmount()
+})
+
+test('a hidden item listed again offers Open workspace; once its workspace is removed, Start again', async () => {
+  const host = connectedHost({ 'starts.get': { states: { 'WEB-1': created('w1', 'WEB-1-x') }, hidden: ['WEB-1'] } })
+  const view = await mount(panel, { host })
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.props.label, 'Open workspace')
+  assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null)
+  // The item leaves the list again: still hidden.
+  await view.post('items.changed', list({ items: [item('WEB-2', 'unstarted')] }))
+  assert.equal(view.find({ type: 'Collapsible', label: LEFTOVER }), null)
+  // Removed in Orca: the link and the hiding end together.
+  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' }, hidden: false })
+  await view.post('items.changed', list())
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.props.label, 'Start')
+  // A later link starts visible.
+  await view.post('start.changed', { key: 'WEB-1', state: created('w9', 'WEB-1-x'), hidden: false })
+  await view.post('items.changed', list({ items: [item('WEB-2', 'unstarted')] }))
+  assert.ok(view.find({ type: 'Collapsible', label: LEFTOVER }))
   await view.unmount()
 })
