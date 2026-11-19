@@ -5,7 +5,7 @@ The panel opens only items from my open list, so an item that is assigned to som
 ## What Changes
 
 - The list gets a field that opens an item by `KEY-N` or by a pasted Plane URL of the connected workspace, whether or not it is in my list.
-- An opened item that is in an open state group (backlog, unstarted, started) can be started like a listed one; the worker checks the state with Plane before it creates anything.
+- An opened item that is in an open state group (backlog, unstarted, started) can be started like a listed one; for an item that is not in my list, the worker checks the state with Plane before it creates anything.
 - Palette commands:
   - "Plane: go to an agent that waits for you": opens the linked workspace whose agent has waited longest; it has a default shortcut.
   - "Plane: open the workspace of the item shown in the panel".
@@ -26,9 +26,10 @@ Out of scope: a palette command that takes text (Orca commands get no typed argu
 
 - Depends on `link-items-to-workspaces` (the waiting agents with their wait start, and `getItemByKey`).
 - `src/plane/url.ts`: parse a key or a Plane URL (with the app base's path prefix) into a reference.
-- `src/plane/api.ts`: get an item by id for project-issue URLs.
+- `src/plane/api.ts`: get an item by id for project-issue URLs (the existing project-scoped `getItem`, given the UUID).
 - `src/starts.ts`: Start an item that is not listed after a fresh read from Plane.
 - `src/worker.ts`, `src/protocol.ts`: `item.lookup` and `panel.shown` requests; command handlers.
 - `orca-plugin.json`: three commands and two keybindings.
+- `README.md`: the lookup field, the commands and their default shortcuts.
 - `src/panel.tsx`: the lookup field; tells the worker which item it shows.
 - Tests: `src/plane/url.test.ts`, `src/plane/api.test.ts`, `src/starts.test.ts`, `src/worker.test.ts`, `src/panel.test.tsx`.

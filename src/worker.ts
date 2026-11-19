@@ -5,6 +5,11 @@ import { agentFinder } from './agents'
 import { Connections } from './connection'
 import { Items } from './items'
 import { Links } from './links'
+import { getItem, getItemByKey } from './plane/api'
+import { PlaneError } from './plane/http'
+import { type ItemDetail, toDetail } from './plane/map'
+import { browseUrl, parseItemRef } from './plane/url'
+import type { Result } from './protocol'
 import { namesKey, pointer } from './start'
 import { Starts } from './starts'
 
@@ -88,6 +93,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('connection.disconnect', () => conns.disconnect())
   orca.panels.handle('items.list', (input) => items.list(input?.force === true))
   orca.panels.handle('item.get', ({ key, projectId }) => items.detail(key, projectId))
+  orca.panels.handle('item.lookup', ({ text }) => lookup(conns, text))
   orca.panels.handle('starts.get', () => starts.get())
   orca.panels.handle('start.hide', async ({ key }) => {
     await starts.hide(key)
@@ -109,14 +115,79 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
   })
 
-  orca.panels.handle('workspace.open', async ({ workspaceId }) => {
+  const openWorkspace = async (workspaceId: string): Promise<Result<{}>> => {
     try {
       await orca.host.call('workspace.open', { workspaceId })
       return { ok: true as const }
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Could not open the workspace.' }
     }
+  }
+  orca.panels.handle('workspace.open', ({ workspaceId }) => openWorkspace(workspaceId))
+
+  // Palette commands (design K4 of keyboard-commands): each returns what it has to say, or nothing.
+  const run = async (workspaceId: string) => {
+    const opened = await openWorkspace(workspaceId)
+    return opened.ok ? undefined : opened.error
+  }
+  const command = (id: string, handler: () => string | undefined | Promise<string | undefined>) =>
+    orca.commands.register(id, async () => {
+      const said = await handler()
+      // limit: Orca 1.4.262 drops a command's return value when a shortcut or the palette runs it,
+      // so the message also goes out as a notification; the returned string stays for callers that show it.
+      if (said) {
+        try {
+          await orca.host.call('notifications.show', { title: 'Plane', body: said })
+        } catch {
+          // A refused notification still leaves the returned message.
+        }
+      }
+      return said
+    })
+  // In memory only: the last panel to open or close a detail wins.
+  let shown: string | null = null
+  orca.panels.handle('panel.shown', ({ key }) => {
+    shown = key
+    return { ok: true as const }
   })
+  command('plane.nextWaiting', () => {
+    const first = links.waiting()[0]
+    return first ? run(first.workspaceId) : 'No agent on a Plane item waits for you.'
+  })
+  command('plane.openShown', () => {
+    if (!shown) return 'The panel shows no item.'
+    const link = links.byKey()[shown]
+    return link ? run(link.workspaceId) : `${shown} has no workspace.`
+  })
+  command('plane.refresh', async () => {
+    if (!(await conns.current())) return 'Not connected to Plane.'
+    void items.refresh()
+    return undefined
+  })
+}
+
+/** An item by a typed key or a pasted URL, listed or not (keyboard-commands K1, K2); nothing is cached (K3). */
+async function lookup(conns: Connections, text: string): Promise<Result<{ item: ItemDetail }>> {
+  const generation = conns.generation
+  const conn = await conns.current()
+  if (!conn) return { ok: false, error: 'Not connected to Plane.' }
+  const ref = parseItemRef(text, conn)
+  if ('reason' in ref) return { ok: false, error: ref.reason }
+  try {
+    const raw =
+      'key' in ref
+        ? await getItemByKey(conn, conn.slug, ref.key, conns.signal)
+        : await getItem(conn, conn.slug, ref.projectId, ref.id, conns.signal)
+    // A disconnect or account switch during the read: the item belongs to the former connection.
+    if (generation !== conns.generation) return { ok: false, error: 'Not connected to Plane.' }
+    const item = toDetail(raw, (key) => browseUrl(conn.appBase, conn.slug, key))
+    return item ? { ok: true, item } : { ok: false, error: 'Plane sent an unreadable item.' }
+  } catch (error) {
+    if (error instanceof PlaneError && error.kind === 'not_found') {
+      return { ok: false, error: 'key' in ref ? `No item has the key ${ref.key}.` : 'No item was found at that URL.' }
+    }
+    return { ok: false, error: error instanceof PlaneError ? error.message : 'Could not load the item.' }
+  }
 }
 
 export function deactivate(): void {

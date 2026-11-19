@@ -1,6 +1,7 @@
 // The panel over a mock host whose `requests` stand in for src/worker.ts.
 import { assert, mockHost, mount, test } from 'orca/testing'
 import type { Item, ItemDetail } from './plane/map'
+import { browseUrl, parseItemRef } from './plane/url'
 import * as panel from './panel'
 import type { Attempt, ConnectInput, ItemsState, StartState } from './protocol'
 
@@ -998,5 +999,168 @@ test('review 2: a reload that fails after an account switch shows the error with
   await view.press({ text: 'Retry' })
   assert.equal(view.find(part('worker gone')), null)
   assert.ok(view.find({ testId: 'WEB-1' }))
+  await view.unmount()
+})
+
+// --- keyboard-commands ---
+
+/** The worker's item.lookup over one connection: parses as it does; Plane knows DIOGEN-12 only. */
+function lookupHost(conn: { appBase: string; slug: string }, asked: string[] = []) {
+  const other: ItemDetail = { ...DETAIL, key: 'DIOGEN-12', title: 'Not mine', projectId: 'project-DIOGEN', assignees: ['Someone'], url: browseUrl(conn.appBase, conn.slug, 'DIOGEN-12') }
+  return connectedHost({
+    'item.lookup': ({ text }: { text: string }) => {
+      const ref = parseItemRef(text, conn)
+      if ('reason' in ref) return { ok: false, error: ref.reason }
+      asked.push(text)
+      return 'key' in ref && ref.key === 'DIOGEN-12' ? { ok: true, item: other } : { ok: false, error: `No item has the key ${'key' in ref ? ref.key : ''}.` }
+    }
+  })
+}
+
+test('Open by key or URL: a key of an item assigned to someone else opens its detail', async () => {
+  const view = await mount(panel, { host: lookupHost({ appBase: 'https://app.plane.so', slug: 'acme' }) })
+  await view.type({ label: 'Open by key or URL' }, 'diogen-12', { submit: true })
+  assert.ok(view.find({ text: 'DIOGEN-12 Not mine' }))
+  assert.deepEqual(view.persisted.plugin['plane.open'], { key: 'DIOGEN-12', projectId: 'project-DIOGEN' })
+  await view.press({ text: '← All items' })
+  assert.equal(view.valueOf({ label: 'Open by key or URL' }), '')
+  await view.unmount()
+})
+
+test('Open by key or URL: a pasted Cloud URL, and a self-hosted one under a path, open the detail', async () => {
+  for (const conn of [{ appBase: 'https://app.plane.so', slug: 'acme' }, { appBase: 'https://plane.example.org/tools/plane', slug: 'acme' }]) {
+    const view = await mount(panel, { host: lookupHost(conn) })
+    await view.type({ label: 'Open by key or URL' }, browseUrl(conn.appBase, conn.slug, 'DIOGEN-12'), { submit: true })
+    assert.ok(view.find({ text: 'DIOGEN-12 Not mine' }), conn.appBase)
+    await view.unmount()
+  }
+})
+
+test('Open by key or URL: a URL of another workspace and an unknown key say so and keep the list', async () => {
+  const asked: string[] = []
+  const view = await mount(panel, { host: lookupHost({ appBase: 'https://app.plane.so', slug: 'acme' }, asked) })
+  await view.type({ label: 'Open by key or URL' }, 'https://app.plane.so/other/browse/DIOGEN-12/', { submit: true })
+  assert.ok(view.find(part('not from the connected Plane workspace')))
+  assert.deepEqual(asked, [])
+  await view.type({ label: 'Open by key or URL' }, 'NOPE-1', { submit: true, replace: true })
+  assert.ok(view.find(part('No item has the key NOPE-1.')))
+  assert.ok(view.find({ testId: 'WEB-1' }))
+  await view.unmount()
+})
+
+test('Closed item: a completed item opened by key shows no Start; one linked to a workspace still opens it', async () => {
+  const done: ItemDetail = { ...DETAIL, key: 'DIOGEN-7', title: 'Shipped', stateName: 'Done', stateGroup: 'unknown' }
+  const view = await mount(panel, { host: connectedHost({ 'item.lookup': { ok: true, item: done } }) })
+  await view.type({ label: 'Open by key or URL' }, 'DIOGEN-7', { submit: true })
+  assert.ok(view.find({ text: 'DIOGEN-7 Shipped' }))
+  assert.equal(view.find({ testId: 'start:DIOGEN-7' }), null)
+  await view.post('start.changed', { key: 'DIOGEN-7', state: { kind: 'created', workspaceId: 'w7', name: 'DIOGEN-7-shipped', projectId: 'p1' }, hidden: false })
+  assert.equal(view.find({ testId: 'start:DIOGEN-7' })?.text, 'Open workspace')
+  await view.unmount()
+})
+
+test('an open item opened by key offers Start with the same confirmation', async () => {
+  const other: ItemDetail = { ...DETAIL, key: 'DIOGEN-12', title: 'Not mine', stateGroup: 'unstarted', stateName: 'Todo' }
+  const started: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.lookup': { ok: true, item: other },
+      'item.start': (input: unknown) => {
+        started.push(input)
+        return { accepted: true }
+      }
+    })
+  })
+  await view.type({ label: 'Open by key or URL' }, 'DIOGEN-12', { submit: true })
+  await view.press({ testId: 'start:DIOGEN-12' })
+  assert.ok(view.find({ type: 'Card', label: 'Start DIOGEN-12' }))
+  await view.press({ text: 'Confirm' })
+  assert.equal((started[0] as { key: string }).key, 'DIOGEN-12')
+  await view.unmount()
+})
+
+test('the panel tells the worker which item its detail shows, and when it shows none', async () => {
+  const shown: unknown[] = []
+  const view = await mount(panel, {
+    host: connectedHost({
+      'panel.shown': (input: unknown) => {
+        shown.push(input)
+        return { ok: true }
+      }
+    })
+  })
+  await view.press({ testId: 'WEB-1' })
+  await view.press({ text: '← All items' })
+  assert.deepEqual(shown, [{ key: 'WEB-1' }, { key: null }])
+  await view.unmount()
+})
+
+test('review 1: a lookup reply that comes after the user opened another item does not replace it', async () => {
+  const shown: unknown[] = []
+  const log: string[] = []
+  const late: ItemDetail = { ...DETAIL, key: 'WEB-8', title: 'Late' }
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.lookup': async () => {
+        log.push('lookup asked')
+        await held
+        log.push('lookup answers')
+        return { ok: true, item: late }
+      },
+      'item.get': () => {
+        log.push('item.get')
+        return { ok: true, item: DETAIL }
+      },
+      'panel.shown': (input: unknown) => {
+        shown.push(input)
+        return { ok: true }
+      }
+    })
+  })
+  // The user submits WEB-8, then opens WEB-1 from its row before the lookup answers.
+  const typed = view.type({ label: 'Open by key or URL' }, 'WEB-8', { submit: true })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  const pressed = view.press({ testId: 'WEB-1' })
+  setTimeout(release, 200)
+  await Promise.all([typed, pressed])
+  await view.settled()
+  assert.deepEqual(log, ['lookup asked', 'item.get', 'lookup answers'])
+  assert.ok(view.find({ text: 'WEB-1 Fix login' }))
+  assert.deepEqual(view.persisted.plugin['plane.open'], { key: 'WEB-1', projectId: 'project-WEB' })
+  assert.deepEqual(shown, [{ key: 'WEB-1' }])
+  await view.unmount()
+})
+
+test('review 2: a lookup reply that comes after the user opened a Start confirmation does not hide it', async () => {
+  const log: string[] = []
+  const late: ItemDetail = { ...DETAIL, key: 'WEB-8', title: 'Late' }
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost({
+      'item.lookup': async () => {
+        log.push('lookup asked')
+        await held
+        log.push('lookup answers')
+        return { ok: true, item: late }
+      },
+      'item.get': () => {
+        log.push('item.get')
+        return { ok: true, item: DETAIL }
+      }
+    })
+  })
+  // The user submits WEB-8, then presses Start on the WEB-1 row before the lookup answers.
+  const typed = view.type({ label: 'Open by key or URL' }, 'WEB-8', { submit: true })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  const pressed = view.press({ testId: 'start:WEB-1' })
+  setTimeout(release, 200)
+  await Promise.all([typed, pressed])
+  await view.settled()
+  assert.deepEqual(log, ['lookup asked', 'item.get', 'lookup answers'])
+  assert.ok(view.find({ type: 'Card', label: 'Start WEB-1' }))
+  assert.equal(view.find({ text: 'WEB-8 Late' }), null)
   await view.unmount()
 })

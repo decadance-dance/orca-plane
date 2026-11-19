@@ -902,6 +902,109 @@ test('review 3: an explicit removal drops the link even when the workspace list 
   await worker.deactivate()
 })
 
+// --- keyboard-commands ---
+
+test('item.lookup: a key finds an unlisted item by key alone; a URL of another workspace sends nothing', async () => {
+  const fake = plane((url) => (url.pathname.endsWith('/work-items/DIOGEN-12/') ? { json: { ...item, identifier: 'DIOGEN-12' } } : undefined) as never)
+  const worker = await connected()
+  const found = await worker.request('item.lookup', { text: 'diogen-12' })
+  assert.equal(found.ok && found.item.key, 'DIOGEN-12')
+  assert.equal(new URL(fake.calls.at(-1)!.url).pathname, '/api/v2/workspaces/truelogic/work-items/DIOGEN-12/')
+  const missing = await worker.request('item.lookup', { text: 'https://app.plane.so/truelogic/browse/NOPE-1/' })
+  assert.deepEqual(missing, { ok: false, error: 'No item has the key NOPE-1.' })
+  const calls = fake.calls.length
+  const refused = await worker.request('item.lookup', { text: 'https://app.plane.so/other/browse/DIOGEN-12/' })
+  assert.deepEqual(refused, { ok: false, error: 'This URL is not from the connected Plane workspace.' })
+  assert.equal(fake.calls.length, calls)
+  await worker.deactivate()
+})
+
+test('review 1: a lookup whose reply arrives after a disconnect returns no item of the former connection', async () => {
+  const hold = gate()
+  let reading = false
+  plane((async (url: URL) => {
+    if (!url.pathname.endsWith('/work-items/DIOGEN-12/')) return undefined
+    reading = true
+    await hold.opened
+    return { json: { ...item, identifier: 'DIOGEN-12' } }
+  }) as never)
+  const worker = await connected()
+  const answer = worker.request('item.lookup', { text: 'DIOGEN-12' })
+  await until(() => reading, 'read')
+  await worker.request('connection.disconnect')
+  hold.open()
+  assert.deepEqual(await answer, { ok: false, error: 'Not connected to Plane.' })
+  await worker.deactivate()
+})
+
+test('item.lookup: a project-issue URL reads the item by its UUID in its project', async () => {
+  const project = '1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b'
+  const id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
+  const fake = plane((url) => (url.pathname.endsWith(`/projects/${project}/work-items/${id}/`) ? { json: item } : undefined) as never)
+  const worker = await connected()
+  const found = await worker.request('item.lookup', { text: `https://app.plane.so/truelogic/projects/${project}/issues/${id}` })
+  assert.equal(found.ok && found.item.key, 'DIOGEN-449')
+  assert.equal(new URL(fake.calls.at(-1)!.url).pathname, `/api/v2/workspaces/truelogic/projects/${project}/work-items/${id}/`)
+  await worker.deactivate()
+})
+
+test('plane.nextWaiting opens the agent that began to wait first, also after the other reports again', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1'), [KEY2]: linked('w2') }, () => [ROW, ROW2], { 'workspace.open': { opened: true } })
+  await worker.emit('agent.status.changed', agentEvent('w2', 'waiting', 1000))
+  await worker.emit('agent.status.changed', agentEvent('w1', 'waiting', 2000))
+  assert.equal(await worker.command('plane.nextWaiting'), undefined)
+  // w2 reports waiting again later: its wait still began first.
+  await worker.emit('agent.status.changed', agentEvent('w2', 'waiting', 3000))
+  await worker.command('plane.nextWaiting')
+  assert.deepEqual(h.callsOf('workspace.open'), [{ workspaceId: 'w2' }, { workspaceId: 'w2' }])
+  await worker.deactivate()
+})
+
+test('plane.nextWaiting with nobody waiting says so and opens nothing', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW], { 'workspace.open': { opened: true } })
+  await worker.emit('agent.status.changed', agentEvent('w1', 'working'))
+  assert.equal(await worker.command('plane.nextWaiting'), 'No agent on a Plane item waits for you.')
+  assert.deepEqual(h.callsOf('workspace.open'), [])
+  // Orca drops a command's return value from a shortcut or the palette: the message also goes out as a notification.
+  assert.deepEqual(h.callsOf('notifications.show'), [{ title: 'Plane', body: 'No agent on a Plane item waits for you.' }])
+  await worker.deactivate()
+})
+
+test('plane.openShown opens the workspace of the shown item; says so with no shown item or no workspace', async () => {
+  plane()
+  const { worker, h } = await withLinks({ 'DIOGEN-449': linked('w1') }, () => [ROW], { 'workspace.open': { opened: true } })
+  assert.equal(await worker.command('plane.openShown'), 'The panel shows no item.')
+  await worker.request('panel.shown', { key: 'DIOGEN-449' })
+  assert.equal(await worker.command('plane.openShown'), undefined)
+  assert.deepEqual(h.callsOf('workspace.open'), [{ workspaceId: 'w1' }])
+  await worker.request('panel.shown', { key: KEY2 })
+  assert.equal(await worker.command('plane.openShown'), `${KEY2} has no workspace.`)
+  await worker.request('panel.shown', { key: null })
+  assert.equal(await worker.command('plane.openShown'), 'The panel shows no item.')
+  assert.equal(h.callsOf('workspace.open').length, 1)
+  // A command that opened a workspace says nothing.
+  assert.deepEqual(h.callsOf('notifications.show').map((call) => (call as { body: string }).body), [
+    'The panel shows no item.',
+    `${KEY2} has no workspace.`,
+    'The panel shows no item.'
+  ])
+  await worker.deactivate()
+})
+
+test('plane.refresh refreshes the list from Plane; disconnected it says so', async () => {
+  const fake = plane()
+  const worker = await connected()
+  const lists = () => fake.calls.filter((call) => new URL(call.url).pathname.endsWith('/work-items/')).length
+  const before = lists()
+  assert.equal(await worker.command('plane.refresh'), undefined)
+  await until(() => lists() === before + 1, 'refresh')
+  await worker.request('connection.disconnect')
+  assert.equal(await worker.command('plane.refresh'), 'Not connected to Plane.')
+  await worker.deactivate()
+})
+
 // --- agent-item-context: later prompts and agent environments name the linked item ---
 
 const ITEM_URL = 'https://app.plane.so/truelogic/browse/DIOGEN-449/'

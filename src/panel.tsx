@@ -129,13 +129,23 @@ const agent = atom('plane.agent', '', { persist: 'plugin' })
 const prompt = atom('')
 const startError = atom<string | null>(null)
 const openError = atom<string | null>(null)
+/** The "Open by key or URL" field and its last refusal (keyboard-commands K1). */
+const lookupText = atom('')
+const lookupError = atom<string | null>(null)
+/** Counts lookups and navigations: a lookup reply after a later lookup, Open or Back is dropped. */
+let lookupAsk = 0
 
 /** Only the ref's own fields: an atom holds JSON, which has no undefined. */
 const refOf = ({ key, projectId }: ItemRef): ItemRef => (projectId ? { key, projectId } : { key })
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+/** Tells the worker which item the detail shows, for the "open the workspace of the item shown" command. */
+const tellShown = (key: string | null) => void plugin.request('panel.shown', { key }).catch(() => undefined)
+
 function closeItem(): void {
+  lookupAsk++
+  if (read(opened)) tellShown(null)
   set(opened, null)
   set(detail, null)
   set(history, [])
@@ -217,6 +227,7 @@ export function setup(ctx: PanelContext): void {
       set(starts, {})
       set(hidden, [])
       set(links, {})
+      set(lookupError, null)
       // The open detail and confirmation reload (loadConnected); until then they show as loading.
       const open = read(opened)
       set(detail, open ? { ...refOf(open), item: null, error: null } : null)
@@ -290,6 +301,7 @@ async function disconnect(): Promise<void> {
   set(starts, {})
   set(hidden, [])
   set(links, {})
+  set(lookupError, null)
   closeItem()
   cancelStart()
 }
@@ -306,17 +318,37 @@ async function fetchDetail(ref: ItemRef): Promise<Loaded> {
   return answer.ok ? { ...at, item: answer.item, error: null } : { ...at, item: null, error: answer.error }
 }
 
-async function openItem(ref: ItemRef): Promise<void> {
+/** `found`: the item a lookup already read, shown without a second request. */
+async function openItem(ref: ItemRef, found?: ItemDetail): Promise<void> {
+  lookupAsk++
   set(opened, refOf(ref))
-  set(detail, { ...refOf(ref), item: null, error: null })
+  set(detail, { ...refOf(ref), item: found ?? null, error: null })
   set(openError, null)
   set(descriptionOpen, false)
   set(history, [])
   void loadHistory(ref.key)
+  tellShown(ref.key)
+  if (found) return
   const ask = loadAsk
   const loaded = await fetchDetail(ref)
   // A reply from before a connection change belongs to the former account.
   if (ask === loadAsk && read(detail)?.key === ref.key) set(detail, loaded)
+}
+
+/** Opens any item of the workspace by key or URL, listed or not; the worker refuses other servers and workspaces. */
+async function lookup(): Promise<void> {
+  const text = read(lookupText).trim()
+  if (!text) return
+  set(lookupError, null)
+  const ask = loadAsk
+  const mine = ++lookupAsk
+  const answer = await plugin
+    .request('item.lookup', { text }, SLOW)
+    .catch((error: unknown) => ({ ok: false as const, error: message(error) }))
+  if (ask !== loadAsk || mine !== lookupAsk) return
+  if (!answer.ok) return set(lookupError, answer.error)
+  set(lookupText, '')
+  await openItem({ key: answer.item.key, projectId: answer.item.projectId }, answer.item)
 }
 
 /** The focused Orca workspace belongs to `key` (design L4): show it, unless a Start waits for confirmation. */
@@ -328,6 +360,8 @@ function followFocus(key: string | null): void {
 
 /** Shows the confirmation for a Start, with the prompt built from the item's detail. */
 async function askStart(ref: ItemRef): Promise<void> {
+  // A Start confirmation supersedes a pending lookup, as an Open does.
+  lookupAsk++
   set(confirming, refOf(ref))
   set(confirmation, { ...refOf(ref), item: null, error: null })
   set(startError, null)
@@ -618,6 +652,15 @@ function ListView({ state }: { state: ItemsState | null }) {
         value={read(search)}
         onChange={(value) => set(search, value)}
       />
+      <Input
+        label="Open by key or URL"
+        labelHidden
+        placeholder="Open by key or URL, e.g. DIOGEN-12"
+        value={read(lookupText)}
+        onChange={(value) => set(lookupText, value)}
+        onSubmit={() => void lookup()}
+      />
+      {read(lookupError) ? <Callout tone="warning">{read(lookupError)}</Callout> : null}
       <Row justify="between">
         <Badge tone={badge.tone}>{badge.label}</Badge>
         {state.fetchedAt ? (
@@ -817,6 +860,10 @@ function EarlierStarts() {
   )
 }
 
+/** A closed item offers no Start, but one with a workspace or a Start under way keeps its button. */
+const underWay = (state: StartState | undefined) =>
+  state !== undefined && (state.kind === 'pending' || state.kind === 'unknown' || linkedWorkspace(state) !== undefined)
+
 function DetailView({ current }: { current: Loaded }) {
   const item = current.item
   const state = read(starts)[current.key]
@@ -862,11 +909,11 @@ function DetailView({ current }: { current: Loaded }) {
           {failedOpen ? <Callout tone="danger">{failedOpen}</Callout> : null}
           {asked?.key === item.key ? (
             <Confirmation current={asked} />
-          ) : (
+          ) : item.stateGroup !== 'unknown' || underWay(state) ? (
             <Row>
               <StartButton key={`start:${item.key}`} item={item} />
             </Row>
-          )}
+          ) : null}
           <EarlierStarts />
         </Stack>
       ) : null}

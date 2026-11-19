@@ -80,6 +80,8 @@ declare module 'orca' {
     'items.list': { input: { force?: boolean } | undefined; output: ItemsState }
     /** `projectId` is the Plane project; without it the item is fetched by its key alone. */
     'item.get': { input: { key: string; projectId?: string }; output: Result<{ item: ItemDetail }> }
+    /** Opens any item of the workspace by a typed key or a pasted Plane URL; a refused text sends no request. */
+    'item.lookup': { input: { text: string }; output: Result<{ item: ItemDetail }> }
     /** Every item's Start state that is not idle, reconciled with Orca's workspaces, and the linked
      *  keys hidden from the section of items no longer open. */
     'starts.get': { output: { states: Record<string, StartState>; hidden: string[] } }
@@ -99,6 +101,8 @@ declare module 'orca' {
     /** Orca's Git projects, the only ones Start can use. */
     'orca.projects': { output: { projects: OrcaProject[] } }
     'workspace.open': { input: { workspaceId: string }; output: Result<{}> }
+    /** The item whose detail the panel shows now (null: none), for "open the workspace of the item shown". */
+    'panel.shown': { input: { key: string | null }; output: { ok: true } }
   }
   interface PluginPanelEvents {
     'connection.changed': ConnectionStatus

@@ -1,6 +1,6 @@
 ## Context
 
-`link-items-to-workspaces` adds `getItemByKey` (Plane v2 get a work item by identifier) and `item.get` without a project id, and `Links.waiting()` sorted by when each agent began to wait (`mainAgent.stateStartedAt`, kept across repeated waiting events). `browseUrl(appBase, slug, key)` in `src/plane/url.ts` builds `${appBase}/${slug}/browse/${key}/`, and `appBase` may carry a path prefix on self-hosted Plane. Plane v2 also documents a project-scoped get by UUID (developers.plane.so: get work item, get work item by identifier). `Starts.start` refuses a key that is not in the cached list. A worker registers commands with `orca.commands.register(id, handler)`, and a string result is shown in Orca. A keybinding may target any contributed command, including a declarative one such as `plane.toggleSidebar` (`orca skills get orca-plugin-authoring --reference manifest`, KeybindingContribution).
+`link-items-to-workspaces` adds `getItemByKey` (Plane v2 get a work item by identifier) and `item.get` without a project id, and `Links.waiting()` sorted by when each agent began to wait (`mainAgent.stateStartedAt`, kept across repeated waiting events). `browseUrl(appBase, slug, key)` in `src/plane/url.ts` builds `${appBase}/${slug}/browse/${key}/`, and `appBase` may carry a path prefix on self-hosted Plane. Plane v2 also documents a project-scoped get by UUID (developers.plane.so: get work item, get work item by identifier). `Starts.start` refuses a key that is not in the cached list. A worker registers commands with `orca.commands.register(id, handler)`; the plugin reference says a string result is shown in Orca, but Orca 1.4.262 discards the result when a shortcut or the palette runs the command (found in the live check of task 3.2). A keybinding may target any contributed command, including a declarative one such as `plane.toggleSidebar` (`orca skills get orca-plugin-authoring --reference manifest`, KeybindingContribution).
 
 ## Goals / Non-Goals
 
@@ -29,7 +29,8 @@ A key goes through `getItemByKey`; a project-issue URL goes through the project-
 - `plane.nextWaiting`, "Plane: go to an agent that waits for you", keybinding `Mod+Alt+J`: opens the first entry of `Links.waiting()` with `workspace.open`; with none, it returns "No agent on a Plane item waits for you."
 - `plane.openShown`, "Plane: open the workspace of the item shown in the panel": the panel sends `panel.shown { key | null }` whenever its detail opens or closes. The worker keeps the last value in memory and opens its linked workspace; otherwise it returns "The panel shows no item." or "DIOGEN-449 has no workspace."
 - `plane.refresh`, "Plane: refresh my work items": `Items.refresh()`; when disconnected it returns "Not connected to Plane."
-- Keybinding `Mod+Alt+P` for the existing `plane.toggleSidebar`.
+- Keybinding `Mod+Alt+L` for the existing `plane.toggleSidebar`. The plan named `Mod+Alt+P`, but Orca binds it on macOS to "Collapse / Expand All Projects" (task 3.2); `Mod+Alt+L` sits next to Orca's own `Mod+L` for the right sidebar.
+- A command that has something to say returns the message and also shows it with `notifications.show` (title "Plane"), since Orca drops the returned string; a command that opened a workspace says nothing.
 
 Task 3.2 checks in a live Orca that neither chord is taken; if one is, pick another and say so in the PR.
 

@@ -114,3 +114,15 @@ test('getItemByKey asks for one item by key alone; a 404 is not_found', async ()
   fakeFetch(() => ({ status: 404, json: { error: 'The requested resource was not found.' } }))
   await assert.rejects(getItemByKey(conn, 'truelogic', 'DIOGEN-1'), (e: unknown) => e instanceof PlaneError && e.kind === 'not_found')
 })
+
+test('getItem by UUID asks the project-scoped route; a 404 is not_found', async () => {
+  const project = '1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b'
+  const id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
+  const fake = fakeFetch(() => ({ json: { id } }))
+  await getItem(conn, 'truelogic', project, id)
+  const url = new URL(fake.calls[0].url)
+  assert.equal(url.pathname, `/api/v2/workspaces/truelogic/projects/${project}/work-items/${id}/`)
+  assert.equal(url.searchParams.get('expand'), 'state,assignees,labels,parent')
+  fakeFetch(() => ({ status: 404, json: { error: 'The requested resource was not found.' } }))
+  await assert.rejects(getItem(conn, 'truelogic', project, id), (e: unknown) => e instanceof PlaneError && e.kind === 'not_found')
+})
