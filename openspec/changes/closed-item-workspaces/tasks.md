@@ -8,7 +8,7 @@
 ## 2. Section
 
 - [x] 2.1 The section in `ListView` (`src/panel.tsx`) per C1 and C4; adapt every consumer of `starts.get` to `{ states, hidden }` (the panel's reader, `src/panel.check.ts`, the worker and panel tests) while `Starts.all()` stays a bare map (C2). Verify: `src/panel.test.tsx` covers the five "Show workspaces of items no longer open" scenarios and the three "Hide a leftover workspace" scenarios; `bin/check` exits 0.
-- [ ] 2.2 README: one line on the section. Verify: a live check in Orca (start an item, close it in Plane, refresh) shows the section; screenshot in the PR.
+- [x] 2.2 README: one line on the section. Verify: a live check in Orca (start an item, close it in Plane, refresh) shows the section; screenshot in the PR.
 
 ## Workflow follow-up
 
