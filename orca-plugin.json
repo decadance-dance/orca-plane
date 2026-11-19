@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "plane",
   "name": "Plane for Orca",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Your open Plane work items in Orca's sidebar: see what is assigned to you, read an item, and start a coding agent on it in a new workspace. Plane Cloud or self-hosted (API v2). Not affiliated with Plane.",
   "author": {
     "name": "decadance-dance",
@@ -10,6 +10,19 @@
   },
   "repository": "https://github.com/decadance-dance/orca-plane",
   "license": "MIT",
+  "icon": "assets/icon.png",
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "The Plane panel in Orca lists your work items; Start on WEB-12 opens a workspace with Claude Code. Unofficial, not made or endorsed by Plane."
+  },
+  "screenshots": [
+    { "path": "assets/screenshots/list-dark.png", "theme": "dark", "caption": "Everything assigned to you, with each agent's state", "alt": "The Plane panel: WEB-12 in progress with its agent done, WEB-9 in Todo with its agent needing input" },
+    { "path": "assets/screenshots/list-light.png", "theme": "light", "caption": "Everything assigned to you, with each agent's state", "alt": "The Plane panel: WEB-12 in progress with its agent done, WEB-9 in Todo with its agent needing input" },
+    { "path": "assets/screenshots/detail-dark.png", "theme": "dark", "caption": "Read an item without leaving Orca", "alt": "The detail of WEB-12: priority high, state In Progress, assignee, labels bug and auth, Start work and Plane buttons, then the description" },
+    { "path": "assets/screenshots/detail-light.png", "theme": "light", "caption": "Read an item without leaving Orca", "alt": "The detail of WEB-12: priority high, state In Progress, assignee, labels bug and auth, Start work and Plane buttons, then the description" },
+    { "path": "assets/screenshots/confirm-dark.png", "theme": "dark", "caption": "Ticket to coding agent in one click", "alt": "Start WEB-12: pick the Orca project and the agent, see the workspace and branch names and a readiness hint, edit the prompt, then Confirm" },
+    { "path": "assets/screenshots/confirm-light.png", "theme": "light", "caption": "Ticket to coding agent in one click", "alt": "Start WEB-12: pick the Orca project and the agent, see the workspace and branch names and a readiness hint, edit the prompt, then Confirm" }
+  ],
   "engines": {
     "orca": ">=1.4.259"
   },

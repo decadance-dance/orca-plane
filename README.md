@@ -1,11 +1,11 @@
 <p align="center">
-  <img alt="orca-plane: the command orca plugin install orca-plane beside the Plane panel in Orca's sidebar, which lists the work items assigned to you by project and state, WEB-12 Fix the login redirect in progress with its agent done and WEB-9 Add a dark mode toggle in Todo with its agent needing input; Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data; the status bar reads 12 · 2 waiting" src="docs/assets/banner.svg" width="100%">
+  <img alt="Plane for Orca, unofficial, not made or endorsed by Plane Software, Inc.: the Plane panel in Orca's sidebar, which lists the work items assigned to you by project and state, WEB-12 Fix the login redirect in progress with its agent done and WEB-9 Add a dark mode toggle in Todo with its agent needing input; Start on WEB-12 creates the Orca workspace WEB-12-fix-the-login-redirect on a branch of the same name and starts Claude Code with the ticket fenced as untrusted data; the status bar reads 12 · 2 waiting" src="docs/assets/banner.svg" width="100%">
 </p>
 
 <h3 align="center">Your Plane work items in Orca's sidebar, one click from ticket to coding agent</h3>
 
 <p align="center">
-  <img alt="Release 0.1.0" src="https://img.shields.io/badge/release-0.1.0-2563eb?style=flat-square&labelColor=000000">
+  <img alt="Release 0.2.1" src="https://img.shields.io/badge/release-0.2.1-2563eb?style=flat-square&labelColor=000000">
   <img alt="Orca 1.4.259 or newer" src="https://img.shields.io/badge/orca-%E2%89%A5%201.4.259-334155?style=flat-square&labelColor=000000">
   <img alt="Plane: Cloud and self-hosted, API v2" src="https://img.shields.io/badge/plane-cloud%20%C2%B7%20self--hosted%20(API%20v2)-334155?style=flat-square&labelColor=000000">
   <img alt="Plane access: read-only" src="https://img.shields.io/badge/plane%20access-read--only-334155?style=flat-square&labelColor=000000">
@@ -43,7 +43,14 @@ affiliated with Plane.
 
 ## 📣 Recent updates
 
-### 🔥 2026.11.19: Plane for Orca 0.1.0, the first release
+### 🔥 2026.11.19: Plane for Orca 0.2.1, a page in Orca's plugin directory
+- **See it before you install it**: the plugin's page on [orca.dev/plugins](https://orca.dev/plugins)
+  has an icon, a cover and screenshots of the panel in light and dark themes.
+
+### 2026.11.19: Plane for Orca 0.2.0, a compact panel
+- **More items on screen**: one line per item, keys that never wrap, and a framed item detail.
+
+### 2026.11.19: Plane for Orca 0.1.0, the first release
 - **Your open items in Orca**: the work items assigned to you in backlog, unstarted or started,
   one tab per Plane project, grouped by state, with search and tag filters. Open any other item of
   the workspace by its key or a pasted Plane URL.
@@ -130,7 +137,7 @@ workspace on Plane Cloud or on a self-hosted Plane server that serves API v2.
 
 ```bash
 # Install the plugin; Orca prints the access it asks for, approve it
-orca plugin install decadance-dance/orca-plane@0.1.0
+orca plugin install decadance-dance/orca-plane@0.2.1
 ```
 
 1. In Plane, open **Profile settings → Personal Access Tokens** and create a token **only for this
