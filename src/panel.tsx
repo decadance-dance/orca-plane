@@ -73,8 +73,8 @@ const items = atom<ItemsState | null>(null)
 const starts = atom<Record<string, StartState>>({})
 /** Linked items with their agent state, from the worker (design L3). */
 const links = atom<Record<string, LinkView>>({})
-/** Counts `links.changed` posts, so a `links.get` answer older than one of them is dropped. */
-let linkPosts = 0
+/** Posts heard while `loadConnected` waits: they are newer than its snapshots, which never overwrite them. */
+let heard: { items?: ItemsState; links?: Record<string, LinkView>; starts: Record<string, StartState> } | null = null
 const projects = atom<OrcaProject[] | null>(null)
 /** Installed agents, then terminal only (design D8). */
 const agents = atom<AgentChoice[]>([])
@@ -149,16 +149,18 @@ async function loadPickers(): Promise<void> {
 }
 
 async function loadConnected(): Promise<void> {
-  const posts = linkPosts
+  heard = { starts: {} }
   const [list, known, linked] = await Promise.all([
     plugin.request('items.list', undefined),
     plugin.request('starts.get'),
     plugin.request('links.get').catch(() => ({})),
     loadPickers()
   ])
-  set(items, list)
-  set(starts, known)
-  if (posts === linkPosts) set(links, linked)
+  const newer = heard ?? { starts: {} }
+  heard = null
+  set(items, newer.items ?? list)
+  set(starts, { ...known, ...newer.starts })
+  set(links, newer.links ?? linked)
   const open = read(opened)
   const asked = read(confirming)
   await Promise.all([open ? openItem(open) : null, asked ? askStart(asked) : null])
@@ -176,10 +178,16 @@ export function setup(ctx: PanelContext): void {
         cancelStart()
       }
     }),
-    plugin.on('items.changed', (next) => set(items, next)),
-    plugin.on('start.changed', ({ key, state }) => update(starts, (all) => ({ ...all, [key]: state }))),
+    plugin.on('items.changed', (next) => {
+      if (heard) heard.items = next
+      set(items, next)
+    }),
+    plugin.on('start.changed', ({ key, state }) => {
+      if (heard) heard.starts[key] = state
+      update(starts, (all) => ({ ...all, [key]: state }))
+    }),
     plugin.on('links.changed', (next) => {
-      linkPosts++
+      if (heard) heard.links = next
       set(links, next)
     }),
     plugin.on('focus.changed', ({ key }) => followFocus(key))

@@ -638,3 +638,37 @@ test('review 2: a Start state the worker reports idle (its workspace was deleted
   assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Start')
   await view.unmount()
 })
+
+test('round 2: Start states and the list posted while the panel loads are not overwritten by the older snapshots', async () => {
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  const view = await mount(panel, {
+    host: connectedHost(
+      {
+        'connection.get': { connected: false },
+        'connection.connect': { ok: true, status: CONNECTED },
+        'orca.projects': async () => {
+          await held
+          return { projects: [{ id: 'p1', name: 'repo', hostId: 'local' }] }
+        }
+      },
+      {
+        'WEB-1': { kind: 'created', workspaceId: 'w1', name: 'n', projectId: 'p1' },
+        'WEB-2': { kind: 'created', workspaceId: 'w2', name: 'n', projectId: 'p1' }
+      }
+    )
+  })
+  const connecting = view.press({ text: 'Connect' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  setTimeout(release, 50)
+  // WEB-1's workspace was removed while the pickers were held; a refresh also ended.
+  await view.post('start.changed', { key: 'WEB-1', state: { kind: 'idle' } })
+  await view.post('items.changed', list({ items: [item('WEB-1', 'started'), item('WEB-2', 'unstarted'), item('WEB-4', 'unstarted')] }))
+  await connecting
+  await view.settled()
+  assert.equal(view.find({ testId: 'start:WEB-1' })?.label, 'Start')
+  // The snapshot's other keys still apply.
+  assert.equal(view.find({ testId: 'start:WEB-2' })?.label, 'Open workspace')
+  assert.ok(view.find({ testId: 'WEB-4' }))
+  await view.unmount()
+})
