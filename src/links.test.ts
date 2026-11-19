@@ -356,3 +356,60 @@ test('review round 2: a removal without workspaceListId still wins over a list s
     assert.equal(model.itemOfTerminal('t-new'), null)
   }
 })
+
+// Round 3: once a `<projectId>::<path>` form is removed, only a later workspace.created pairs it again (design A4).
+const pathOnlyRemoval = () => {
+  const removed = { ...(record('workspace.removed') as Record<string, unknown>) }
+  delete removed.workspaceListId
+  return removed as never
+}
+const oldStatus = () => ({ ...(records.find((entry) => entry.source === 'agent.status.changed')!.payload as Record<string, unknown>) }) as never
+
+test('review round 3: a late agent status of the removed workspace does not pair its path again', async () => {
+  const row = (record('workspace.list.rows').rows as Record<string, unknown>[])[0]
+  for (const order of ['created after launch', 'created before list, path id only']) {
+    const { model } = links({ 'OLD-1': created(probe.returnedId) })
+    model.connection(CLOUD)
+    let answer!: (rows: unknown) => void
+    const held = new Promise((resolve) => (answer = resolve))
+    const host = {
+      call: async (method: string) =>
+        method === 'workspace.list' ? { workspaces: await held, truncated: false } : { terminals: [], truncated: false }
+    } as never
+    const seeding = model.seed(host)
+    model.removed(pathOnlyRemoval())
+    if (order !== 'created after launch') model.created({ workspaceId: launch.workspaceId, kind: 'worktree', path: '/x', branch: 'x' })
+    answer([row])
+    await seeding
+    model.agent(oldStatus())
+    assert.equal(model.launch({ ...launch, terminalId: 't-new' }), null, order)
+    assert.equal(model.itemOfTerminal('t-new'), null, order)
+    if (order === 'created after launch') model.created({ workspaceId: launch.workspaceId, kind: 'worktree', path: '/x', branch: 'x' })
+    assert.equal(model.itemOfTerminal('t-new'), null, order)
+  }
+})
+
+test('review round 3: after a path-only removal, agent status and list rows do not pair the path; a later workspace.created does', async () => {
+  const row = (record('workspace.list.rows').rows as Record<string, unknown>[])[0]
+  const seedHostWith = (rows: unknown[]) => ({ call: async (method: string) => (method === 'workspace.list' ? { workspaces: rows, truncated: false } : { terminals: [], truncated: false }) }) as never
+  // agent.status.changed
+  let { model } = links({ 'OLD-1': created(probe.returnedId) })
+  model.connection(CLOUD)
+  model.removed(pathOnlyRemoval())
+  model.agent(oldStatus())
+  assert.equal(model.launch({ ...launch, terminalId: 't-a' }), null, 'agent.status')
+  // a list seed asked after the removal
+  ;({ model } = links({ 'OLD-1': created(probe.returnedId) }))
+  model.connection(CLOUD)
+  model.removed(pathOnlyRemoval())
+  await model.seed(seedHostWith([row]))
+  assert.equal(model.launch({ ...launch, terminalId: 't-b' }), null, 'list seed')
+  // a workspace.created after the removal pairs the path with the replacement's id
+  ;({ model } = links({ 'OLD-1': created(probe.returnedId), 'NEW-1': created('replacement') }))
+  model.connection(CLOUD)
+  model.removed(pathOnlyRemoval())
+  model.created({ workspaceId: launch.workspaceId, workspaceListId: 'replacement', kind: 'worktree', path: '/x', branch: 'x' })
+  model.agent(oldStatus())
+  await model.seed(seedHostWith([row]))
+  assert.equal(model.launch({ ...launch, terminalId: 't-c' })?.key, 'NEW-1', 'created')
+})

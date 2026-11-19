@@ -36,11 +36,8 @@ export class Links {
   private aliases = new Map<string, string>()
   /** The same from the last `workspace.list` rows; an event's pair wins over it, as the newer fact. */
   private listed = new Map<string, string>()
-  /** Workspaces Orca removed: a path can be reused, and a list sent before the removal must not bring them back. */
-  private gone = new Set<string>()
-  /** Each removed id (either form) -> the removal count when it was removed, to skip rows of a list asked for before it. */
-  private removedAt = new Map<string, number>()
-  private removals = 0
+  /** `<projectId>::<path>` forms of removed workspaces: a path can be reused, so from then on only `workspace.created` pairs it (A4). */
+  private fenced = new Set<string>()
   /** Whether the last `workspace.list` for the id pairs failed, so the next seed lists again. */
   private listAgain = false
   /** Links handed over by `Starts` when `workspace.create` returns, until the Start state stores them (A4). */
@@ -95,7 +92,7 @@ export class Links {
 
   /** `workspace.created` names the workspace by both ids; it never links anything by its name or branch. */
   created(event: PluginEvents['workspace.created']): void {
-    this.pair(event)
+    this.pair(event.workspaceId, event.workspaceListId, true)
   }
 
   /**
@@ -107,17 +104,14 @@ export class Links {
     if (fresh.length === 0 && !this.listAgain) return
     for (const id of fresh) this.seeded.add(id)
     this.listAgain = false
-    const asked = this.removals
-    const removedSince = (id: string) => (this.removedAt.get(id) ?? 0) > asked
     try {
       const { workspaces } = await host.call('workspace.list')
       const listed = new Map<string, string>()
       for (const row of workspaces) {
         // limit: Orca does not document the `<projectId>::<path>` form; the live probe
         // (test/fixtures/orca-ids.json) pins it. Only an exact match on it is ever used.
-        // A row of a workspace removed since is stale: the list may have been sent before the removal.
         const other = `${row.projectId}::${row.path}`
-        if (row.projectId && row.path && !this.gone.has(row.id) && !removedSince(other) && !removedSince(row.id)) listed.set(other, row.id)
+        if (row.projectId && row.path) this.pair(other, row.id, false, listed)
       }
       this.listed = listed
     } catch {
@@ -151,8 +145,7 @@ export class Links {
     if (!this.base) return null
     for (const id of ids) {
       for (const candidate of [id, this.aliases.get(id) ?? this.listed.get(id)]) {
-        // A removed workspace's link waits for its Start state to drop it; the hooks drop it at once.
-        if (candidate === undefined || this.gone.has(candidate)) continue
+        if (candidate === undefined) continue
         const key = this.keys.get(candidate) ?? this.adopted.get(candidate)
         if (key) return { key, url: browseUrl(this.base.appBase, this.base.slug, key) }
       }
@@ -164,17 +157,19 @@ export class Links {
     this.terminals.set(terminalId, [...new Set([...(this.terminals.get(terminalId) ?? []), ...ids])])
   }
 
-  /** Both ids of one workspace, as an event carries them: id to id only. */
-  private pair(event: { workspaceId?: string | null; workspaceListId?: string }): void {
-    if (event.workspaceId && event.workspaceListId && event.workspaceId !== event.workspaceListId) {
-      this.aliases.set(event.workspaceId, event.workspaceListId)
-    }
+  /**
+   * The pair store's one rule (A4): two different ids of one workspace, never a name. Once a
+   * `<projectId>::<path>` form is removed, only a `workspace.created` after that removal pairs it;
+   * agent status, list rows and anything else for it are ignored, as they may describe the removed one.
+   */
+  private pair(other: string | null | undefined, stable: string | undefined, created = false, into = this.aliases): void {
+    if (other && stable && other !== stable && (created || !this.fenced.has(other))) into.set(other, stable)
   }
 
   agent(event: PluginEvents['agent.status.changed']): void {
     const ids = idsOf(event)
     if (ids.length === 0) return
-    this.pair(event)
+    this.pair(event.workspaceId, event.workspaceListId)
     if (event.terminalId) this.remember(event.terminalId, ids)
     // The main agent wins: `state` can come from a sub-pane.
     const raw = event.mainAgent?.state ?? event.state
@@ -193,12 +188,10 @@ export class Links {
       this.adopted.delete(id)
       this.seeded.delete(id)
     }
-    // The stable id also when the event names only the other form (`workspaceListId` is optional).
+    // The stable id also when the event names only the other form (`workspaceListId` is optional), for Starts.
     const stable = [event.workspaceListId, ...ids.map((id) => this.aliases.get(id) ?? this.listed.get(id))]
-    // limit: grows by a few entries per workspace removed while the worker runs.
-    for (const id of stable) if (id) this.gone.add(id)
-    this.removals++
-    for (const id of ids) this.removedAt.set(id, this.removals)
+    // limit: one entry per removed path, kept while the worker runs.
+    if (event.workspaceId && event.workspaceId !== event.workspaceListId) this.fenced.add(event.workspaceId)
     for (const pairs of [this.aliases, this.listed]) {
       for (const [other, id] of pairs) if (ids.includes(other) || ids.includes(id)) pairs.delete(other)
     }
