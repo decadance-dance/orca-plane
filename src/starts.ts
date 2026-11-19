@@ -83,10 +83,11 @@ export class Starts {
   }
 
   /**
-   * Runs `change` on the stored states and history one at a time; writes only if the connection is the same.
-   * With `since`, does nothing unless the connection is still the one of that generation.
+   * Runs `change` on the stored states, history and hidden keys one at a time; writes only if the connection
+   * is the same. With `since`, does nothing unless the connection is still the one of that generation.
+   * A hidden key whose link is gone leaves the hidden set, whichever change dropped the link (C2).
    */
-  private mutate<T>(change: (states: States, history: History) => Promise<T> | T, since?: number): Promise<T | null> {
+  private mutate<T>(change: (states: States, history: History, hidden: Set<string>) => Promise<T> | T, since?: number): Promise<T | null> {
     const run = this.lock.then(async () => {
       const generation = this.conns.generation
       const conn = await this.conns.current()
@@ -97,7 +98,11 @@ export class Starts {
       const kept = await this.orca.storage.get(keyOf(conn.id, 'history'))
       const historyBefore = JSON.stringify(kept && typeof kept === 'object' ? kept : {})
       const history: History = JSON.parse(historyBefore)
-      const result = await change(states, history)
+      const stored = await this.orca.storage.get(keyOf(conn.id, 'hidden'))
+      const hiddenBefore = new Set(Array.isArray(stored) ? (stored as string[]) : [])
+      const hidden = new Set(hiddenBefore)
+      const result = await change(states, history, hidden)
+      for (const key of hidden) if (!states[key] || !linkedWorkspace(states[key])) hidden.delete(key)
       await this.conns.whileCurrent(generation, async () => {
         const old: History = JSON.parse(historyBefore)
         // History first (design H2); a failed write loses only the attempt, and the Start goes on.
@@ -105,11 +110,15 @@ export class Starts {
           await this.orca.storage.set(keyOf(conn.id, 'history'), history).catch(() => undefined)
         }
         await this.orca.storage.set(keyOf(conn.id, 'starts'), states)
-        // Every state or history a write changed or dropped (idle) reaches open panels, reconciles included.
+        const flipped = [...hidden].filter((key) => !hiddenBefore.has(key)).concat([...hiddenBefore].filter((key) => !hidden.has(key)))
+        if (flipped.length > 0) await this.orca.storage.set(keyOf(conn.id, 'hidden'), [...hidden])
+        // Every state, history or hiding a write changed or dropped (idle) reaches open panels, reconciles included.
         for (const key of new Set([...Object.keys(before), ...Object.keys(states), ...Object.keys(history), ...Object.keys(old)])) {
           const state = states[key] ?? { kind: 'idle' }
           const moved = JSON.stringify(state) !== JSON.stringify(before[key] ?? { kind: 'idle' })
-          if (moved || JSON.stringify(history[key]) !== JSON.stringify(old[key])) this.changed(key, state)
+          if (moved || flipped.includes(key) || JSON.stringify(history[key]) !== JSON.stringify(old[key])) {
+            this.changed(key, state, hidden.has(key))
+          }
         }
         for (const listener of this.listeners) listener({ ...states })
       })
@@ -124,8 +133,8 @@ export class Starts {
     return this.creating.has(`${projectId}\n${name}`) ? name : undefined
   }
 
-  private changed(key: string, state: StartState): void {
-    this.orca.panels.post('start.changed', { key, state })
+  private changed(key: string, state: StartState, hidden: boolean): void {
+    this.orca.panels.post('start.changed', { key, state, hidden })
   }
 
   /** On worker start: a create that was running when the worker stopped has an unknown outcome. */
@@ -186,10 +195,25 @@ export class Starts {
   }
 
   async all(): Promise<States> {
-    return (await this.mutate(async (states, history) => {
-      await this.reconcile(states, history)
-      return { ...states }
-    })) ?? {}
+    return (await this.get()).states
+  }
+
+  /** The reconciled states and the keys hidden from the section of items no longer open (C2). */
+  async get(): Promise<{ states: States; hidden: string[] }> {
+    return (
+      (await this.mutate(async (states, history, hidden) => {
+        await this.reconcile(states, history)
+        // As the prune in mutate, which runs after this change.
+        return { states: { ...states }, hidden: [...hidden].filter((key) => states[key] && linkedWorkspace(states[key])) }
+      })) ?? { states: {}, hidden: [] }
+    )
+  }
+
+  /** Hides a linked item from the section of items no longer open; the link and its duplicate protection stay (C2). */
+  async hide(key: string): Promise<void> {
+    await this.mutate((states, _history, hidden) => {
+      if (states[key] && linkedWorkspace(states[key])) hidden.add(key)
+    })
   }
 
   /** The item's earlier Starts, oldest first. */
@@ -276,7 +300,7 @@ export class Starts {
       const code = (error as { code?: unknown } | null)?.code
       const list = await this.workspaces()
       const row = list && Starts.find(list.workspaces, input.orcaProjectId, name)
-      if (row) outcome = { kind: 'failed', error: message, workspaceId: row.id }
+      if (row) outcome = { kind: 'failed', error: message, workspaceId: row.id, name }
       // action_failed can come after the workspace exists: only a complete list proves it does not.
       else if (list && !list.truncated && typeof code === 'string' && REFUSED.has(code)) outcome = { kind: 'failed', error: message }
       else outcome = { kind: 'unknown', name, projectId: input.orcaProjectId }
