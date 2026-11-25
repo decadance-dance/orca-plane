@@ -1,5 +1,6 @@
 // The only way the plugin talks to Plane: every request is bound to one connection's API base,
 // carries its token in X-API-Key, never follows a redirect, and fails with a classified error.
+import { certificatesSettled } from './tls'
 
 export type Conn = { apiBase: string; token: string }
 
@@ -10,6 +11,7 @@ export type ErrorKind =
   | 'rate_limited'
   | 'unsupported_server'
   | 'network'
+  | 'certificate'
   | 'timeout'
   | 'bad_response'
   | 'cancelled'
@@ -30,7 +32,11 @@ export class PlaneError extends Error {
 
 /** Swapped by tests; the worker uses the real ones. */
 export const env = {
-  fetch: (url: string, init: RequestInit): Promise<Response> => globalThis.fetch(url, init),
+  fetch: async (url: string, init: RequestInit): Promise<Response> => {
+    // The worker's first request waits for the OS certificate roots (./tls), so none races them.
+    await certificatesSettled()
+    return globalThis.fetch(url, init)
+  },
   now: (): number => Date.now(),
   sleep: (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms)),
   timeoutMs: 10_000
@@ -91,11 +97,41 @@ async function once(conn: Conn, url: string, outer?: AbortSignal): Promise<unkno
     if (timedOut) throw new PlaneError('timeout', 'Plane did not answer in time.')
     // A caller's deadline aborts with its own PlaneError as the reason.
     if (outer?.aborted) throw outer.reason instanceof PlaneError ? outer.reason : new PlaneError('cancelled', 'Cancelled.')
+    const code = certificateCode(error)
+    if (code) throw new PlaneError('certificate', `The server's TLS certificate is not trusted (${code}).`)
     throw new PlaneError('network', 'Could not reach the Plane server.')
   } finally {
     clearTimeout(timer)
     outer?.removeEventListener('abort', onAbort)
   }
+}
+
+// The certificate verification codes Node's TLS reports, on the fetch error or its cause.
+const CERTIFICATE_CODES: Record<string, true> = {
+  UNABLE_TO_GET_ISSUER_CERT: true,
+  UNABLE_TO_GET_ISSUER_CERT_LOCALLY: true,
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: true,
+  SELF_SIGNED_CERT_IN_CHAIN: true,
+  DEPTH_ZERO_SELF_SIGNED_CERT: true,
+  CERT_HAS_EXPIRED: true,
+  CERT_NOT_YET_VALID: true,
+  CERT_REVOKED: true,
+  CERT_UNTRUSTED: true,
+  CERT_REJECTED: true,
+  CERT_SIGNATURE_FAILURE: true,
+  INVALID_CA: true,
+  ERR_TLS_CERT_ALTNAME_INVALID: true
+}
+
+/** Only a code from this list, never other text of the error, reaches the message. */
+function certificateCode(error: unknown): string | undefined {
+  let at = error
+  for (let depth = 0; depth < 3 && typeof at === 'object' && at !== null; depth++) {
+    const code = 'code' in at ? at.code : undefined
+    if (typeof code === 'string' && Object.hasOwn(CERTIFICATE_CODES, code)) return code
+    at = 'cause' in at ? at.cause : undefined
+  }
+  return undefined
 }
 
 function parse(response: Response, body: string, token: string): unknown {

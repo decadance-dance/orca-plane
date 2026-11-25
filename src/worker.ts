@@ -8,6 +8,7 @@ import { Links } from './links'
 import { getItem, getItemByKey } from './plane/api'
 import { PlaneError } from './plane/http'
 import { type ItemDetail, toDetail } from './plane/map'
+import { trustSystemCertificates } from './plane/tls'
 import { browseUrl, parseItemRef } from './plane/url'
 import type { Result } from './protocol'
 import { namesKey, pointer } from './start'
@@ -17,6 +18,8 @@ import { Starts } from './starts'
 const running = new Set<Items>()
 
 export default function activate(orca: OrcaWorkerApi): void {
+  // Before any request: a self-hosted Plane behind a CA the OS trusts must verify (#89).
+  void trustSystemCertificates((line) => orca.log(line))
   const conns = new Connections(orca)
   const items = new Items(orca, conns)
   const starts = new Starts(orca, conns, items)

@@ -133,7 +133,9 @@ says so in a notification.
 ## ⚡ Quick start
 
 You need [Orca](https://orca.dev) 1.4.259 or newer with its `orca` CLI on `PATH`, and a Plane
-workspace on Plane Cloud or on a self-hosted Plane server that serves API v2.
+workspace on Plane Cloud or on a self-hosted Plane server that serves API v2. A self-hosted server
+whose certificate comes from a private CA works once your operating system trusts that CA: the
+plugin trusts the OS certificate store (Node 22.19 or newer, as in current Orca).
 
 ```bash
 # Install the plugin; Orca prints the access it asks for, approve it
