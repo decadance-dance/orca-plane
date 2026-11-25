@@ -35,6 +35,37 @@ test('a redirect fails the request', async () => {
   assert.equal((await failure(planeGet(conn, '/x/'))).kind, 'network')
 })
 
+/** What undici's fetch rejects with: a TypeError whose cause carries the system or TLS code. */
+function fetchFailed(code: string): TypeError {
+  return new TypeError('fetch failed', { cause: Object.assign(new Error(code), { code }) })
+}
+
+test('a certificate the runtime does not trust is named, with its code', async () => {
+  const codes = [
+    'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+    'SELF_SIGNED_CERT_IN_CHAIN',
+    'DEPTH_ZERO_SELF_SIGNED_CERT',
+    'CERT_HAS_EXPIRED',
+    'ERR_TLS_CERT_ALTNAME_INVALID'
+  ]
+  for (const code of codes) {
+    fakeFetch(() => fetchFailed(code))
+    const error = await failure(planeGet(conn, '/x/'))
+    assert.equal(error.kind, 'certificate', code)
+    assert.equal(error.message, `The server's TLS certificate is not trusted (${code}).`)
+    assert.ok(!error.message.includes(conn.token))
+  }
+})
+
+test('a refused connection or an unknown failure stays a network error', async () => {
+  for (const error of [fetchFailed('ECONNREFUSED'), fetchFailed('ENOTFOUND'), new TypeError('fetch failed')]) {
+    fakeFetch(() => error)
+    const failed = await failure(planeGet(conn, '/x/'))
+    assert.equal(failed.kind, 'network')
+    assert.equal(failed.message, 'Could not reach the Plane server.')
+  }
+})
+
 test('classifies statuses and HTML', async () => {
   const cases: [number, string, string][] = [
     [401, '{"detail":"Invalid token"}', 'auth'],
