@@ -11,12 +11,12 @@ Orca forks the plugin host with an environment built from an allowlist (PATH, HO
 Missing functions, a refused `node:tls` import, a throwing store read or a refused PEM leave the defaults as they were; the worker logs one line (`orca.log`) with the reason and works as before. The log line holds no certificate, URL or token.
 
 ### T3. Verification stays on
-No `rejectUnauthorized`, no per-request `ca`, no host exceptions. Only roots the OS already trusts are added, which is what a browser on the same machine trusts.
+No `rejectUnauthorized`, no per-request `ca`, no host exceptions. The OS store's roots are added on top of Node's bundled roots, so the result is their union, not the OS's trust policy: a root the OS distrusts or removes but Node bundles is still trusted, as it was before this change, and OS-specific constraints on a root (such as limits on what it may sign) are not applied. A private CA is trusted only if the OS already trusts it.
 
 ### T4. Name a certificate failure
 `fetch` rejects with a `TypeError` whose `cause` carries the TLS code. The error and up to two levels of `cause` are checked against a fixed list of certificate verification codes (`UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, `SELF_SIGNED_CERT_IN_CHAIN`, `DEPTH_ZERO_SELF_SIGNED_CERT`, `CERT_HAS_EXPIRED`, `ERR_TLS_CERT_ALTNAME_INVALID`, ...). A match gives `PlaneError('certificate', "The server's TLS certificate is not trusted (<code>).")`; only the listed code reaches the message, never other error text, the URL or the headers. Anything else stays `network`.
 
 ## Risks / Trade-offs
 
-- A root the OS trusts but the person did not mean for Plane is trusted too; that is the browser's model and the one the person chose by trusting the root.
+- A root the OS trusts but the person did not mean for Plane is trusted too; the person chose it by trusting the root in the OS.
 - Setting the default roots affects every TLS connection of the worker process; the plugin's worker makes requests only to Plane.

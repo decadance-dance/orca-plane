@@ -1,5 +1,6 @@
 import { assert, test } from 'orca/testing'
-import { addSystemCertificates, type TlsApi } from './tls'
+import { env } from './http'
+import { addSystemCertificates, resetTrustForTests, type TlsApi, trustSystemCertificates } from './tls'
 
 const BUNDLED = ['-----BEGIN CERTIFICATE-----\nBUNDLED-A\n-----END CERTIFICATE-----\n', '-----BEGIN CERTIFICATE-----\nBUNDLED-B\n-----END CERTIFICATE-----\n']
 const PRIVATE_CA = '-----BEGIN CERTIFICATE-----\nHOME-ROOT-CA\n-----END CERTIFICATE-----\n'
@@ -54,4 +55,38 @@ test('a throwing store or setter never escapes, and the roots stay unchanged', (
     }
   })
   assert.deepEqual(setting, { ok: false, reason: 'bad PEM' })
+})
+
+test('the real fetch waits for a trust set-up still in flight', async () => {
+  // env.fetch here is the module's real wrapper: no fakeFetch in this test.
+  const realFetch = globalThis.fetch
+  const order: string[] = []
+  let release!: (tls: TlsApi) => void
+  const pending = new Promise<TlsApi>((resolve) => (release = resolve))
+  resetTrustForTests()
+  globalThis.fetch = async () => {
+    order.push('fetch')
+    return new Response('{}')
+  }
+  try {
+    const setUp = trustSystemCertificates(() => {}, () => pending)
+    const request = env.fetch('https://plane.example.com/api/v2/users/me/', {})
+    // Let every microtask run: a wrapper that did not wait would have called fetch by now.
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    assert.deepEqual(order, [], 'fetch ran before the roots were set')
+
+    const { tls } = fakeTls([PRIVATE_CA])
+    const setter = tls.setDefaultCACertificates!
+    tls.setDefaultCACertificates = (certs) => {
+      order.push('roots')
+      setter(certs)
+    }
+    release(tls)
+    assert.equal((await request).status, 200)
+    assert.deepEqual(await setUp, { ok: true, added: 1 })
+    assert.deepEqual(order, ['roots', 'fetch'])
+  } finally {
+    globalThis.fetch = realFetch
+    resetTrustForTests()
+  }
 })

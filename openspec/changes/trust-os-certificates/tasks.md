@@ -2,7 +2,7 @@
 
 ## 1. Roots
 
-- [x] 1.1 `src/plane/tls.ts`: `addSystemCertificates` and `trustSystemCertificates` (T1, T2); `activate` starts it; the real fetch awaits it. Verify: `src/plane/tls.test.ts` covers the OS store added after the bundled roots, deduplication, no change when nothing is new, a runtime without the API, and a throwing read or setter (no throw, roots unchanged).
+- [x] 1.1 `src/plane/tls.ts`: `addSystemCertificates` and `trustSystemCertificates` (T1, T2); `activate` starts it; the real fetch awaits it. Verify: `src/plane/tls.test.ts` covers the OS store added after the bundled roots, deduplication, no change when nothing is new, a runtime without the API, a throwing read or setter (no throw, roots unchanged), and the real `env.fetch` not calling `fetch` until a set-up still in flight has set the roots.
 - [x] 1.2 Live check from Orca's runtime (`ELECTRON_RUN_AS_NODE=1` Orca binary with a cleared environment): a server behind a CA in the OS store answers (HTTP 401 without a token) with the set-up and fails with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` without it; `https://expired.badssl.com/` and `https://self-signed.badssl.com/` are still refused with it.
 
 ## 2. Error

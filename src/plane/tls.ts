@@ -34,14 +34,16 @@ export function addSystemCertificates(tls: TlsApi): TrustResult {
 
 let loaded: Promise<TrustResult> | undefined
 
-/** Once per worker process; resolves (never rejects) when the roots are set or left alone. */
-export function trustSystemCertificates(log: (line: string) => void): Promise<TrustResult> {
+// Dynamic, as in agents.ts: the plugin has no Node typings, and a host that refuses `node:tls`
+// must leave the worker running with the default roots instead of failing its load.
+const importTls = async (): Promise<TlsApi> => (await import('node:tls' as string)) as TlsApi
+
+/** Once per worker process; resolves (never rejects) when the roots are set or left alone. `load` is for tests. */
+export function trustSystemCertificates(log: (line: string) => void, load: () => Promise<TlsApi> = importTls): Promise<TrustResult> {
   loaded ??= (async () => {
     let result: TrustResult
     try {
-      // Dynamic, as in agents.ts: the plugin has no Node typings, and a host that refuses `node:tls`
-      // must leave the worker running with the default roots instead of failing its load.
-      result = addSystemCertificates((await import('node:tls' as string)) as TlsApi)
+      result = addSystemCertificates(await load())
     } catch (error) {
       result = { ok: false, reason: error instanceof Error ? error.message : String(error) }
     }
@@ -60,4 +62,9 @@ export function trustSystemCertificates(log: (line: string) => void): Promise<Tr
 /** For the real fetch: waits for a set-up already started, so no request races it. */
 export function certificatesSettled(): Promise<unknown> {
   return loaded ?? Promise.resolve()
+}
+
+/** Tests only: forget the set-up, so the next call starts over. */
+export function resetTrustForTests(): void {
+  loaded = undefined
 }
