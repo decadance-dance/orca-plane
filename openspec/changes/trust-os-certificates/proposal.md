@@ -1,6 +1,6 @@
 ## Why
 
-A self-hosted Plane whose certificate is signed by a private CA (a company or homelab root that the person's OS already trusts) cannot be connected: Connect says "Could not reach the Plane server." (#89). Orca starts plugin workers with a fixed environment and no Node flags, so `NODE_EXTRA_CA_CERTS`, `NODE_USE_SYSTEM_CA` and `--use-system-ca` never reach the plugin, and the person has no workaround. The message also points at the network instead of the certificate.
+A self-hosted Plane whose certificate is signed by a private CA (a company or internal root that the person's OS already trusts) cannot be connected: Connect says "Could not reach the Plane server." (#89). Orca starts plugin workers with a fixed environment and no Node flags, so `NODE_EXTRA_CA_CERTS`, `NODE_USE_SYSTEM_CA` and `--use-system-ca` never reach the plugin, and the person has no workaround. The message also points at the network instead of the certificate.
 
 ## What Changes
 
